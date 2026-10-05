@@ -222,6 +222,53 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .erro-login { color: var(--bad); font-weight: 700; font-size: 14px; margin: 0 0 10px; }
 @media (max-width: 560px) { header.top .quem, header.top .sub, header.top .divisor { display: none; } header.top h1 { font-size: 15px; } .topo-acoes { margin-left: auto; gap: 6px; } .sinc { padding: 4px 7px; font-size: 11px; } }
 @media (max-width: 520px) { .barra-prog .seg button { padding: 4px 7px; font-size: 12px; } }
+/* indicadores do programador (v1.1) */
+:root { --s1: #1b5fa8; --s2: #2ea3e3; --s3: #1f8a6a; --meta: #c62828; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s1: #5b7fe8; --s2: #14a8ad; --s3: #239a74; --meta: #ff7272; } }
+.filtros-bar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; margin-bottom: 12px; }
+.filtro { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; min-width: 0; }
+.filtro select { min-height: 38px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 14px; font-weight: 600; text-transform: none; letter-spacing: 0; max-width: 200px; }
+.filtro-acoes { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+@media (max-width: 560px) { .filtro { flex: 1 1 calc(50% - 10px); } .filtro select { max-width: none; width: 100%; } .filtro-acoes { margin-left: 0; } }
+.rol-x { overflow-x: auto; padding-top: 4px; }
+.plot { position: relative; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--line); }
+.plot .c { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.plot .c i { display: block; width: min(72%, 30px); min-height: 2px; border-radius: 4px 4px 0 0; }
+.plot .c .v { font-size: 11px; font-weight: 700; color: var(--ink); white-space: nowrap; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+.xs { display: flex; gap: 4px; margin-top: 4px; }
+.xs span { flex: 1 1 0; min-width: 0; text-align: center; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.xs b { display: block; color: var(--ink); font-variant-numeric: tabular-nums; }
+.meta { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--meta); z-index: 1; pointer-events: none; }
+.meta span { position: absolute; right: 0; bottom: 2px; font-size: 11px; font-weight: 700; color: var(--meta); background: var(--card); padding: 0 4px; border-radius: 3px; }
+.linhas { position: relative; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); }
+.linhas svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.linhas .ymax { position: absolute; left: 4px; top: 0; font-size: 11px; color: var(--muted); }
+.hits { position: absolute; inset: 0; display: flex; z-index: 2; }
+.hits span { flex: 1 1 0; }
+.hits span:hover { background: rgba(127, 127, 127, .14); }
+.leg { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.leg i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.leg i.tr { width: 16px; height: 0; border-top: 2px dashed; border-radius: 0; vertical-align: 3px; }
+.hb .t.pilha { display: flex; gap: 2px; }
+.hb .t.pilha i { position: static; border-radius: 0; }
+.hb .t.pilha i:last-child { border-radius: 0 4px 4px 0; }
+.gauge { width: 100%; max-width: 260px; display: block; margin: 0 auto; }
+.gauge .gv { font-size: 30px; font-weight: 800; fill: var(--title); }
+.gauge .gm { font-size: 11px; font-weight: 700; fill: var(--meta); }
+.centro { text-align: center; margin: 6px 0 0; font-size: 13px; }
+.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.duo h3 { font-size: 12px; color: var(--muted); margin: 0 0 6px; font-weight: 700; }
+@media (max-width: 520px) { .duo { grid-template-columns: 1fr; } }
+.rosca { display: flex; align-items: center; justify-content: center; gap: 18px; flex-wrap: wrap; }
+.rosca svg { width: 140px; height: 140px; flex: none; }
+.rosca .rl div { display: grid; grid-template-columns: 12px auto auto auto; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; }
+.rosca .rl i { width: 10px; height: 10px; border-radius: 2px; }
+.rosca .rl b { font-variant-numeric: tabular-nums; text-align: right; }
+.rolagem.alto { max-height: 360px; overflow-y: auto; }
+.tabela.compacta { font-size: 13px; }
+.tabela.compacta td, .tabela.compacta th { padding: 6px; white-space: nowrap; }
+.tabela.compacta td.small { white-space: normal; min-width: 140px; }
+.tabela thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -398,7 +445,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.0';
+const VERSAO = '1.1';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -488,7 +535,7 @@ function montarTrem(t, eqs, regs, dsv) {
   const vag = t.vagoes || [], ini = hm(t.inicio), fim = hm(t.fim);
   const tr = { id: t.id, prefixo: t.prefixo, data: deISO(t.data), dataISO: t.data, turno: t.turno, liderId: t.lider_id, lider: t.lider_id ? C(t.lider_id).nome : liderDe(t.turno), linha: t.linha, chegada: hm(t.chegada) || '–',
     vagoes: vag.map(v => v.cod), posFicha: vag.length && vag.every(v => v.pos != null) ? vag.map(v => v.pos) : null, restr: t.restricoes || {}, fichaNome: t.ficha_nome,
-    status: t.status, motivoNao: t.motivo_nao || '', motivoParcial: t.motivo_parcial || '', obsFech: t.obs_fechamento || '', inicio: ini, fim, durMin: ini && fim ? difMin(ini, fim) : 0,
+    status: t.status, backup: t.lider_backup || '', motivoNao: t.motivo_nao || '', motivoParcial: t.motivo_parcial || '', obsFech: t.obs_fechamento || '', inicio: ini, fim, durMin: ini && fim ? difMin(ini, fim) : 0,
     dist: eqs.sort((a, b) => a.numero - b.numero).map(e => ({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, inicio: hm(e.inicio), termino: hm(e.termino) })),
     reg: Object.fromEntries(regs.map(r => [r.posicao, regDe(r)])),
     desvios: dsv.sort((a, b) => a.ini.localeCompare(b.ini)).map(d => ({ id: d.id, ini: hm(d.ini), fim: hm(d.fim), motivo: d.motivo, obs: d.obs || '' })),
@@ -535,6 +582,7 @@ async function carregar() {
   DB.trens = trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || []));
   DB.planos = planos.filter(p => ['aberta', 'feita', 'reaberta'].includes(p.status) || new Date(p.criado_em) > desde).map(planoDe);
   DB.equipesDia = eqd;
+  if (prog) { DB.planosTodos = planos.map(planoDe); await carregarHist(); }
   DB.log = log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
   sincronizarEquipes();
   DB.carregado = true; DB.atualizadoEm = new Date();
@@ -594,9 +642,9 @@ addEventListener('online', processarFila);
 
 // ---------- estado da tela ----------
 const S = {
-  papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'painel' }, turnoVer: SERVICO.turno, verTec: null,
+  papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'geral' }, turnoVer: SERVICO.turno, verTec: null,
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
-  novo: null, periodo: 30, turnoF: 'todos', linhaF: 'todas', busca: '', modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
+  novo: null, busca: '', modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
 const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog' };
 const ehProg = () => DB.me?.perfil === 'programador';
@@ -722,7 +770,7 @@ const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['gestao', 'Gestão da equipe']],
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['validados', 'Validados']],
   tec: [['meu', 'Meu turno'], ['tarefas', 'Planos especiais']],
-  prog: [['painel', 'Painel'], ['vagao', 'Buscar vagão'], ['cadastros', 'Cadastros']]
+  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['cadastros', 'Cadastros']]
 };
 const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
 function barraProg() {
@@ -751,6 +799,7 @@ function render() {
   $('tabs').innerHTML = ABAS[S.papel].map(([k, l]) => `<button data-act="aba" data-v="${k}" class="${k === aba ? 'on' : ''}">${l}${k === 'tarefas' && pendTec ? `<span class="n">${pendTec}</span>` : ''}${k === 'validacao' && nVal ? `<span class="n">${nVal}</span>` : ''}${k === 'planos' && nPlan ? `<span class="n">${nPlan}</span>` : ''}${k === 'turno' && prontos ? `<span class="n">${prontos}</span>` : ''}</button>`).join('');
   $('main').className = S.papel === 'tec' ? 'estreito' : '';
   $('main').innerHTML = VIEWS[S.papel][aba]();
+  document.querySelectorAll('.rol-x').forEach(e => e.scrollLeft = e.scrollWidth);
   renderModal(); indicador();
 }
 
@@ -1168,68 +1217,282 @@ function modalFechar(M) {
 }
 
 // ---------- PROGRAMADOR ----------
-function trensFiltrados() {
-  const lim = hojeD(); lim.setDate(lim.getDate() - S.periodo);
-  return fechadosT().filter(t => t.data > lim && (S.turnoF === 'todos' || t.turno === S.turnoF) && (S.linhaF === 'todas' || t.linha === S.linhaF));
+const META_MIN = 30, META_ADER = 85;                     // metas: tempo de revisão por trem (min) e aderência (%)
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MESES_L = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const F = { per: 'mes:' + isoData(new Date()).slice(0, 7), turno: 'todos', linha: 'todas', prefixo: 'todos', rev: 'todos' };
+const HIST = { trens: [], mats: [], ret: [], em: 0, ok: false };
+
+// histórico resumido: uma linha por trem, somada no servidor (03-indicadores.sql); renova a cada 5 min
+async function carregarHist() {
+  if (Date.now() - HIST.em < 5 * 60e3) return;
+  try {
+    const [trens, mats, ret] = await Promise.all([
+      tudo(() => sb.from('resumo_trens').select('*').order('data')),
+      tudo(() => sb.from('resumo_materiais').select('*')),
+      tudo(() => sb.from('registros').select('trem_id,vagao,obs').contains('ocorrencias', ['Retenção de vagão']))
+    ]);
+    Object.assign(HIST, { trens, mats, ret, em: Date.now(), ok: true });
+  } catch (e) {
+    if (ehRede(e)) throw e;
+    Object.assign(HIST, { trens: [], mats: [], ret: [], em: Date.now(), ok: false });   // 03 ainda não rodado: usa só os 35 dias
+  }
 }
-function hbars(itens, unidade) {
-  if (!itens.length) return '<span class="muted small">Sem dados no período.</span>';
-  const max = Math.max(...itens.map(i => i[1]), 1);
-  return `<div class="hb">${itens.map(([l, v]) => `<span class="l" title="${esc(l)}">${esc(l)}</span><span class="t" data-tip="${esc(`${l}: ${fmt(v)} ${unidade}`)}"><i style="width:${v / max * 100}%"></i></span><span class="n">${fmt(v)}</span>`).join('')}</div>`;
-}
-const chips = (rot, campo, ops) => `<span class="small muted" style="font-weight:700">${rot}</span>${ops.map(([v, l]) => `<button class="chip ${S[campo] === v ? 'on' : ''}" data-act="filtro" data-k="${campo}" data-v="${v}">${l}</button>`).join('')}`;
-function progPainel() {
-  const ts = trensFiltrados(), rev = ts.filter(t => t.status !== 'nao_revistado');
-  let tot = 0, ins = 0, tempo = 0, nTempo = 0, desv = 0, nDesv = 0, sap = 0;
-  const mat = {}, porVagao = {}, porTec = {}, motivos = {}, ocs = {}, posSap = Object.fromEntries(POSICOES.map(p => [p, 0]));
-  rev.forEach(t => {
-    tot += t.vagoes.length; if (t.durMin) { tempo += t.durMin; nTempo++; }
-    if (t.desvios.length) { nDesv++; desv += tempoDesvio(t); }
-    if (t.motivoParcial) motivos[t.motivoParcial] = (motivos[t.motivoParcial] || 0) + 1;
-    Object.entries(t.reg).forEach(([p, r]) => {
-      if (r.st === 'pend') return;
-      ins++;
-      (t.dist.find(x => p >= x.ini && p <= x.fim)?.membros || []).forEach(id => porTec[id] = (porTec[id] || 0) + 1);
-      r.oc.forEach(o => ocs[o] = (ocs[o] || 0) + 1);
-      if (!r.mats.length) return;
-      const v = t.vagoes[p - 1], o = porVagao[v] || (porVagao[v] = { itens: 0, vezes: 0, sap: 0, ultimo: t.data });
-      o.vezes++; if (t.data > o.ultimo) o.ultimo = t.data;                 // uma vez por passagem do vagão
-      r.mats.forEach(m => {
-        mat[m.nome] = (mat[m.nome] || 0) + m.qtd; o.itens += m.qtd;
-        if (m.id === 'sapata') { sap += m.qtd; o.sap += m.qtd; (m.pos || []).forEach(x => posSap[x] = (posSap[x] || 0) + 1); }
-      });
-    });
+// junta o histórico (trens antigos) com os trens carregados em detalhe (mais recentes e sempre atualizados)
+function linhasHist() {
+  const vistos = new Set(DB.trens.map(t => t.id)), mats = {}, ret = {};
+  HIST.mats.forEach(x => { const m = mats[x.trem_id] || (mats[x.trem_id] = {}); m[x.nome] = (m[x.nome] || 0) + x.qtd; });
+  HIST.ret.forEach(x => (ret[x.trem_id] ||= []).push({ vagao: x.vagao, obs: x.obs || '' }));
+  const velhos = HIST.trens.filter(r => !vistos.has(r.id)).map(r => ({ id: r.id, dataISO: r.data, turno: r.turno, linha: r.linha, prefixo: r.prefixo, status: r.status,
+    lider: r.lider_id ? C(r.lider_id).nome : liderDe(r.turno), backup: r.lider_backup || '', motivoNao: r.motivo_nao || '', motivoParcial: r.motivo_parcial || '',
+    durMin: r.inicio && r.fim ? difMin(hm(r.inicio), hm(r.fim)) : 0, total: r.total, insp: r.insp, retidos: r.retidos, itens: r.itens,
+    nDesv: r.n_desvios, desvMin: r.desvio_min, desvObs: r.desvio_obs || '', mats: mats[r.id] || {}, ret: ret[r.id] || [] }));
+  const novos = fechadosT().map(t => {
+    const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => m[x.nome] = (m[x.nome] || 0) + x.qtd));
+    const rt = Object.entries(t.reg).filter(([, r]) => r.oc.includes('Retenção de vagão')).map(([p, r]) => ({ vagao: t.vagoes[p - 1], obs: r.obs }));
+    return { id: t.id, dataISO: t.dataISO, turno: t.turno, linha: t.linha, prefixo: t.prefixo, status: t.status, lider: t.lider, backup: t.backup, motivoNao: t.motivoNao, motivoParcial: t.motivoParcial,
+      durMin: t.durMin, total: t.vagoes.length, insp: inspecionados(t), retidos: rt.length, itens: Object.values(m).reduce((a, b) => a + b, 0),
+      nDesv: t.desvios.length, desvMin: t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), desvObs: t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), mats: m, ret: rt };
   });
-  const dias = new Set(ts.map(t => t.dataISO)).size || 1;
+  return velhos.concat(novos).map(r => ({ ...r, rev: r.status === 'concluido', mes: r.dataISO.slice(0, 7), falt: r.status === 'concluido' ? Math.max(0, r.total - r.insp) : r.total }))
+    .sort((a, b) => a.dataISO.localeCompare(b.dataISO));
+}
+function periodoDe(per) {                                 // -> [início, fim, nome]
+  const hoje = new Date();
+  if (per[0] === 'd') { const d = new Date(); d.setDate(d.getDate() - (+per.slice(1) - 1)); return [isoData(d), isoData(hoje), 'últimos ' + per.slice(1) + ' dias']; }
+  if (per.startsWith('ano:')) { const y = per.slice(4); return [y + '-01-01', y + '-12-31', 'ano ' + y]; }
+  const [y, m] = per.slice(4).split('-').map(Number);
+  return [per.slice(4) + '-01', isoData(new Date(y, m, 0)), MESES_L[m - 1] + '/' + y];
+}
+function filtrar(rows, semPeriodo) {
+  const [a, b] = periodoDe(F.per);
+  return rows.filter(r => (semPeriodo || (r.dataISO >= a && r.dataISO <= b)) && (F.turno === 'todos' || r.turno === F.turno) && (F.linha === 'todas' || r.linha === F.linha)
+    && (F.prefixo === 'todos' || r.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === r.rev));
+}
+const anoF = () => F.per[0] === 'd' ? String(new Date().getFullYear()) : F.per.slice(4, 8);
+function agrega(rows) {
+  const soma = (a, f) => a.reduce((s, r) => s + f(r), 0), rev = rows.filter(r => r.rev), cronom = rev.filter(r => r.durMin > 0);
+  const total = soma(rows, r => r.total), insp = soma(rows, r => r.insp), dias = new Set(rows.map(r => r.dataISO)).size;
+  return { n: rows.length, nRev: rev.length, nNao: rows.length - rev.length, dias, total, insp, falt: soma(rows, r => r.falt), retidos: soma(rows, r => r.retidos), itens: soma(rows, r => r.itens),
+    tMed: cronom.length ? soma(cronom, r => r.durMin) / cronom.length : 0, segVag: soma(cronom, r => r.insp) ? soma(cronom, r => r.durMin) * 60 / soma(cronom, r => r.insp) : 0,
+    ader: total ? insp / total * 100 : 0, abaixo: rev.filter(r => r.insp < r.total).length, porDia: dias ? rev.length / dias : 0, vagTrem: rev.length ? insp / rev.length : 0 };
+}
+const dec1 = x => (Math.round((x || 0) * 10) / 10).toLocaleString('pt-BR');
+const durC = m => m >= 60 ? Math.floor(m / 60) + 'h' + pad(Math.round(m % 60)) : Math.round(m) + 'm';
+const media = (rs, f = r => r.durMin) => rs.length ? rs.reduce((a, r) => a + f(r), 0) / rs.length : 0;
+const diaRot = d => d.slice(8) + '/' + d.slice(5, 7);
+const milC = v => v >= 10000 ? dec1(v / 1000) + ' mil' : fmt(v);
+const semDados = '<span class="muted small">Sem dados no período.</span>';
+const kpi = (r, v, d = '') => `<div class="kpi"><div class="r">${r}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+const porChave = (rows, f) => rows.reduce((m, r) => ((m[f(r)] ||= []).push(r), m), {});
+
+function barraFiltros(todas, extra = '') {
+  const meses = [...new Set(todas.map(r => r.mes).concat(isoData(new Date()).slice(0, 7)))].sort().reverse();
+  const anos = [...new Set(meses.map(m => m.slice(0, 4)))], prefs = [...new Set(todas.map(r => r.prefixo))].sort();
+  const sel = (k, rot, ops) => `<label class="filtro"><span>${rot}</span><select data-act="f" data-k="${k}">${ops.map(([v, l]) => `<option value="${esc(v)}" ${F[k] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+  return `<div class="filtros-bar">${sel('per', 'Mês / período', [['d7', 'Últimos 7 dias'], ['d30', 'Últimos 30 dias'], ...anos.flatMap(y => [['ano:' + y, 'Ano ' + y + ' inteiro'], ...meses.filter(m => m.startsWith(y)).map(m => ['mes:' + m, MESES_L[+m.slice(5) - 1] + '/' + y])])])}
+    ${sel('rev', 'Trem revistado', [['todos', 'Todos'], ['sim', 'Sim'], ['nao', 'Não']])}${sel('linha', 'Linha', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
+    ${sel('prefixo', 'Prefixo', [['todos', 'Todos'], ...prefs.map(p => [p, p])])}${sel('turno', 'Equipe (turno)', [['todos', 'Todas'], ...'ABCD'.split('').map(t => [t, 'Turno ' + t])])}${extra}</div>
+    ${HIST.ok ? '' : '<p class="nota">Mostrando só os últimos 35 dias. Para o histórico completo, rode o <b>03-indicadores.sql</b> no Supabase.</p>'}`;
+}
+
+// ---------- gráficos (HTML/SVG simples, cores em --s1/--s2/--s3, meta em --meta) ----------
+const legenda = series => `<div class="leg">${series.map(s => `<span><i class="${s.tr ? 'tr' : ''}" style="${s.tr ? 'border-color' : 'background'}:${s.cor}"></i>${esc(s.nome)}</span>`).join('')}</div>`;
+const metaLinha = pct => `<div class="meta" style="bottom:${Math.min(100, pct)}%"></div>`;
+const legMeta = rot => `<div class="leg"><span><i class="tr" style="border-color:var(--meta)"></i>${esc(rot)}</span></div>`;
+function colunas(itens, { cor = 'var(--s1)', meta, rotMeta = '', fmtV = fmt, alt = 150, larg = 30, nota = '' } = {}) {
+  if (!itens.length || itens.every(i => !i.v)) return semDados;
+  const mx = Math.max(...itens.map(i => i.v || 0), meta || 0, 1) * 1.15;
+  return `${meta != null ? legMeta(rotMeta) : ''}<div class="rol-x"><div style="min-width:${itens.length * larg}px"><div class="plot" style="height:${alt}px">${meta != null ? metaLinha(meta / mx * 100) : ''}
+    ${itens.map(i => `<div class="c" data-tip="${esc(i.tip || i.rot + ': ' + fmtV(i.v || 0))}">${i.v ? `<span class="v">${fmtV(i.v)}</span><i style="height:${i.v / mx * alt}px;background:${cor}"></i>` : ''}</div>`).join('')}</div>
+    <div class="xs">${itens.map(i => `<span>${esc(i.rot)}${i.sub != null ? `<b>${i.sub}</b>` : ''}</span>`).join('')}</div></div></div>${nota ? `<p class="small muted" style="margin:6px 0 0">${nota}</p>` : ''}`;
+}
+function linhas(itens, series, { meta, rotMeta = '', fmtV = fmt, alt = 170, larg = 22, max } = {}) {
+  const n = itens.length;
+  if (!n || series.every(s => s.vals.every(v => v == null))) return semDados;
+  const mx = max ?? Math.max(...series.flatMap(s => s.vals.filter(v => v != null)), meta || 0, 1) * 1.15;
+  const X = i => ((i + 0.5) / n * 100).toFixed(2), Y = v => (100 - v / mx * 100).toFixed(2);
+  const caminho = s => s.vals.map((v, i) => v == null ? '' : `${i && s.vals[i - 1] != null ? 'L' : 'M'}${X(i)} ${Y(v)}${s.vals[i - 1] == null && s.vals[i + 1] == null ? ` L${(+X(i) + .01).toFixed(2)} ${Y(v)}` : ''}`).join(' ');
+  const passo = Math.ceil(n / 16);
+  return `${legenda(meta != null ? series.concat({ nome: rotMeta, cor: 'var(--meta)', tr: true }) : series)}<div class="rol-x"><div style="min-width:${n * larg}px"><div class="linhas" style="height:${alt}px">
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${series.map(s => `<path d="${caminho(s)}" fill="none" stroke="${s.cor}" stroke-width="${s.tr ? 1.5 : 2.5}" ${s.tr ? 'stroke-dasharray="5 4"' : ''} vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}</svg>
+    ${meta != null ? metaLinha(meta / mx * 100) : ''}<span class="ymax">${fmtV(max ?? mx / 1.15)}</span>
+    <div class="hits">${itens.map((it, i) => `<span data-tip="${esc(it.rot + ' · ' + series.map(s => s.nome + ': ' + (s.vals[i] == null ? '–' : fmtV(s.vals[i]))).join(' · '))}"></span>`).join('')}</div></div>
+    <div class="xs">${itens.map((it, i) => `<span>${i % passo ? '' : esc(it.rot)}</span>`).join('')}</div></div></div>`;
+}
+function gauge(v, { meta, max, txt, rotMeta = '', cor = 'var(--s1)' }) {
+  const ang = x => Math.PI * (1 - Math.max(0, Math.min(x, max)) / max);
+  const P = (x, r) => (100 + r * Math.cos(ang(x))).toFixed(1) + ' ' + (100 - r * Math.sin(ang(x))).toFixed(1);
+  const arco = (a, b) => `M${P(a, 78)} A78 78 0 0 1 ${P(b, 78)}`;
+  const [tx, ty] = P(meta, 108).split(' ');
+  return `<svg class="gauge" viewBox="-34 -18 268 136" role="img" aria-label="${esc(txt)}"><path d="${arco(0, max)}" stroke="var(--track)" stroke-width="22" fill="none"/>
+    ${v > 0 ? `<path d="${arco(0, v)}" stroke="${cor}" stroke-width="22" fill="none"/>` : ''}
+    ${meta != null ? `<path d="M${P(meta, 62)} L${P(meta, 96)}" stroke="var(--meta)" stroke-width="3"/><text class="gm" x="${tx}" y="${ty}" text-anchor="middle">${esc(rotMeta)}</text>` : ''}
+    <text class="gv" x="100" y="100" text-anchor="middle">${esc(txt)}</text></svg>`;
+}
+function rosca(partes) {                                  // [[nome, valor, cor]]
+  const tot = partes.reduce((a, p) => a + p[1], 0), vis = partes.filter(p => p[1]).length; let acc = 0;
+  if (!tot) return semDados;
+  const arcos = partes.map(([n, v, c]) => { const len = v / tot * 100, gap = vis > 1 ? 0.8 : 0;
+    const s = v ? `<circle r="15.9155" cx="21" cy="21" fill="none" stroke="${c}" stroke-width="6" stroke-dasharray="${Math.max(0.1, len - gap)} ${100 - len + gap}" stroke-dashoffset="${25 - acc}" data-tip="${esc(n + ': ' + fmt(v) + ' (' + pct1(v, tot) + '%)')}"/>` : '';
+    acc += len; return s; }).join('');
+  return `<div class="rosca"><svg viewBox="0 0 42 42" role="img" aria-label="${esc(partes.map(p => p[0] + ' ' + pct1(p[1], tot) + '%').join(', '))}"><circle r="15.9155" cx="21" cy="21" fill="none" stroke="var(--track)" stroke-width="6"/>${arcos}</svg>
+    <div class="rl">${partes.map(([n, v, c]) => `<div><i style="background:${c}"></i><span>${esc(n)}</span><b>${fmt(v)}</b><span class="muted">${pct1(v, tot)}%</span></div>`).join('')}</div></div>`;
+}
+function pilhas(itens, nomes, cores = ['var(--s1)', 'var(--s2)']) {
+  const max = Math.max(...itens.map(i => i.partes.reduce((a, b) => a + b, 0)), 1);
+  if (itens.every(i => !i.partes.some(Boolean))) return semDados;
+  return legenda(nomes.map((n, k) => ({ nome: n, cor: cores[k] }))) + `<div class="hb">${itens.map(i => `<span class="l" title="${esc(i.rot)}">${esc(i.rot)}</span><span class="t pilha">${i.partes.map((v, k) => v ? `<i style="width:${v / max * 100}%;background:${cores[k]}" data-tip="${esc(i.rot + ' · ' + nomes[k] + ': ' + fmt(v))}"></i>` : '').join('')}</span><span class="n">${i.partes.map(fmt).join(' / ')}</span>`).join('')}</div>`;
+}
+function hbars(itens, unidade, extra) {
+  if (!itens.length) return semDados;
+  const max = Math.max(...itens.map(i => i[1]), 1);
+  return `<div class="hb">${itens.map(([l, v], k) => `<span class="l" title="${esc(l)}">${esc(l)}</span><span class="t" data-tip="${esc(`${l}: ${fmt(v)} ${unidade}`)}"><i style="width:${v / max * 100}%"></i></span><span class="n">${fmt(v)}${extra ? extra(v, k) : ''}</span>`).join('')}</div>`;
+}
+const mesesDoAno = (rows, ano) => {
+  const ate = ano === String(new Date().getFullYear()) ? new Date().getMonth() : 11;
+  const ult = Math.max(ate, ...rows.filter(r => r.dataISO.startsWith(ano)).map(r => +r.mes.slice(5) - 1));
+  return MESES.slice(0, ult + 1).map((m, i) => ({ rot: m, rows: rows.filter(r => r.mes === ano + '-' + pad(i + 1)) }));
+};
+
+// ---------- Painel geral ----------
+function progGeral() {
+  const todas = linhasHist(), rows = filtrar(todas), A = agrega(rows), ano = anoF(), meses = mesesDoAno(filtrar(todas, true), ano);
+  const causas = {}; rows.forEach(r => { if (r.falt) { const k = (r.rev ? r.motivoParcial : r.motivoNao) || 'Sem informação'; causas[k] = (causas[k] || 0) + r.falt; } });
+  const lc = Object.entries(causas).sort((a, b) => b[1] - a[1]), totC = lc.reduce((a, c) => a + c[1], 0); let acum = 0;
+  const acumulado = lc.map(c => (acum += c[1]) / totC * 100);
+  const retidos = rows.flatMap(r => r.ret.map(x => ({ r, ...x }))).reverse(), naoRev = rows.filter(r => !r.rev).reverse();
+  const dm = A.tMed - META_MIN;
+  return `${barraFiltros(todas)}
+  <div class="kpis">${kpi('Trens registrados', fmt(A.n), 'fechados no período')}${kpi('Trens revistados', fmt(A.nRev), A.nNao + ' não revistado(s)')}${kpi('Vagões retidos', fmt(A.retidos), 'ocorrência “Retenção de vagão”')}
+    ${kpi('Média trens / dia', dec1(A.porDia), A.dias + ' dia(s) com trem')}${kpi('Média vagões / trem', fmt(Math.round(A.vagTrem)), 'inspecionados por trem revistado')}${kpi('Revisão por vagão', A.segVag ? Math.round(A.segVag) + ' s' : '–', 'tempo médio por vagão')}</div>
+  <div class="grid">
+    <div class="card"><h2>Tempo médio de revisão <span class="dir">por trem</span></h2>${A.tMed ? gauge(A.tMed, { meta: META_MIN, max: Math.max(META_MIN * 2, A.tMed * 1.1), txt: dur(A.tMed), rotMeta: 'meta ' + META_MIN + ' min' }) + `<p class="centro">Desvio da meta: ${dm > 0 ? `<span class="tag bad">▲ ${dur(dm)} acima</span>` : `<span class="tag ok">✓ ${dur(-dm)} abaixo</span>`}</p>` : semDados}</div>
+    <div class="card"><h2>Vagões inspecionados e faltantes</h2>${rosca([['Inspecionados', A.insp, 'var(--s1)'], ['Faltantes', A.falt, 'var(--s2)']])}<p class="centro muted">Total de vagões nos trens: <b style="color:var(--title)">${fmt(A.total)}</b></p></div>
+    <div class="card"><h2>Linha de revisão <span class="dir">trens</span></h2>${pilhas(['ZTO 1', 'ZTO 2'].map(l => { const rs = rows.filter(r => r.linha === l); return { rot: l, partes: [rs.filter(r => r.rev).length, rs.filter(r => !r.rev).length] }; }), ['Revistados', 'Não revistados'])}</div>
+    <div class="card"><h2>Trens revistados mês a mês <span class="dir">${ano}</span></h2>${colunas(meses.map(m => ({ rot: m.rot, v: m.rows.filter(r => r.rev).length })))}</div>
+    <div class="card"><h2>Vagões inspecionados mês a mês <span class="dir">${ano}</span></h2>${colunas(meses.map(m => ({ rot: m.rot, v: m.rows.reduce((a, r) => a + r.insp, 0) })), { cor: 'var(--s2)', fmtV: milC, larg: 46 })}</div>
+    <div class="card"><h2>Vagões não inspecionados · causas <span class="dir">vagões · % acumulado</span></h2>${hbars(lc, 'vagões', (v, k) => ` <span class="muted" style="font-weight:600">· ${Math.round(acumulado[k])}%</span>`)}</div>
+    <div class="card"><h2>Vagões retidos <span class="dir">${retidos.length}</span></h2>${retidos.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Vagão / avaria</th></tr></thead><tbody>${retidos.map(x => `<tr><td>${diaRot(x.r.dataISO)}</td><td><b>${esc(x.r.prefixo)}</b></td><td><a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a>${x.obs ? '<br><span class="small">' + esc(x.obs) + '</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
+    <div class="card"><h2>Trens não revistados <span class="dir">${naoRev.length}</span></h2>${naoRev.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Turno</th><th>Justificativa</th></tr></thead><tbody>${naoRev.map(r => `<tr><td>${diaRot(r.dataISO)}</td><td><b>${esc(r.prefixo)}</b></td><td>${r.turno}</td><td class="small">${esc(r.motivoNao || '–')}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
+  </div>`;
+}
+
+// ---------- Análise temporal ----------
+function progTemporal() {
+  const todas = linhasHist(), rows = filtrar(todas), A = agrega(rows), rev = rows.filter(r => r.rev && r.durMin > 0);
+  const com = rev.filter(r => r.nDesv), sem = rev.filter(r => !r.nDesv);
+  const diario = rs => Object.entries(porChave(rs, r => r.dataISO)).sort().map(([d, x]) => { const v = media(x); return { rot: diaRot(d), v, sub: x.length, tip: `${diaRot(d)}: tempo médio ${dur(v)} · ${x.length} trem(ns)` }; });
+  const faixas = [['1 a 15 min', 0, 15], ['16 a 30 min', 15, 30], ['31 a 60 min', 30, 60], ['61 a 120 min', 60, 120], ['Mais de 120 min', 120, 1e9]].map(([l, a, b]) => [l, rev.filter(r => r.durMin > a && r.durMin <= b).length]);
+  const obs = rows.filter(r => r.nDesv).reverse();
+  const g = rs => rs.length ? gauge(media(rs), { meta: META_MIN, max: Math.max(META_MIN * 2, media(rs) * 1.1), txt: dur(media(rs)), rotMeta: 'meta ' + META_MIN + ' min', cor: rs === sem ? 'var(--s3)' : 'var(--s1)' }) + `<p class="centro muted">${rs.length} trem(ns)</p>` : semDados;
+  const nota = 'Número abaixo da data = trens no dia. Linha tracejada = meta.';
+  return `${barraFiltros(todas)}
+  <div class="kpis">${kpi('Trens revistados', fmt(A.nRev))}${kpi('Média trens / dia', dec1(A.porDia))}${kpi('Vagões inspecionados', fmt(A.insp))}${kpi('Média vagões / trem', fmt(Math.round(A.vagTrem)))}</div>
+  <div class="grid">
+    <div class="card larga"><h2>Com desvios · tempo médio dia a dia <span class="dir">${com.length} trens</span></h2>${colunas(diario(com), { meta: META_MIN, rotMeta: 'meta ' + META_MIN + ' min', fmtV: durC, nota, larg: 40 })}</div>
+    <div class="card larga"><h2>Sem desvios · tempo médio dia a dia <span class="dir">${sem.length} trens</span></h2>${colunas(diario(sem), { cor: 'var(--s3)', meta: META_MIN, rotMeta: 'meta ' + META_MIN + ' min', fmtV: durC, nota, larg: 40 })}</div>
+    <div class="card"><h2>Com desvios · tempo médio total</h2>${g(com)}</div>
+    <div class="card"><h2>Sem desvios · tempo médio total</h2>${g(sem)}</div>
+    <div class="card"><h2>Faixa de duração <span class="dir">trens</span></h2>${rev.length ? hbars(faixas, 'trens') : semDados}</div>
+    <div class="card larga"><h2>Observações de desvio <span class="dir">${obs.length} trens</span></h2>${obs.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th class="num">Tempo desvio</th><th class="num">Tempo total</th><th>Desvios</th></tr></thead><tbody>${obs.map(r => `<tr><td>${diaRot(r.dataISO)}</td><td>${r.turno}</td><td><b>${esc(r.prefixo)}</b></td><td class="num">${dur(r.desvMin)}</td><td class="num">${r.durMin ? dur(r.durMin) : '–'}</td><td class="small">${esc(r.desvObs)}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
+  </div>`;
+}
+
+// ---------- Performance das equipes (turnos) ----------
+function progEquipes() {
+  const todas = linhasHist(), rows = filtrar(todas), A = agrega(rows), sapata = MAT.sapata?.nome;
+  const TT = 'ABCD'.split('').map(t => { const rs = rows.filter(r => r.turno === t), rv = rs.filter(r => r.rev && r.durMin > 0);
+    return { t, rs, A: agrega(rs), com: rv.filter(r => r.nDesv), sem: rv.filter(r => !r.nDesv), sap: rs.reduce((a, r) => a + (r.mats[sapata] || 0), 0) }; });
+  const duo = (lista, cor) => `<div class="duo"><div><h3>Tempo médio</h3>${colunas(TT.map(x => ({ rot: x.t, v: media(x[lista]), tip: `Turno ${x.t}: ${dur(media(x[lista]))} em ${x[lista].length} trens` })), { cor, meta: META_MIN, rotMeta: 'meta ' + META_MIN + ' min', fmtV: durC, alt: 130 })}</div>
+    <div><h3>Trens</h3>${colunas(TT.map(x => ({ rot: x.t, v: x[lista].length, tip: `Turno ${x.t}: ${x[lista].length} trens` })), { cor, alt: 130 })}</div></div>`;
+  return `${barraFiltros(todas)}
+  <div class="kpis">${kpi('Trens revistados', fmt(A.nRev))}${kpi('Média trens / dia', dec1(A.porDia))}${kpi('Vagões inspecionados', fmt(A.insp))}${kpi('Média vagões / trem', fmt(Math.round(A.vagTrem)))}</div>
+  <div class="grid">
+    <div class="card"><h2>Com desvios · por turno</h2>${duo('com', 'var(--s1)')}</div>
+    <div class="card"><h2>Sem desvios · por turno</h2>${duo('sem', 'var(--s3)')}</div>
+    <div class="card"><h2>Total de trens revistados · por turno</h2>${colunas(TT.map(x => ({ rot: 'Turno ' + x.t, v: x.A.nRev })), { alt: 130 })}</div>
+    <div class="card larga"><h2>Resumo por turno</h2><div class="rolagem"><table class="tabela"><thead><tr><th>Turno</th><th>Líder</th><th class="num">Trens rev.</th><th class="num">Não rev.</th><th class="num">Vagões insp.</th><th class="num">Aderência</th><th class="num">Tempo médio</th><th class="num">C/ desvio</th><th class="num">S/ desvio</th><th class="num">Retidos</th><th class="num">Sapatas</th></tr></thead><tbody>
+      ${TT.filter(x => F.turno === 'todos' || x.t === F.turno).map(x => `<tr><td><b>${x.t}</b></td><td class="small">${esc(liderDe(x.t))}</td><td class="num">${fmt(x.A.nRev)}</td><td class="num">${fmt(x.A.nNao)}</td><td class="num">${fmt(x.A.insp)}</td>
+        <td class="num">${x.A.total ? `<span class="tag ${x.A.ader >= META_ADER ? 'ok' : 'bad'}">${x.A.ader >= META_ADER ? '✓' : '▼'} ${pct1(x.A.insp, x.A.total)}%</span>` : '–'}</td>
+        <td class="num">${x.A.tMed ? dur(x.A.tMed) : '–'}</td><td class="num">${x.com.length ? dur(media(x.com)) : '–'}</td><td class="num">${x.sem.length ? dur(media(x.sem)) : '–'}</td><td class="num">${fmt(x.A.retidos)}</td><td class="num">${fmt(x.sap)}</td></tr>`).join('')}
+    </tbody></table></div></div>
+  </div>`;
+}
+
+// ---------- Aderência (report de passagens de trens) ----------
+function progAderencia() {
+  const todas = linhasHist(), rows = filtrar(todas), A = agrega(rows), ano = anoF(), [, , nomePer] = periodoDe(F.per);
+  const hoje = filtrar(todas, true).filter(r => r.dataISO === isoData(new Date())), perdasHoje = hoje.reduce((a, r) => a + r.falt, 0);
+  const meses = mesesDoAno(filtrar(todas, true), ano).map(m => { const a = agrega(m.rows); return { rot: m.rot, v: a.total ? a.ader : 0, tip: `${m.rot}: ${a.total ? pct1(a.insp, a.total) + '% (' + fmt(a.insp) + ' de ' + fmt(a.total) + ')' : 'sem trens'}` }; });
+  const dias = Object.entries(porChave(rows, r => r.dataISO)).sort().map(([d, x]) => ({ rot: diaRot(d), a: agrega(x) }));
+  const mm7 = dias.map((_, i) => { const j = dias.slice(Math.max(0, i - 6), i + 1); return j.reduce((s, d) => s + d.a.nRev, 0) / j.length; });
+  const mats = {}; rows.forEach(r => Object.entries(r.mats).forEach(([n, q]) => mats[n] = (mats[n] || 0) + q));
+  const planos = Object.entries(porChave((DB.planosTodos || DB.planos).filter(p => F.turno === 'todos' || p.turno === F.turno), p => p.titulo.trim()))
+    .map(([t, ps]) => ({ rot: t, partes: [ps.filter(p => ['feita', 'validada'].includes(p.status)).length, ps.filter(p => ['aberta', 'reaberta'].includes(p.status)).length] }))
+    .sort((a, b) => b.partes[0] + b.partes[1] - a.partes[0] - a.partes[1]).slice(0, 12);
+  const ok = A.ader >= META_ADER;
+  return `${barraFiltros(todas)}
+  <div class="kpis">${kpi('Total de vagões', fmt(A.total), 'nos trens de ' + nomePer)}${kpi('Vagões revistados', fmt(A.insp))}${kpi('Perdas', fmt(A.falt), 'vagões não inspecionados')}${kpi('Trens não revistados', fmt(A.nNao), 'passaram direto')}
+    ${kpi('Trens abaixo de 100%', fmt(A.abaixo), 'revistados em parte')}${kpi('Perdas do dia', fmt(perdasHoje), 'vagões hoje')}${kpi('Consumo de material', fmt(A.itens), 'itens aplicados')}</div>
+  <div class="grid">
+    <div class="card"><h2>Aderência ao revistamento <span class="dir">meta ${META_ADER}%</span></h2>${A.total ? gauge(A.ader, { meta: META_ADER, max: 100, txt: pct1(A.insp, A.total) + '%', rotMeta: 'meta ' + META_ADER + '%' }) + `<p class="centro">${ok ? '<span class="tag ok">✓ Dentro da meta</span>' : '<span class="tag bad">▼ Abaixo da meta</span>'}</p>` : semDados}</div>
+    <div class="card"><h2>Aderência mês a mês <span class="dir">${ano}</span></h2>${colunas(meses, { meta: META_ADER, rotMeta: 'meta ' + META_ADER + '%', fmtV: v => Math.round(v) + '%' })}</div>
+    <div class="card larga"><h2>Evolução da aderência <span class="dir">dia a dia · ${esc(nomePer)}</span></h2>${linhas(dias, [{ nome: 'Aderência do dia', cor: 'var(--s1)', vals: dias.map(d => d.a.total ? d.a.ader : null) }], { meta: META_ADER, rotMeta: 'meta ' + META_ADER + '%', fmtV: v => dec1(v) + '%', max: 100 })}</div>
+    <div class="card larga"><h2>Trens × vagões inspecionados <span class="dir">por dia</span></h2>${colunas(dias.map(d => ({ rot: d.rot, v: d.a.insp, sub: d.a.nRev, tip: `${d.rot}: ${fmt(d.a.insp)} vagões em ${d.a.nRev} trens` })), { cor: 'var(--s2)', fmtV: milC, larg: 40, nota: 'Número abaixo da data = trens revistados no dia.' })}</div>
+    <div class="card larga"><h2>Trens por dia</h2>${linhas(dias, [{ nome: 'Trens por dia', cor: 'var(--s1)', vals: dias.map(d => d.a.nRev) }, { nome: 'Média do período', cor: 'var(--muted)', tr: true, vals: dias.map(() => A.porDia) }, { nome: 'Média últimos 7 dias', cor: 'var(--s2)', vals: mm7 }], { fmtV: dec1 })}</div>
+    <div class="card"><h2>Planos especiais <span class="dir">realizados / faltam</span></h2>${planos.length ? pilhas(planos, ['Realizados', 'Faltam']) : '<span class="muted small">Nenhum plano especial lançado.</span>'}</div>
+    <div class="card"><h2>Consumo de material <span class="dir">unidades</span></h2>${hbars(Object.entries(mats).sort((a, b) => b[1] - a[1]), 'un.')}</div>
+  </div>`;
+}
+
+// ---------- Tabela operacional ----------
+function progTabela() {
+  const todas = linhasHist(), rows = filtrar(todas).slice().reverse(), lim = 300;
+  return `${barraFiltros(todas, `<span class="filtro-acoes"><button class="btn sm" data-act="exportar" data-v="tabela">⬇ Esta tabela</button><button class="btn sm" data-act="exportar" data-v="trens">⬇ Detalhe por trem</button><button class="btn sm" data-act="exportar" data-v="vagoes">⬇ Detalhe por vagão</button></span>`)}
+  <div class="card"><h2>Tabela de dados <span class="dir">${fmt(rows.length)} trens${rows.length > lim ? ' · mostrando ' + lim + ' (baixe a planilha para ver tudo)' : ''}</span></h2>
+  ${rows.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Mês/ano</th><th>Data</th><th>Líder responsável</th><th>Líder backup</th><th>Turno</th><th>Prefixo</th><th class="num">Total vagões</th><th class="num">Inspec.</th><th class="num">Faltantes</th><th>Justificativa faltantes</th><th>Linha</th><th>Revistado?</th><th>Justificativa</th><th class="num">Retidos</th><th>Vagão retido / avaria</th><th class="num">Tempo</th><th class="num">Desvio</th></tr></thead><tbody>
+    ${rows.slice(0, lim).map(r => `<tr><td>${MESES[+r.mes.slice(5) - 1]}/${r.mes.slice(2, 4)}</td><td>${diaRot(r.dataISO)}</td><td class="small">${esc(r.lider)}</td><td class="small">${esc(r.backup)}</td><td>${r.turno}</td><td><b>${esc(r.prefixo)}</b></td><td class="num">${fmt(r.total)}</td><td class="num">${fmt(r.insp)}</td><td class="num">${fmt(r.falt)}</td><td class="small">${r.rev ? esc(r.motivoParcial) : ''}</td><td>${r.linha}</td><td>${r.rev ? 'Sim' : '<span class="tag warn">Não</span>'}</td><td class="small">${esc(r.motivoNao)}</td><td class="num">${r.retidos || ''}</td><td class="small">${r.ret.map(x => esc(x.vagao + (x.obs ? ' – ' + x.obs : ''))).join('<br>') || 'N/A'}</td><td class="num">${r.durMin ? dur(r.durMin) : '–'}</td><td class="num">${r.desvMin ? dur(r.desvMin) : '–'}</td></tr>`).join('')}
+  </tbody></table></div>` : semDados}</div>`;
+}
+
+// ---------- Materiais e vagões (detalhe por vagão dos últimos 35 dias) ----------
+function trensFiltrados() {
+  const [a, b] = periodoDe(F.per);
+  return fechadosT().filter(t => t.dataISO >= a && t.dataISO <= b && (F.turno === 'todos' || t.turno === F.turno) && (F.linha === 'todas' || t.linha === F.linha)
+    && (F.prefixo === 'todos' || t.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === (t.status === 'concluido')));
+}
+function progMateriais() {
+  const ts = trensFiltrados(), rev = ts.filter(t => t.status !== 'nao_revistado');
+  let sap = 0;
+  const mat = {}, porVagao = {}, porTec = {}, ocs = {}, posSap = Object.fromEntries(POSICOES.map(p => [p, 0]));
+  rev.forEach(t => Object.entries(t.reg).forEach(([p, r]) => {
+    if (r.st === 'pend') return;
+    (t.dist.find(x => p >= x.ini && p <= x.fim)?.membros || []).forEach(id => porTec[id] = (porTec[id] || 0) + 1);
+    r.oc.forEach(o => ocs[o] = (ocs[o] || 0) + 1);
+    if (!r.mats.length) return;
+    const v = t.vagoes[p - 1], o = porVagao[v] || (porVagao[v] = { itens: 0, vezes: 0, sap: 0, ultimo: t.data });
+    o.vezes++; if (t.data > o.ultimo) o.ultimo = t.data;                 // uma vez por passagem do vagão
+    r.mats.forEach(m => {
+      mat[m.nome] = (mat[m.nome] || 0) + m.qtd; o.itens += m.qtd;
+      if (m.id === 'sapata') { sap += m.qtd; o.sap += m.qtd; (m.pos || []).forEach(x => posSap[x] = (posSap[x] || 0) + 1); }
+    });
+  }));
   const topVag = Object.entries(porVagao).sort((a, b) => b[1].itens - a[1].itens || b[1].vezes - a[1].vezes).slice(0, 10);
   const topTec = Object.entries(porTec).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, v]) => [nomeTec(id), v]);
   const maxPos = Math.max(...Object.values(posSap), 1);
-  return `<div class="chips filtros">${chips('Período', 'periodo', [[1, 'Hoje'], [7, '7 dias'], [30, '30 dias']])}${chips('Turno', 'turnoF', [['todos', 'Todos'], ['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']])}${chips('Linha', 'linhaF', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
-    <span style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" data-act="exportar" data-v="trens">⬇ Planilha por trem</button><button class="btn sm" data-act="exportar" data-v="vagoes">⬇ Planilha por vagão</button></span></div>
-  ${!ts.length ? '<p class="nota">Ainda não há trens fechados neste período. Os números aparecem assim que os líderes começarem a fechar trens no app.</p>' : ''}
-  <div class="kpis">
-    <div class="kpi"><div class="r">Trens revistados</div><div class="v">${fmt(rev.length)}</div><div class="d">${(rev.length / dias).toFixed(1).replace('.', ',')} por dia · ${ts.length - rev.length} não revistado(s)</div></div>
-    <div class="kpi"><div class="r">Vagões inspecionados</div><div class="v">${fmt(ins)}</div><div class="d">de ${fmt(tot)} nas composições</div></div>
-    <div class="kpi"><div class="r">% do trem inspecionado</div><div class="v">${pct1(ins, tot)}%</div><div class="d">média do período</div></div>
-    <div class="kpi"><div class="r">Tempo médio / trem</div><div class="v">${nTempo ? dur(tempo / nTempo) : '–'}</div><div class="d">início ao fim da revisão</div></div>
-    <div class="kpi"><div class="r">Tempo de desvio</div><div class="v">${dur(desv)}</div><div class="d">${nDesv} trens com desvio · média ${nDesv ? dur(desv / nDesv) : '–'}</div></div>
-    <div class="kpi"><div class="r">Sapatas trocadas</div><div class="v">${fmt(sap)}</div><div class="d">${rev.length ? (sap / rev.length).toFixed(1).replace('.', ',') : 0} por trem</div></div>
-  </div>
+  return `${barraFiltros(linhasHist())}
+  <p class="nota">Detalhe por vagão, por material e por mecânico dos <b>últimos 35 dias</b> (dentro do filtro acima). ${fmt(sap)} sapatas trocadas · ${rev.length ? dec1(sap / rev.length) : 0} por trem.</p>
   <div class="grid">
     <div class="card"><h2>Materiais mais consumidos <span class="dir">unidades</span></h2>${hbars(Object.entries(mat).sort((a, b) => b[1] - a[1]).slice(0, 10), 'un.')}</div>
     <div class="card"><h2>Vagões que mais recebem material</h2>${topVag.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Vagão</th><th class="num">Vezes</th><th class="num">Sapatas</th><th class="num">Itens</th><th>Último</th></tr></thead><tbody>
       ${topVag.map(([v, o]) => `<tr class="click" data-act="ver-vagao" data-v="${esc(v)}"><td><b>${esc(v)}</b></td><td class="num">${o.vezes}</td><td class="num">${o.sap}</td><td class="num">${o.itens}</td><td>${dataBR(o.ultimo)}</td></tr>`).join('')}
-      </tbody></table></div><p class="small muted" style="margin:8px 0 0">Toque no vagão para ver o histórico e quem revistou.</p>` : '<span class="muted small">Sem dados no período.</span>'}</div>
+      </tbody></table></div><p class="small muted" style="margin:8px 0 0">Toque no vagão para ver o histórico e quem revistou.</p>` : semDados}</div>
     <div class="card"><h2>Sapatas trocadas por posição</h2>
       <div class="grade-sap leitura"><span></span><b>1</b><b>2</b><b>3</b><b>4</b>${['E', 'D'].map(l => `<b>${l}</b>${[1, 2, 3, 4].map(n => { const v = posSap[n + l]; return `<span class="cel" style="--a:${(0.12 + 0.88 * v / maxPos).toFixed(2)}" data-tip="Rodeiro ${n}, lado ${l === 'E' ? 'esquerdo' : 'direito'}: ${fmt(v)} sapatas">${fmt(v)}</span>`; }).join('')}`).join('')}</div>
       <p class="small muted" style="margin:8px 0 0">Rodeiro 1 a 4 × lado esquerdo (E) e direito (D). Mais escuro = mais trocas.</p></div>
-    <div class="card"><h2>Motivos de inspeção parcial <span class="dir">trens</span></h2>${hbars(Object.entries(motivos).sort((a, b) => b[1] - a[1]), 'trens')}</div>
     <div class="card"><h2>Ocorrências <span class="dir">vagões</span></h2>${hbars(OCORRENCIAS.map(o => [o, ocs[o] || 0]), 'vagões')}</div>
     <div class="card"><h2>Vagões inspecionados por técnico <span class="dir">top 10</span></h2>${hbars(topTec, 'vagões')}</div>
-    <div class="card larga"><h2>Trens do período <span class="dir">últimos 20</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Líder</th><th>Trem</th><th>Linha</th><th style="min-width:150px">% inspecionado</th><th class="num">Tempo</th><th class="num">Desvio</th><th>Validação</th><th>Obs.</th></tr></thead><tbody>
-      ${ts.slice().reverse().slice(0, 20).map(t => { const p = t.status === 'nao_revistado' ? 0 : Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100);
-        return `<tr><td>${dataBR(t.data)}</td><td>${t.turno}</td><td class="small">${esc(t.lider.split(' ')[0])}</td><td><b>${esc(t.prefixo)}</b></td><td>${t.linha}</td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Não revistado</span>' : `<div style="display:flex;align-items:center;gap:8px"><div style="flex:1">${barra(p)}</div><span class="small" style="font-weight:700;min-width:36px;text-align:right">${p}%</span></div>`}</td><td class="num">${t.durMin ? dur(t.durMin) : '–'}</td><td class="num">${t.desvios.length ? dur(tempoDesvio(t)) : '–'}</td><td>${tagVal(t)}</td><td class="small muted">${esc(t.motivoNao || t.motivoParcial)}</td></tr>`; }).join('') || '<tr><td colspan="10" class="muted">Nenhum trem no período.</td></tr>'}
-      </tbody></table></div></div>
   </div>`;
 }
 const normCod = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1272,6 +1535,11 @@ function baixarCSV(linhas, nome) {
 }
 function exportar(tipo) {
   const dt = t => dataBR(t.data) + '/' + t.data.getFullYear();
+  if (tipo === 'tabela') {
+    const L = [['Mês/ano', 'Data', 'Líder responsável', 'Líder backup', 'Turno', 'Prefixo', 'Total de vagões', 'Vagões inspecionados', 'Vagões faltantes', 'Justificativa vagões faltantes', 'Linha', 'Trem foi revistado?', 'Justificativa', 'Vagões retidos', 'Vagão retido / avaria', 'Tempo (min)', 'Tempo desvio (min)', 'Desvios', 'Materiais aplicados']];
+    filtrar(linhasHist()).forEach(r => L.push([r.mes.slice(5) + '/' + r.mes.slice(0, 4), r.dataISO.split('-').reverse().join('/'), r.lider, r.backup, r.turno, r.prefixo, r.total, r.insp, r.falt, r.rev ? r.motivoParcial : '', r.linha, r.rev ? 'Sim' : 'Não', r.motivoNao, r.retidos, r.ret.map(x => x.vagao + (x.obs ? ' - ' + x.obs : '')).join(' | ') || 'N/A', r.durMin || '', r.desvMin || '', r.desvObs, r.itens]));
+    return baixarCSV(L, 'revistamento-zto-tabela.csv');
+  }
   if (tipo === 'trens') {
     const L = [['Data', 'Turno', 'Líder', 'Prefixo', 'Linha', 'Trem revistado?', 'Motivo não revistado', 'Início', 'Término', 'Tempo (min)', 'Total vagões', 'Inspecionados', 'Motivo inspeção parcial', 'Tempo desvio (min)', 'Desvios', 'Equipes', 'Sapatas trocadas', ...OCORRENCIAS, 'Validação', 'Validado por', 'Apontamentos corrigidos', 'Parecer técnico']];
     trensFiltrados().forEach(t => { const regs = Object.values(t.reg);
@@ -1289,7 +1557,7 @@ const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, gestao: supGestao },
   tec: { meu: tecMeu, tarefas: tecTarefas },
   esp: { validacao: espValidacao, planos: espPlanos, validados: espValidados },
-  prog: { painel: progPainel, vagao: progVagao, cadastros: progCadastros }
+  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, materiais: progMateriais, vagao: progVagao, cadastros: progCadastros }
 };
 
 // ---------- login, troca de senha, entrada ----------
@@ -1391,7 +1659,7 @@ document.addEventListener('click', async e => {
       await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
     }
     case 'recarregar': entrar(); return;
-    case 'atualizar': toast('Atualizando…'); await processarFila(); await atualizar(true); return;
+    case 'atualizar': toast('Atualizando…'); HIST.em = 0; await processarFila(); await atualizar(true); return;
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
     case 'aba': S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
@@ -1521,7 +1789,6 @@ document.addEventListener('click', async e => {
       enviar({ tabela: 'trens', acao: 'update', dados: { validacao: 'validado', parecer: parecer || null }, filtro: [['id', 'eq', t.id]], desc: 'Validação do trem ' + t.prefixo });
       S.valTrem = null; toast('Trem ' + t.prefixo + ' validado'); break;
     }
-    case 'filtro': S[el.dataset.k] = el.dataset.k === 'periodo' ? +v : v; break;
     case 'exportar': exportar(v); return;
     case 'ver-vagao': e.preventDefault(); S.busca = v; S.papel = 'prog'; S.aba.prog = 'vagao'; break;
     case 'buscar': S.busca = $('busca').value; break;
@@ -1532,7 +1799,8 @@ document.addEventListener('click', async e => {
 document.addEventListener('change', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, N = S.novo, M = S.modal;
-  if (a === 'turno-ver') { S.turnoVer = el.value; S.planoTurno = el.value; S.novo = novoVazio(); S.valTrem = null; render(); }
+  if (a === 'f') { F[el.dataset.k] = el.value; render(); }
+  else if (a === 'turno-ver') { S.turnoVer = el.value; S.planoTurno = el.value; S.novo = novoVazio(); S.valTrem = null; render(); }
   else if (a === 'ver-tec') { S.verTec = el.value; S.tecTrem = null; render(); }
   else if (a === 'plano-turno') { S.planoTurno = el.value; render(); }
   else if (a === 'novo-campo') { N[el.dataset.k] = el.value; if (el.dataset.k === 'texto') { N.lidos = null; N.dist = null; } render(); }
