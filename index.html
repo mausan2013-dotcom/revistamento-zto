@@ -270,6 +270,41 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .tabela.compacta td, .tabela.compacta th { padding: 6px; white-space: nowrap; }
 .tabela.compacta td.small { white-space: normal; min-width: 140px; }
 .tabela thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+/* aba Aderência no formato do report (v1.2) */
+:root { --g-ruim: #c62828; --g-ruim-f: #fdeaea; --g-medio: #e0a400; --g-bom: #2e8b6f; }
+.rep-topo { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
+.rep-topo h2 { margin: 0; color: var(--title); font-size: 22px; font-weight: 800; }
+.rep-topo span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.rep-topo b { color: var(--title); }
+.rep { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 14px; align-items: start; }
+.rep-main { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
+.rep-main > * { margin: 0; min-width: 0; }
+.rcard { background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 3px 8px rgba(4, 56, 101, .12); padding: 12px 16px; }
+.rcard .rr { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+.rcard .rr span { font-weight: 600; color: var(--muted); }
+.rcard .rv { font-size: 30px; font-weight: 800; color: var(--title); line-height: 1.2; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.rcard .rd { font-size: 12px; color: var(--muted); }
+.rcard.dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rcard.dupla > div + div { border-left: 2px solid var(--line); padding-left: 12px; }
+.rgauge { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 8px 14px 10px; }
+.rgauge svg { grid-row: 1 / span 2; }
+.rgauge .grande-pct { font-size: 30px; font-weight: 800; align-self: start; }
+.rgauge .grande-pct.bom { color: var(--g-bom); } .rgauge .grande-pct.ruim { color: var(--g-ruim); }
+.gauge.faixas { max-width: 260px; width: 100%; }
+.rgauge .rr.centro { grid-column: 2; align-self: end; }
+.gauge .gm2 { font-size: 9px; font-weight: 700; fill: var(--muted); }
+.c1, .c2 { grid-column: span 2; } .c3 { grid-column: span 5; } .c4 { grid-column: span 3; }
+.c5, .c6, .c7, .c8 { grid-column: span 3; }
+.c9, .c10, .c11, .c12 { grid-column: span 6; } .c13 { grid-column: 1 / -1; }
+.rep-planos { display: flex; flex-direction: column; gap: 10px; }
+.rep-planos h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--title); }
+.rcard.plano .fr { display: grid; grid-template-columns: auto 2px auto 1fr; align-items: end; gap: 10px; margin-top: 4px; }
+.rcard.plano .fr span { display: block; font-size: 11px; color: var(--muted); font-weight: 600; }
+.rcard.plano .fr b { font-size: 24px; color: var(--title); font-variant-numeric: tabular-nums; }
+.rcard.plano .fr i { height: 30px; background: var(--ink); width: 2px; }
+.rcard.plano .ico { width: 30px; height: 30px; justify-self: end; }
+@media (max-width: 1000px) { .rep { grid-template-columns: 1fr; } .rep-main { grid-template-columns: repeat(6, minmax(0, 1fr)); } .rep-main > * { grid-column: span 3 !important; grid-row: auto !important; } .rep-main .c3, .rep-main .c9, .rep-main .c10, .rep-main .c11, .rep-main .c12, .rep-main .c13 { grid-column: 1 / -1 !important; } .rep-planos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } .rep-planos h3 { grid-column: 1 / -1; } }
+@media (max-width: 560px) { .rep-main .c6 { grid-column: 1 / -1 !important; } .rcard { padding: 10px 12px; } .rcard .rv { font-size: 24px; } .rgauge .grande-pct { font-size: 24px; } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -446,7 +481,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.1';
+const VERSAO = '1.2';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1427,31 +1462,60 @@ function progEquipes() {
 }
 
 // ---------- Aderência (report de passagens de trens) ----------
+// medidor em faixas (vermelho / amarelo / verde) com ponteiro, como no report
+function gaugeFaixas(v, meta) {
+  const ang = x => Math.PI * (1 - Math.max(0, Math.min(x, 100)) / 100), P = (x, r) => [100 + r * Math.cos(ang(x)), 100 - r * Math.sin(ang(x))];
+  const arco = (a, b, cor) => { const [x1, y1] = P(a, 74), [x2, y2] = P(b, 74); return `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)} A74 74 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke="${cor}" stroke-width="30" fill="none"/>`; };
+  const [px, py] = P(v, 88), [bx, by] = P(v + 90, 7), [cx, cy] = P(v - 90, 7);
+  return `<svg class="gauge faixas" viewBox="0 -6 200 112" role="img" aria-label="Aderência ${dec1(v)}%">
+    ${arco(0, 69.5, 'var(--g-ruim)')}${arco(70.5, meta - .5, 'var(--g-medio)')}${arco(meta + .5, 100, 'var(--g-bom)')}
+    <path d="M100 100 m-26 0 a26 26 0 0 1 52 0 z" fill="var(--title)"/>
+    <polygon points="${px.toFixed(1)},${py.toFixed(1)} ${bx.toFixed(1)},${by.toFixed(1)} ${cx.toFixed(1)},${cy.toFixed(1)}" fill="var(--title)"/>
+    <text x="4" y="104" class="gm2">0%</text><text x="196" y="104" class="gm2" text-anchor="end">100%</text></svg>`;
+}
+const icoAlerta = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z" fill="var(--g-ruim-f)" stroke="var(--g-ruim)" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9v6M12 17.6v.4" stroke="var(--g-ruim)" stroke-width="2" stroke-linecap="round"/></svg>';
+// planos especiais da aba Aderência: os lançados no app, agrupados pelo título (a planilha externa entra aqui)
+function planosAderencia() {
+  return Object.entries(porChave((DB.planosTodos || DB.planos).filter(p => F.turno === 'todos' || p.turno === F.turno), p => p.titulo.trim()))
+    .map(([t, ps]) => ({ titulo: t, realizados: ps.filter(p => ['feita', 'validada'].includes(p.status)).length, faltam: ps.filter(p => ['aberta', 'reaberta'].includes(p.status)).length }))
+    .sort((a, b) => b.faltam + b.realizados - a.faltam - a.realizados);
+}
 // regra da aderência: trem não revistado por condições climáticas não entra no cálculo
 const porClima = r => !r.rev && /clim/i.test(r.motivoNao || '');
 function progAderencia() {
-  const base = linhasHist(), clima = filtrar(base).filter(porClima).length, todas = base.filter(r => !porClima(r)), rows = filtrar(todas), A = agrega(rows), ano = anoF(), [, , nomePer] = periodoDe(F.per);
-  const hoje = filtrar(todas, true).filter(r => r.dataISO === isoData(new Date())), perdasHoje = hoje.reduce((a, r) => a + r.falt, 0);
+  const base = linhasHist(), clima = filtrar(base).filter(porClima).length, todas = base.filter(r => !porClima(r)), rows = filtrar(todas), A = agrega(rows), ano = anoF(), [ini, fim, nomePer] = periodoDe(F.per);
+  const hojeISO = isoData(new Date()), perdasHoje = filtrar(todas, true).filter(r => r.dataISO === hojeISO).reduce((a, r) => a + r.falt, 0);
   const meses = mesesDoAno(filtrar(todas, true), ano).map(m => { const a = agrega(m.rows); return { rot: m.rot, v: a.total ? a.ader : 0, tip: `${m.rot}: ${a.total ? pct1(a.insp, a.total) + '% (' + fmt(a.insp) + ' de ' + fmt(a.total) + ')' : 'sem trens'}` }; });
-  const dias = Object.entries(porChave(rows, r => r.dataISO)).sort().map(([d, x]) => ({ rot: diaRot(d), a: agrega(x) }));
-  const mm7 = dias.map((_, i) => { const j = dias.slice(Math.max(0, i - 6), i + 1); return j.reduce((s, d) => s + d.a.nRev, 0) / j.length; });
+  // todos os dias do período (até hoje), com ou sem trem, como no report
+  const pd = porChave(rows, r => r.dataISO), dias = [];
+  for (let d = deISO(ini), lim = deISO(fim < hojeISO ? fim : hojeISO); d <= lim; d.setDate(d.getDate() + 1)) { const k = isoData(d); dias.push({ rot: diaRot(k), a: agrega(pd[k] || []) }); }
+  const comTrem = dias.filter(d => d.a.n), mm7 = dias.map((_, i) => { const j = dias.slice(Math.max(0, i - 6), i + 1).filter(d => d.a.n); return j.length ? j.reduce((s, d) => s + d.a.nRev, 0) / j.length : null; });
   const mats = {}; rows.forEach(r => Object.entries(r.mats).forEach(([n, q]) => mats[n] = (mats[n] || 0) + q));
-  const planos = Object.entries(porChave((DB.planosTodos || DB.planos).filter(p => F.turno === 'todos' || p.turno === F.turno), p => p.titulo.trim()))
-    .map(([t, ps]) => ({ rot: t, partes: [ps.filter(p => ['feita', 'validada'].includes(p.status)).length, ps.filter(p => ['aberta', 'reaberta'].includes(p.status)).length] }))
-    .sort((a, b) => b.partes[0] + b.partes[1] - a.partes[0] - a.partes[1]).slice(0, 12);
-  const ok = A.ader >= META_ADER;
+  const planos = planosAderencia(), ok = A.ader >= META_ADER;
+  const card = (rot, v, extra = '', cls = '') => `<div class="rcard ${cls}"><div class="rr">${rot}</div><div class="rv">${v}</div>${extra}</div>`;
   return `${barraFiltros(base)}
-  <p class="nota">Trens não revistados por <b>condições climáticas</b> ficam fora do cálculo desta aba${clima ? ` (${fmt(clima)} no período)` : ''}.</p>
-  <div class="kpis">${kpi('Total de vagões', fmt(A.total), 'nos trens de ' + nomePer)}${kpi('Vagões revistados', fmt(A.insp))}${kpi('Perdas', fmt(A.falt), 'vagões não inspecionados')}${kpi('Trens não revistados', fmt(A.nNao), 'passaram direto')}
-    ${kpi('Trens abaixo de 100%', fmt(A.abaixo), 'revistados em parte')}${kpi('Perdas do dia', fmt(perdasHoje), 'vagões hoje')}${kpi('Consumo de material', fmt(A.itens), 'itens aplicados')}</div>
-  <div class="grid">
-    <div class="card"><h2>Aderência ao revistamento <span class="dir">meta ${META_ADER}%</span></h2>${A.total ? gauge(A.ader, { meta: META_ADER, max: 100, txt: pct1(A.insp, A.total) + '%', rotMeta: 'meta ' + META_ADER + '%' }) + `<p class="centro">${ok ? '<span class="tag ok">✓ Dentro da meta</span>' : '<span class="tag bad">▼ Abaixo da meta</span>'}</p>` : semDados}</div>
-    <div class="card"><h2>Aderência mês a mês <span class="dir">${ano}</span></h2>${colunas(meses, { meta: META_ADER, rotMeta: 'meta ' + META_ADER + '%', fmtV: v => Math.round(v) + '%' })}</div>
-    <div class="card larga"><h2>Evolução da aderência <span class="dir">dia a dia · ${esc(nomePer)}</span></h2>${linhas(dias, [{ nome: 'Aderência do dia', cor: 'var(--s1)', vals: dias.map(d => d.a.total ? d.a.ader : null) }], { meta: META_ADER, rotMeta: 'meta ' + META_ADER + '%', fmtV: v => dec1(v) + '%', max: 100 })}</div>
-    <div class="card larga"><h2>Trens × vagões inspecionados <span class="dir">por dia</span></h2>${colunas(dias.map(d => ({ rot: d.rot, v: d.a.insp, sub: d.a.nRev, tip: `${d.rot}: ${fmt(d.a.insp)} vagões em ${d.a.nRev} trens` })), { cor: 'var(--s2)', fmtV: milC, larg: 40, nota: 'Número abaixo da data = trens revistados no dia.' })}</div>
-    <div class="card larga"><h2>Trens por dia</h2>${linhas(dias, [{ nome: 'Trens por dia', cor: 'var(--s1)', vals: dias.map(d => d.a.nRev) }, { nome: 'Média do período', cor: 'var(--muted)', tr: true, vals: dias.map(() => A.porDia) }, { nome: 'Média últimos 7 dias', cor: 'var(--s2)', vals: mm7 }], { fmtV: dec1 })}</div>
-    <div class="card"><h2>Planos especiais <span class="dir">realizados / faltam</span></h2>${planos.length ? pilhas(planos, ['Realizados', 'Faltam']) : '<span class="muted small">Nenhum plano especial lançado.</span>'}</div>
-    <div class="card"><h2>Consumo de material <span class="dir">unidades</span></h2>${hbars(Object.entries(mats).sort((a, b) => b[1] - a[1]), 'un.')}</div>
+  <div class="rep-topo"><div><h2>Report · Passagens de trens em ZTO</h2><span>Baseado nos trens lançados pelos líderes do revistamento · ${esc(nomePer)}</span></div><b>${dataBR(new Date())}/${new Date().getFullYear()}</b></div>
+  ${clima ? `<p class="nota">Trens não revistados por <b>condições climáticas</b> ficam fora do cálculo desta aba (${fmt(clima)} no período).</p>` : ''}
+  <div class="rep">
+    <div class="rep-main">
+      ${card('Total de vagões', fmt(A.total), '', 'c1')}
+      ${card('Meta', META_ADER + '%', '<div class="rd">aderência mínima</div>', 'c2 rmeta')}
+      <div class="rcard c3 rgauge"><div class="grande-pct ${ok ? 'bom' : 'ruim'}">${A.total ? pct1(A.insp, A.total) + '%' : '–'}</div>${A.total ? gaugeFaixas(A.ader, META_ADER) : semDados}<div class="rr centro">${ok ? '<span class="tag ok">✓ Dentro da meta</span>' : A.total ? '<span class="tag bad">▼ Abaixo da meta</span>' : ''}</div></div>
+      ${card('Consumo de material', fmt(A.itens), '<div class="rd">itens no período</div>', 'c4')}
+      ${card('Total de vagões revistados', fmt(A.insp), '', 'c5')}
+      <div class="rcard c6 dupla"><div><div class="rr">Perdas</div><div class="rv">${fmt(A.falt)}</div></div><div><div class="rr">Trens não revistados<br><span>passou direto</span></div><div class="rv">${fmt(A.nNao)}</div></div></div>
+      ${card('Trens abaixo de 100%', fmt(A.abaixo), '', 'c7')}
+      ${card('Perdas de vagões do dia', fmt(perdasHoje), '', 'c8')}
+      <div class="card c9"><h2>Aderência <span class="dir">${ano}</span></h2>${colunas(meses, { meta: META_ADER, rotMeta: 'meta ' + META_ADER + '%', fmtV: v => Math.round(v) + '%', alt: 170 })}</div>
+      <div class="card c10"><h2>Evolução da aderência ao revistamento <span class="dir">dia a dia</span></h2>${linhas(dias, [{ nome: 'Aderência do dia', cor: 'var(--s1)', vals: dias.map(d => d.a.total ? d.a.ader : null) }], { meta: META_ADER, rotMeta: 'meta ' + META_ADER + '%', fmtV: v => dec1(v) + '%', max: 100, alt: 170, larg: 18 })}</div>
+      <div class="card c11"><h2>Trens × vagões inspecionados <span class="dir">por dia</span></h2>${comTrem.length ? colunas(dias.map(d => ({ rot: d.rot.slice(0, 2), v: d.a.insp, sub: d.a.nRev || '', tip: `${d.rot}: ${fmt(d.a.insp)} vagões em ${d.a.nRev} trens` })), { cor: 'var(--s1)', fmtV: milC, larg: 30, alt: 170, nota: 'Número abaixo do dia = trens revistados.' }) : semDados}</div>
+      <div class="card c12"><h2>Trens × dia</h2>${linhas(dias, [{ nome: 'Trens/dia', cor: 'var(--s2)', vals: dias.map(d => d.a.n ? d.a.nRev : null) }, { nome: 'Média do período', cor: 'var(--s1)', vals: dias.map(() => A.porDia) }, { nome: 'Média últimos 7 dias', cor: 'var(--muted)', tr: true, vals: mm7 }], { fmtV: dec1, alt: 170, larg: 18 })}</div>
+      <div class="card c13"><h2>Consumo de material <span class="dir">unidades</span></h2>${hbars(Object.entries(mats).sort((a, b) => b[1] - a[1]), 'un.')}</div>
+    </div>
+    <aside class="rep-planos">
+      <h3>Planos especiais</h3>
+      ${planos.length ? planos.map(p => `<div class="rcard plano"><div class="rr">${esc(p.titulo)}</div><div class="fr"><div><span>Faltam:</span><b>${fmt(p.faltam)}</b></div><i></i><div><span>Realizados:</span><b>${fmt(p.realizados)}</b></div>${icoAlerta}</div></div>`).join('') : '<div class="rcard plano"><span class="muted small">Nenhum plano especial ainda.</span></div>'}
+    </aside>
   </div>`;
 }
 
