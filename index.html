@@ -1244,9 +1244,9 @@ function linhasHist() {
   HIST.mats.forEach(x => { const m = mats[x.trem_id] || (mats[x.trem_id] = {}); m[x.nome] = (m[x.nome] || 0) + x.qtd; });
   HIST.ret.forEach(x => (ret[x.trem_id] ||= []).push({ vagao: x.vagao, obs: x.obs || '' }));
   const velhos = HIST.trens.filter(r => !vistos.has(r.id)).map(r => ({ id: r.id, dataISO: r.data, turno: r.turno, linha: r.linha, prefixo: r.prefixo, status: r.status,
-    lider: r.lider_id ? C(r.lider_id).nome : liderDe(r.turno), backup: r.lider_backup || '', motivoNao: r.motivo_nao || '', motivoParcial: r.motivo_parcial || '',
+    lider: r.lider_nome || (r.lider_id ? C(r.lider_id).nome : liderDe(r.turno)), backup: r.lider_backup || '', motivoNao: r.motivo_nao || '', motivoParcial: r.motivo_parcial || '',
     durMin: r.inicio && r.fim ? difMin(hm(r.inicio), hm(r.fim)) : 0, total: r.total, insp: r.insp, retidos: r.retidos, itens: r.itens,
-    nDesv: r.n_desvios, desvMin: r.desvio_min, desvObs: r.desvio_obs || '', mats: mats[r.id] || {}, ret: ret[r.id] || [] }));
+    nDesv: r.n_desvios, desvMin: r.desvio_min, desvObs: r.desvio_obs || '', mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms' }));
   const novos = fechadosT().map(t => {
     const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => m[x.nome] = (m[x.nome] || 0) + x.qtd));
     const rt = Object.entries(t.reg).filter(([, r]) => r.oc.includes('Retenção de vagão')).map(([p, r]) => ({ vagao: t.vagoes[p - 1], obs: r.obs }));
@@ -1293,7 +1293,7 @@ function barraFiltros(todas, extra = '') {
   return `<div class="filtros-bar">${sel('per', 'Mês / período', [['d7', 'Últimos 7 dias'], ['d30', 'Últimos 30 dias'], ...anos.flatMap(y => [['ano:' + y, 'Ano ' + y + ' inteiro'], ...meses.filter(m => m.startsWith(y)).map(m => ['mes:' + m, MESES_L[+m.slice(5) - 1] + '/' + y])])])}
     ${sel('rev', 'Trem revistado', [['todos', 'Todos'], ['sim', 'Sim'], ['nao', 'Não']])}${sel('linha', 'Linha', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
     ${sel('prefixo', 'Prefixo', [['todos', 'Todos'], ...prefs.map(p => [p, p])])}${sel('turno', 'Equipe (turno)', [['todos', 'Todas'], ...'ABCD'.split('').map(t => [t, 'Turno ' + t])])}${extra}</div>
-    ${HIST.ok ? '' : '<p class="nota">Mostrando só os últimos 35 dias. Para o histórico completo, rode o <b>03-indicadores.sql</b> no Supabase.</p>'}`;
+    ${HIST.ok ? '' : '<p class="nota">Mostrando só os últimos 35 dias. Para o histórico completo, rode o <b>03-indicadores.sql</b> e o <b>04-historico.sql</b> no Supabase.</p>'}`;
 }
 
 // ---------- gráficos (HTML/SVG simples, cores em --s1/--s2/--s3, meta em --meta) ----------
@@ -1359,7 +1359,9 @@ const mesesDoAno = (rows, ano) => {
 function progGeral() {
   const todas = linhasHist(), rows = filtrar(todas), A = agrega(rows), ano = anoF(), meses = mesesDoAno(filtrar(todas, true), ano);
   const causas = {}; rows.forEach(r => { if (r.falt) { const k = (r.rev ? r.motivoParcial : r.motivoNao) || 'Sem informação'; causas[k] = (causas[k] || 0) + r.falt; } });
-  const lc = Object.entries(causas).sort((a, b) => b[1] - a[1]), totC = lc.reduce((a, c) => a + c[1], 0); let acum = 0;
+  let lc = Object.entries(causas).sort((a, b) => b[1] - a[1]);
+  if (lc.length > 9) lc = lc.slice(0, 8).concat([['Outras justificativas (texto livre)', lc.slice(8).reduce((a, c) => a + c[1], 0)]]);   // o Forms tem muito texto livre
+  const totC = lc.reduce((a, c) => a + c[1], 0); let acum = 0;
   const acumulado = lc.map(c => (acum += c[1]) / totC * 100);
   const retidos = rows.flatMap(r => r.ret.map(x => ({ r, ...x }))).reverse(), naoRev = rows.filter(r => !r.rev).reverse();
   const dm = A.tMed - META_MIN;
@@ -1373,7 +1375,7 @@ function progGeral() {
     <div class="card"><h2>Trens revistados mês a mês <span class="dir">${ano}</span></h2>${colunas(meses.map(m => ({ rot: m.rot, v: m.rows.filter(r => r.rev).length })))}</div>
     <div class="card"><h2>Vagões inspecionados mês a mês <span class="dir">${ano}</span></h2>${colunas(meses.map(m => ({ rot: m.rot, v: m.rows.reduce((a, r) => a + r.insp, 0) })), { cor: 'var(--s2)', fmtV: milC, larg: 46 })}</div>
     <div class="card"><h2>Vagões não inspecionados · causas <span class="dir">vagões · % acumulado</span></h2>${hbars(lc, 'vagões', (v, k) => ` <span class="muted" style="font-weight:600">· ${Math.round(acumulado[k])}%</span>`)}</div>
-    <div class="card"><h2>Vagões retidos <span class="dir">${retidos.length}</span></h2>${retidos.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Vagão / avaria</th></tr></thead><tbody>${retidos.map(x => `<tr><td>${diaRot(x.r.dataISO)}</td><td><b>${esc(x.r.prefixo)}</b></td><td><a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a>${x.obs ? '<br><span class="small">' + esc(x.obs) + '</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
+    <div class="card"><h2>Vagões retidos <span class="dir">${retidos.length}</span></h2>${retidos.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Vagão / avaria</th></tr></thead><tbody>${retidos.map(x => `<tr><td>${diaRot(x.r.dataISO)}</td><td><b>${esc(x.r.prefixo)}</b></td><td>${x.vagao ? `<a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a><br>` : ''}${x.obs ? '<span class="small">' + esc(x.obs) + '</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
     <div class="card"><h2>Trens não revistados <span class="dir">${naoRev.length}</span></h2>${naoRev.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Turno</th><th>Justificativa</th></tr></thead><tbody>${naoRev.map(r => `<tr><td>${diaRot(r.dataISO)}</td><td><b>${esc(r.prefixo)}</b></td><td>${r.turno}</td><td class="small">${esc(r.motivoNao || '–')}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
   </div>`;
 }
@@ -1452,7 +1454,7 @@ function progTabela() {
   return `${barraFiltros(todas, `<span class="filtro-acoes"><button class="btn sm" data-act="exportar" data-v="tabela">⬇ Esta tabela</button><button class="btn sm" data-act="exportar" data-v="trens">⬇ Detalhe por trem</button><button class="btn sm" data-act="exportar" data-v="vagoes">⬇ Detalhe por vagão</button></span>`)}
   <div class="card"><h2>Tabela de dados <span class="dir">${fmt(rows.length)} trens${rows.length > lim ? ' · mostrando ' + lim + ' (baixe a planilha para ver tudo)' : ''}</span></h2>
   ${rows.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Mês/ano</th><th>Data</th><th>Líder responsável</th><th>Líder backup</th><th>Turno</th><th>Prefixo</th><th class="num">Total vagões</th><th class="num">Inspec.</th><th class="num">Faltantes</th><th>Justificativa faltantes</th><th>Linha</th><th>Revistado?</th><th>Justificativa</th><th class="num">Retidos</th><th>Vagão retido / avaria</th><th class="num">Tempo</th><th class="num">Desvio</th></tr></thead><tbody>
-    ${rows.slice(0, lim).map(r => `<tr><td>${MESES[+r.mes.slice(5) - 1]}/${r.mes.slice(2, 4)}</td><td>${diaRot(r.dataISO)}</td><td class="small">${esc(r.lider)}</td><td class="small">${esc(r.backup)}</td><td>${r.turno}</td><td><b>${esc(r.prefixo)}</b></td><td class="num">${fmt(r.total)}</td><td class="num">${fmt(r.insp)}</td><td class="num">${fmt(r.falt)}</td><td class="small">${r.rev ? esc(r.motivoParcial) : ''}</td><td>${r.linha}</td><td>${r.rev ? 'Sim' : '<span class="tag warn">Não</span>'}</td><td class="small">${esc(r.motivoNao)}</td><td class="num">${r.retidos || ''}</td><td class="small">${r.ret.map(x => esc(x.vagao + (x.obs ? ' – ' + x.obs : ''))).join('<br>') || 'N/A'}</td><td class="num">${r.durMin ? dur(r.durMin) : '–'}</td><td class="num">${r.desvMin ? dur(r.desvMin) : '–'}</td></tr>`).join('')}
+    ${rows.slice(0, lim).map(r => `<tr><td>${MESES[+r.mes.slice(5) - 1]}/${r.mes.slice(2, 4)}</td><td>${diaRot(r.dataISO)}</td><td class="small">${esc(r.lider)}</td><td class="small">${esc(r.backup)}</td><td>${r.turno}</td><td><b>${esc(r.prefixo)}</b></td><td class="num">${fmt(r.total)}</td><td class="num">${fmt(r.insp)}</td><td class="num">${fmt(r.falt)}</td><td class="small">${r.rev ? esc(r.motivoParcial) : ''}</td><td>${r.linha}</td><td>${r.rev ? 'Sim' : '<span class="tag warn">Não</span>'}</td><td class="small">${esc(r.motivoNao)}</td><td class="num">${r.retidos || ''}</td><td class="small">${r.ret.map(x => esc([x.vagao, x.obs].filter(Boolean).join(' – '))).join('<br>') || 'N/A'}</td><td class="num">${r.durMin ? dur(r.durMin) : '–'}</td><td class="num">${r.desvMin ? dur(r.desvMin) : '–'}</td></tr>`).join('')}
   </tbody></table></div>` : semDados}</div>`;
 }
 
@@ -1537,7 +1539,7 @@ function exportar(tipo) {
   const dt = t => dataBR(t.data) + '/' + t.data.getFullYear();
   if (tipo === 'tabela') {
     const L = [['Mês/ano', 'Data', 'Líder responsável', 'Líder backup', 'Turno', 'Prefixo', 'Total de vagões', 'Vagões inspecionados', 'Vagões faltantes', 'Justificativa vagões faltantes', 'Linha', 'Trem foi revistado?', 'Justificativa', 'Vagões retidos', 'Vagão retido / avaria', 'Tempo (min)', 'Tempo desvio (min)', 'Desvios', 'Materiais aplicados']];
-    filtrar(linhasHist()).forEach(r => L.push([r.mes.slice(5) + '/' + r.mes.slice(0, 4), r.dataISO.split('-').reverse().join('/'), r.lider, r.backup, r.turno, r.prefixo, r.total, r.insp, r.falt, r.rev ? r.motivoParcial : '', r.linha, r.rev ? 'Sim' : 'Não', r.motivoNao, r.retidos, r.ret.map(x => x.vagao + (x.obs ? ' - ' + x.obs : '')).join(' | ') || 'N/A', r.durMin || '', r.desvMin || '', r.desvObs, r.itens]));
+    filtrar(linhasHist()).forEach(r => L.push([r.mes.slice(5) + '/' + r.mes.slice(0, 4), r.dataISO.split('-').reverse().join('/'), r.lider, r.backup, r.turno, r.prefixo, r.total, r.insp, r.falt, r.rev ? r.motivoParcial : '', r.linha, r.rev ? 'Sim' : 'Não', r.motivoNao, r.retidos, r.ret.map(x => [x.vagao, x.obs].filter(Boolean).join(' - ')).join(' | ') || 'N/A', r.durMin || '', r.desvMin || '', r.desvObs, r.itens]));
     return baixarCSV(L, 'revistamento-zto-tabela.csv');
   }
   if (tipo === 'trens') {
