@@ -303,8 +303,12 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .rcard.plano .fr b { font-size: 24px; color: var(--title); font-variant-numeric: tabular-nums; }
 .rcard.plano .fr i { height: 30px; background: var(--ink); width: 2px; }
 .rcard.plano .ico { width: 30px; height: 30px; justify-self: end; }
-@media (max-width: 1000px) { .rep { grid-template-columns: 1fr; } .rep-main { grid-template-columns: repeat(6, minmax(0, 1fr)); } .rep-main > * { grid-column: span 3 !important; grid-row: auto !important; } .rep-main .c3, .rep-main .c9, .rep-main .c10, .rep-main .c11, .rep-main .c12, .rep-main .c13 { grid-column: 1 / -1 !important; } .rep-planos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } .rep-planos h3 { grid-column: 1 / -1; } }
+@media (max-width: 1000px) { .rep { grid-template-columns: 1fr; } .rep-main { grid-template-columns: repeat(6, minmax(0, 1fr)); } .rep-main > * { grid-column: span 3 !important; grid-row: auto !important; } .rep-main .c3, .rep-main .c9, .rep-main .c10, .rep-main .c11, .rep-main .c12, .rep-main .c13, .rep-main .c14 { grid-column: 1 / -1 !important; } .rep-planos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } .rep-planos h3 { grid-column: 1 / -1; } }
 @media (max-width: 560px) { .rep-main .c6 { grid-column: 1 / -1 !important; } .rcard { padding: 10px 12px; } .rcard .rv { font-size: 24px; } .rgauge .grande-pct { font-size: 24px; } }
+.c14 { grid-column: 1 / -1; }
+.tabela tr.tot td { border-top: 2px solid var(--line); font-weight: 700; }
+.upload.plan-up { margin: 0; padding: 10px 12px; border-radius: 14px; }
+.upload.plan-up .ic { font-size: 22px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -1257,7 +1261,7 @@ const META_MIN = 30, META_ADER = 85;                     // metas: tempo de revi
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const MESES_L = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const F = { per: 'mes:' + isoData(new Date()).slice(0, 7), turno: 'todos', linha: 'todas', prefixo: 'todos', rev: 'todos' };
-const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, ok: false };
+const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, ok: false, planos: null };
 
 // histórico resumido: uma linha por trem, somada no servidor (03-indicadores.sql); renova a cada 5 min
 async function carregarHist() {
@@ -1270,11 +1274,70 @@ async function carregarHist() {
       tudo(() => sb.from('trens_historico').select('id,materiais')).catch(() => [])          // vagões e posições lidos do Forms
     ]);
     Object.assign(HIST, { trens, mats, ret, det: Object.fromEntries(det.map(x => [x.id, x.materiais])), em: Date.now(), ok: true });
+    HIST.planos = await carregarPlanosExt();
   } catch (e) {
     if (ehRede(e)) throw e;
     Object.assign(HIST, { trens: [], mats: [], ret: [], det: {}, em: Date.now(), ok: false });   // 03 ainda não rodado: usa só os 35 dias
   }
 }
+// planilha "Planos Especiais 2026": última carga enviada (05-planos-especiais.sql)
+async function carregarPlanosExt() {
+  try {
+    const { data: c, error } = await sb.from('planos_cargas').select('*').order('quando', { ascending: false }).limit(1);
+    if (error || !c?.length) return error ? null : { carga: null, rows: [] };
+    const rows = await tudo(() => sb.from('planos_vagoes').select('vagao,plano,data_inspecao,prioridade,trem,os,posicao,local,previsao').eq('carga_id', c[0].id).order('id'));
+    return { carga: c[0], rows };
+  } catch { return null; }
+}
+let xlsxPronto = null;
+function carregarXlsx() {
+  return xlsxPronto || (xlsxPronto = new Promise((ok, erro) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = ok; sc.onerror = () => { xlsxPronto = null; erro(new Error('Sem internet para abrir o leitor de Excel')); };
+    document.head.appendChild(sc);
+  }));
+}
+// '8400946HPT' -> 'HPT 840094-6' (mesmo formato da ficha do trem)
+function codVagaoPlanilha(v) {
+  const t = String(v || '').toUpperCase().replace(/\s+/g, '');
+  let m = t.match(/^(\d{6})(\d)([A-Z]{3})$/); if (m) return `${m[3]} ${m[1]}-${m[2]}`;
+  m = t.match(/^([A-Z]{3})-?(\d{6})-?(\d)$/); if (m) return `${m[1]} ${m[2]}-${m[3]}`;
+  return String(v || '').trim().toUpperCase();
+}
+async function enviarPlanilhaPlanos(arq) {
+  await carregarXlsx();
+  const wb = XLSX.read(await arq.arrayBuffer(), { type: 'array', cellDates: true });
+  const sem = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const nomeAba = wb.SheetNames.find(n => sem(n).includes('base vagoes')) || wb.SheetNames.find(n => { const l = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, range: 0 })[0] || []; return l.some(c => sem(c) === 'vagao') && l.some(c => sem(c) === 'plano'); });
+  if (!nomeAba) throw new Error('Não achei a aba "Base Vagões - Planos" (colunas VAGÃO e Plano)');
+  const linhas = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { defval: null });
+  const col = (l, nome) => { const k = Object.keys(l).find(k => sem(k) === nome); return k ? l[k] : null; };
+  const vazio = v => v == null || /^(\s*|#N\/A|0)$/i.test(String(v).trim());
+  const dataISO = v => v instanceof Date && !isNaN(v) ? isoData(new Date(v.getTime() + 12 * 3600e3)) : null;   // meio-dia: evita virar o dia pelo fuso
+  const porChaveV = new Map();
+  linhas.forEach(l => {
+    const vagao = codVagaoPlanilha(col(l, 'vagao')), plano = String(col(l, 'plano') || '').trim();
+    if (!vagao || !plano) return;
+    const prev = col(l, 'previsao');
+    porChaveV.set(vagao + '|' + plano, { vagao, plano, data_inspecao: dataISO(col(l, 'data inspecao')), prioridade: col(l, 'prioridade') || null, rodeiro: vazio(col(l, 'rodeiro')) ? null : String(col(l, 'rodeiro')),
+      trem: vazio(col(l, 'trem')) ? null : String(col(l, 'trem')).trim(), os: vazio(col(l, 'os')) ? null : String(col(l, 'os')), posicao: vazio(col(l, 'posicao')) ? null : +col(l, 'posicao') || null,
+      local: col(l, 'local') || null, previsao: prev instanceof Date && !isNaN(prev) ? prev.toISOString() : null });
+  });
+  const dados = [...porChaveV.values()];
+  if (!dados.length) throw new Error('A aba "' + nomeAba + '" não tem vagões com plano');
+  const { data: c, error: e1 } = await sb.from('planos_cargas').insert({ arquivo: arq.name, linhas: dados.length }).select().single();
+  if (e1) throw new Error(/relation|does not exist|schema cache/i.test(e1.message) ? 'Rode o 05-planos-especiais.sql no Supabase' : e1.message);
+  for (let i = 0; i < dados.length; i += 500) {
+    toast(`Enviando planilha… ${Math.min(i + 500, dados.length)} de ${dados.length}`);
+    const { error } = await sb.from('planos_vagoes').insert(dados.slice(i, i + 500).map(d => ({ ...d, carga_id: c.id })));
+    if (error) { await sb.from('planos_cargas').delete().eq('id', c.id); throw new Error(error.message); }
+  }
+  await sb.from('planos_cargas').delete().neq('id', c.id);                          // fica só a carga nova
+  HIST.planos = await carregarPlanosExt();
+  return dados.length;
+}
+
 // junta o histórico (trens antigos) com os trens carregados em detalhe (mais recentes e sempre atualizados)
 function linhasHist() {
   const vistos = new Set(DB.trens.map(t => t.id)), mats = {}, ret = {};
@@ -1476,9 +1539,30 @@ function gaugeFaixas(v, meta) {
 const icoAlerta = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z" fill="var(--g-ruim-f)" stroke="var(--g-ruim)" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9v6M12 17.6v.4" stroke="var(--g-ruim)" stroke-width="2" stroke-linecap="round"/></svg>';
 // planos especiais da aba Aderência: os lançados no app, agrupados pelo título (a planilha externa entra aqui)
 function planosAderencia() {
+  const ext = HIST.planos?.rows;
+  if (ext?.length) {
+    const [ini, fim] = periodoDe(F.per);
+    return Object.entries(porChave(ext, r => r.plano)).map(([t, rs]) => ({ titulo: t, realizados: rs.filter(r => r.data_inspecao).length, faltam: rs.filter(r => !r.data_inspecao).length,
+      noPeriodo: rs.filter(r => r.data_inspecao && r.data_inspecao >= ini && r.data_inspecao <= fim).length, chegando: rs.filter(r => !r.data_inspecao && r.previsao).length }))
+      .sort((a, b) => b.faltam + b.realizados - a.faltam - a.realizados);
+  }
   return Object.entries(porChave((DB.planosTodos || DB.planos).filter(p => F.turno === 'todos' || p.turno === F.turno), p => p.titulo.trim()))
     .map(([t, ps]) => ({ titulo: t, realizados: ps.filter(p => ['feita', 'validada'].includes(p.status)).length, faltam: ps.filter(p => ['aberta', 'reaberta'].includes(p.status)).length }))
     .sort((a, b) => b.faltam + b.realizados - a.faltam - a.realizados);
+}
+function tabelaPlanos(planos) {
+  const ext = HIST.planos?.rows;
+  if (!ext?.length) return '';
+  const tot = planos.reduce((a, p) => ({ r: a.r + p.realizados, f: a.f + p.faltam, m: a.m + p.noPeriodo, c: a.c + p.chegando }), { r: 0, f: 0, m: 0, c: 0 });
+  const chegando = ext.filter(r => !r.data_inspecao && r.previsao).sort((a, b) => (a.previsao || '9').localeCompare(b.previsao || '9') || (a.posicao || 0) - (b.posicao || 0));
+  const linha = (p, b) => `<tr${b ? ' class="tot"' : ''}><td>${b ? '<b>Total</b>' : esc(p.titulo)}</td><td class="num">${fmt(p.realizados)}</td><td class="num">${fmt(p.faltam)}</td>
+    <td style="min-width:140px"><div style="display:flex;align-items:center;gap:8px"><div style="flex:1">${barra(p.realizados / Math.max(1, p.realizados + p.faltam) * 100)}</div><span class="small" style="font-weight:700;min-width:40px;text-align:right">${pct1(p.realizados, p.realizados + p.faltam)}%</span></div></td>
+    <td class="num">${fmt(p.noPeriodo)}</td><td class="num">${p.chegando ? `<b style="color:var(--warn)">${fmt(p.chegando)}</b>` : '–'}</td></tr>`;
+  return `<div class="card c14"><h2>Planos especiais <span class="dir">planilha de ${dataBR(new Date(HIST.planos.carga.quando))}</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Plano</th><th class="num">Realizados</th><th class="num">Faltam</th><th>Concluído</th><th class="num">Realizados no período</th><th class="num">Pendentes chegando</th></tr></thead><tbody>
+    ${planos.map(p => linha(p)).join('')}${linha({ realizados: tot.r, faltam: tot.f, noPeriodo: tot.m, chegando: tot.c }, true)}</tbody></table></div></div>
+  <div class="card c14"><h2>Vagões com plano pendente chegando a ZTO <span class="dir">${fmt(chegando.length)}</span></h2>${chegando.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Previsão</th><th>Trem</th><th class="num">Posição</th><th>Vagão</th><th>Plano</th><th>Prioridade</th><th>Local</th></tr></thead><tbody>
+    ${chegando.map(r => `<tr><td>${r.previsao ? dataBR(new Date(r.previsao)) + ' ' + horaDe(r.previsao) : '–'}</td><td><b>${esc(r.trem)}</b>${r.os ? `<br><span class="small muted">OS ${esc(r.os)}</span>` : ''}</td><td class="num">${r.posicao ?? '–'}</td><td><b>${esc(r.vagao)}</b></td><td>${esc(r.plano)}</td><td>${esc(r.prioridade || '')}</td><td>${esc(r.local || '')}</td></tr>`).join('')}
+  </tbody></table></div>` : '<span class="muted small">Nenhum vagão com plano pendente em trem para ZTO.</span>'}</div>`;
 }
 // regra da aderência: trem não revistado por condições climáticas não entra no cálculo
 const porClima = r => !r.rev && /clim/i.test(r.motivoNao || '');
@@ -1511,9 +1595,11 @@ function progAderencia() {
       <div class="card c11"><h2>Trens × vagões inspecionados <span class="dir">por dia</span></h2>${comTrem.length ? colunas(dias.map(d => ({ rot: d.rot.slice(0, 2), v: d.a.insp, sub: d.a.nRev || '', tip: `${d.rot}: ${fmt(d.a.insp)} vagões em ${d.a.nRev} trens` })), { cor: 'var(--s1)', fmtV: milC, larg: 30, alt: 170, nota: 'Número abaixo do dia = trens revistados.' }) : semDados}</div>
       <div class="card c12"><h2>Trens × dia</h2>${linhas(dias, [{ nome: 'Trens/dia', cor: 'var(--s2)', vals: dias.map(d => d.a.n ? d.a.nRev : null) }, { nome: 'Média do período', cor: 'var(--s1)', vals: dias.map(() => A.porDia) }, { nome: 'Média últimos 7 dias', cor: 'var(--muted)', tr: true, vals: mm7 }], { fmtV: dec1, alt: 170, larg: 18 })}</div>
       <div class="card c13"><h2>Consumo de material <span class="dir">unidades</span></h2>${hbars(Object.entries(mats).sort((a, b) => b[1] - a[1]), 'un.')}</div>
+      ${tabelaPlanos(planos)}
     </div>
     <aside class="rep-planos">
       <h3>Planos especiais</h3>
+      <label class="upload plan-up"><input type="file" accept=".xlsx,.xls" data-act="planos-xlsx"><span class="ic">📊</span><span><b>${S.enviandoPlanos ? 'Enviando…' : 'Enviar planilha do dia'}</b><br><span class="small muted">${HIST.planos?.carga ? 'Atualizada ' + dataBR(new Date(HIST.planos.carga.quando)) + ' ' + horaDe(HIST.planos.carga.quando) + ' · ' + fmt(HIST.planos.carga.linhas) + ' vagões' : HIST.planos === null ? 'Rode o 05-planos-especiais.sql' : 'Planos Especiais 2026.xlsx'}</span></span></label>
       ${planos.length ? planos.map(p => `<div class="rcard plano"><div class="rr">${esc(p.titulo)}</div><div class="fr"><div><span>Faltam:</span><b>${fmt(p.faltam)}</b></div><i></i><div><span>Realizados:</span><b>${fmt(p.realizados)}</b></div>${icoAlerta}</div></div>`).join('') : '<div class="rcard plano"><span class="muted small">Nenhum plano especial ainda.</span></div>'}
     </aside>
   </div>`;
@@ -1886,6 +1972,13 @@ document.addEventListener('change', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, N = S.novo, M = S.modal;
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
+  else if (a === 'planos-xlsx') {
+    const arq = el.files[0]; if (!arq) return;
+    S.enviandoPlanos = true; render();
+    try { const n = await enviarPlanilhaPlanos(arq); toast('Planilha de planos atualizada: ' + fmt(n) + ' vagões'); }
+    catch (err) { toast('⚠ ' + err.message); }
+    S.enviandoPlanos = false; render();
+  }
   else if (a === 'turno-ver') { S.turnoVer = el.value; S.planoTurno = el.value; S.novo = novoVazio(); S.valTrem = null; render(); }
   else if (a === 'ver-tec') { S.verTec = el.value; S.tecTrem = null; render(); }
   else if (a === 'plano-turno') { S.planoTurno = el.value; render(); }
