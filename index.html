@@ -1222,21 +1222,22 @@ const META_MIN = 30, META_ADER = 85;                     // metas: tempo de revi
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const MESES_L = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const F = { per: 'mes:' + isoData(new Date()).slice(0, 7), turno: 'todos', linha: 'todas', prefixo: 'todos', rev: 'todos' };
-const HIST = { trens: [], mats: [], ret: [], em: 0, ok: false };
+const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, ok: false };
 
 // histórico resumido: uma linha por trem, somada no servidor (03-indicadores.sql); renova a cada 5 min
 async function carregarHist() {
   if (Date.now() - HIST.em < 5 * 60e3) return;
   try {
-    const [trens, mats, ret] = await Promise.all([
+    const [trens, mats, ret, det] = await Promise.all([
       tudo(() => sb.from('resumo_trens').select('*').order('data')),
       tudo(() => sb.from('resumo_materiais').select('*')),
-      tudo(() => sb.from('registros').select('trem_id,vagao,obs').contains('ocorrencias', ['Retenção de vagão']))
+      tudo(() => sb.from('registros').select('trem_id,vagao,obs').contains('ocorrencias', ['Retenção de vagão'])),
+      tudo(() => sb.from('trens_historico').select('id,materiais')).catch(() => [])          // vagões e posições lidos do Forms
     ]);
-    Object.assign(HIST, { trens, mats, ret, em: Date.now(), ok: true });
+    Object.assign(HIST, { trens, mats, ret, det: Object.fromEntries(det.map(x => [x.id, x.materiais])), em: Date.now(), ok: true });
   } catch (e) {
     if (ehRede(e)) throw e;
-    Object.assign(HIST, { trens: [], mats: [], ret: [], em: Date.now(), ok: false });   // 03 ainda não rodado: usa só os 35 dias
+    Object.assign(HIST, { trens: [], mats: [], ret: [], det: {}, em: Date.now(), ok: false });   // 03 ainda não rodado: usa só os 35 dias
   }
 }
 // junta o histórico (trens antigos) com os trens carregados em detalhe (mais recentes e sempre atualizados)
@@ -1247,13 +1248,15 @@ function linhasHist() {
   const velhos = HIST.trens.filter(r => !vistos.has(r.id)).map(r => ({ id: r.id, dataISO: r.data, turno: r.turno, linha: r.linha, prefixo: r.prefixo, status: r.status,
     lider: r.lider_nome || (r.lider_id ? C(r.lider_id).nome : liderDe(r.turno)), backup: r.lider_backup || '', motivoNao: r.motivo_nao || '', motivoParcial: r.motivo_parcial || '',
     durMin: r.inicio && r.fim ? difMin(hm(r.inicio), hm(r.fim)) : 0, total: r.total, insp: r.insp, retidos: r.retidos, itens: r.itens,
-    nDesv: r.n_desvios, desvMin: r.desvio_min, desvObs: r.desvio_obs || '', mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms' }));
+    nDesv: r.n_desvios, desvMin: r.desvio_min, desvObs: r.desvio_obs || '', mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms',
+    apl: (HIST.det[r.id] || []).flatMap(m => (m.vagoes || []).map(x => ({ vagao: x.v, id: m.id, nome: m.nome, qtd: x.q, pos: x.p || [] }))) }));
   const novos = fechadosT().map(t => {
     const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => m[x.nome] = (m[x.nome] || 0) + x.qtd));
     const rt = Object.entries(t.reg).filter(([, r]) => r.oc.includes('Retenção de vagão')).map(([p, r]) => ({ vagao: t.vagoes[p - 1], obs: r.obs }));
+    const apl = Object.entries(t.reg).flatMap(([p, r]) => r.mats.map(x => ({ vagao: t.vagoes[p - 1], id: x.id, nome: x.nome, qtd: x.qtd, pos: x.pos || [] })));
     return { id: t.id, dataISO: t.dataISO, turno: t.turno, linha: t.linha, prefixo: t.prefixo, status: t.status, lider: t.lider, backup: t.backup, motivoNao: t.motivoNao, motivoParcial: t.motivoParcial,
       durMin: t.durMin, total: t.vagoes.length, insp: inspecionados(t), retidos: rt.length, itens: Object.values(m).reduce((a, b) => a + b, 0),
-      nDesv: t.desvios.length, desvMin: t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), desvObs: t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), mats: m, ret: rt };
+      nDesv: t.desvios.length, desvMin: t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), desvObs: t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), mats: m, ret: rt, apl };
   });
   return velhos.concat(novos).map(r => ({ ...r, rev: r.status === 'concluido', mes: r.dataISO.slice(0, 7), falt: r.status === 'concluido' ? Math.max(0, r.total - r.insp) : r.total }))
     .sort((a, b) => a.dataISO.localeCompare(b.dataISO));
@@ -1469,36 +1472,44 @@ function trensFiltrados() {
     && (F.prefixo === 'todos' || t.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === (t.status === 'concluido')));
 }
 function progMateriais() {
-  const ts = trensFiltrados(), rev = ts.filter(t => t.status !== 'nao_revistado');
-  let sap = 0;
-  const mat = {}, porVagao = {}, porTec = {}, ocs = {}, posSap = Object.fromEntries(POSICOES.map(p => [p, 0]));
-  rev.forEach(t => Object.entries(t.reg).forEach(([p, r]) => {
+  const todas = linhasHist(), rows = filtrar(todas), ano = anoF(), sapNome = MAT.sapata.nome;
+  const mat = {}, porVagao = {}, posSap = Object.fromEntries(POSICOES.map(p => [p, 0]));
+  rows.forEach(r => {
+    Object.entries(r.mats).forEach(([n, q]) => mat[n] = (mat[n] || 0) + q);
+    const vistos = new Set();
+    r.apl.forEach(x => {
+      const o = porVagao[x.vagao] || (porVagao[x.vagao] = { itens: 0, vezes: 0, sap: 0, ultimo: r.dataISO });
+      if (!vistos.has(x.vagao)) { o.vezes++; vistos.add(x.vagao); }                  // uma vez por passagem do vagão
+      if (r.dataISO > o.ultimo) o.ultimo = r.dataISO;
+      o.itens += x.qtd;
+      if (x.id === 'sapata') { o.sap += x.qtd; x.pos.forEach(p => { if (p in posSap) posSap[p]++; }); }
+    });
+  });
+  const sap = mat[sapNome] || 0, nRev = rows.filter(r => r.rev).length;
+  const topVag = Object.entries(porVagao).sort((a, b) => b[1].itens - a[1].itens || b[1].vezes - a[1].vezes).slice(0, 15);
+  const maxPos = Math.max(...Object.values(posSap), 1);
+  const meses = mesesDoAno(filtrar(todas, true), ano).map(m => ({ rot: m.rot, v: m.rows.reduce((a, r) => a + (r.mats[sapNome] || 0), 0) }));
+  // detalhe só do app (últimos 35 dias): mecânicos e ocorrências
+  const porTec = {}, ocs = {};
+  trensFiltrados().filter(t => t.status !== 'nao_revistado').forEach(t => Object.entries(t.reg).forEach(([p, r]) => {
     if (r.st === 'pend') return;
     (t.dist.find(x => p >= x.ini && p <= x.fim)?.membros || []).forEach(id => porTec[id] = (porTec[id] || 0) + 1);
     r.oc.forEach(o => ocs[o] = (ocs[o] || 0) + 1);
-    if (!r.mats.length) return;
-    const v = t.vagoes[p - 1], o = porVagao[v] || (porVagao[v] = { itens: 0, vezes: 0, sap: 0, ultimo: t.data });
-    o.vezes++; if (t.data > o.ultimo) o.ultimo = t.data;                 // uma vez por passagem do vagão
-    r.mats.forEach(m => {
-      mat[m.nome] = (mat[m.nome] || 0) + m.qtd; o.itens += m.qtd;
-      if (m.id === 'sapata') { sap += m.qtd; o.sap += m.qtd; (m.pos || []).forEach(x => posSap[x] = (posSap[x] || 0) + 1); }
-    });
   }));
-  const topVag = Object.entries(porVagao).sort((a, b) => b[1].itens - a[1].itens || b[1].vezes - a[1].vezes).slice(0, 10);
   const topTec = Object.entries(porTec).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, v]) => [nomeTec(id), v]);
-  const maxPos = Math.max(...Object.values(posSap), 1);
-  return `${barraFiltros(linhasHist())}
-  <p class="nota">Detalhe por vagão, por material e por mecânico dos <b>últimos 35 dias</b> (dentro do filtro acima). ${fmt(sap)} sapatas trocadas · ${rev.length ? dec1(sap / rev.length) : 0} por trem.</p>
+  return `${barraFiltros(todas)}
+  <div class="kpis">${kpi('Sapatas trocadas', fmt(sap), nRev ? dec1(sap / nRev) + ' por trem revistado' : '')}${kpi('Itens aplicados', fmt(Object.values(mat).reduce((a, b) => a + b, 0)), 'todos os materiais')}${kpi('Vagões que receberam material', fmt(Object.keys(porVagao).length), 'vagões diferentes')}</div>
   <div class="grid">
-    <div class="card"><h2>Materiais mais consumidos <span class="dir">unidades</span></h2>${hbars(Object.entries(mat).sort((a, b) => b[1] - a[1]).slice(0, 10), 'un.')}</div>
-    <div class="card"><h2>Vagões que mais recebem material</h2>${topVag.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Vagão</th><th class="num">Vezes</th><th class="num">Sapatas</th><th class="num">Itens</th><th>Último</th></tr></thead><tbody>
-      ${topVag.map(([v, o]) => `<tr class="click" data-act="ver-vagao" data-v="${esc(v)}"><td><b>${esc(v)}</b></td><td class="num">${o.vezes}</td><td class="num">${o.sap}</td><td class="num">${o.itens}</td><td>${dataBR(o.ultimo)}</td></tr>`).join('')}
-      </tbody></table></div><p class="small muted" style="margin:8px 0 0">Toque no vagão para ver o histórico e quem revistou.</p>` : semDados}</div>
+    <div class="card"><h2>Materiais mais consumidos <span class="dir">unidades</span></h2>${hbars(Object.entries(mat).sort((a, b) => b[1] - a[1]).slice(0, 12), 'un.')}</div>
+    <div class="card"><h2>Sapatas trocadas mês a mês <span class="dir">${ano}</span></h2>${colunas(meses, { fmtV: milC, larg: 46 })}</div>
     <div class="card"><h2>Sapatas trocadas por posição</h2>
       <div class="grade-sap leitura"><span></span><b>1</b><b>2</b><b>3</b><b>4</b>${['E', 'D'].map(l => `<b>${l}</b>${[1, 2, 3, 4].map(n => { const v = posSap[n + l]; return `<span class="cel" style="--a:${(0.12 + 0.88 * v / maxPos).toFixed(2)}" data-tip="Rodeiro ${n}, lado ${l === 'E' ? 'esquerdo' : 'direito'}: ${fmt(v)} sapatas">${fmt(v)}</span>`; }).join('')}`).join('')}</div>
-      <p class="small muted" style="margin:8px 0 0">Rodeiro 1 a 4 × lado esquerdo (E) e direito (D). Mais escuro = mais trocas.</p></div>
-    <div class="card"><h2>Ocorrências <span class="dir">vagões</span></h2>${hbars(OCORRENCIAS.map(o => [o, ocs[o] || 0]), 'vagões')}</div>
-    <div class="card"><h2>Vagões inspecionados por técnico <span class="dir">top 10</span></h2>${hbars(topTec, 'vagões')}</div>
+      <p class="small muted" style="margin:8px 0 0">Rodeiro 1 a 4 × lado esquerdo (E) e direito (D). Mais escuro = mais trocas. Conta só as sapatas com posição informada.</p></div>
+    <div class="card larga"><h2>Vagões que mais recebem material <span class="dir">top 15</span></h2>${topVag.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Vagão</th><th class="num">Passagens com material</th><th class="num">Sapatas</th><th class="num">Itens</th><th>Último</th></tr></thead><tbody>
+      ${topVag.map(([v, o]) => `<tr class="click" data-act="ver-vagao" data-v="${esc(v)}"><td><b>${esc(v)}</b></td><td class="num">${o.vezes}</td><td class="num">${o.sap}</td><td class="num">${o.itens}</td><td>${diaRot(o.ultimo)}/${o.ultimo.slice(2, 4)}</td></tr>`).join('')}
+      </tbody></table></div><p class="small muted" style="margin:8px 0 0">Vagões e posições do histórico foram lidos do texto do Forms (estimativa).</p>` : semDados}</div>
+    <div class="card"><h2>Ocorrências <span class="dir">vagões · só app</span></h2>${hbars(OCORRENCIAS.map(o => [o, ocs[o] || 0]), 'vagões')}</div>
+    <div class="card"><h2>Vagões inspecionados por técnico <span class="dir">top 10 · só app</span></h2>${topTec.length ? hbars(topTec, 'vagões') : '<span class="muted small">Aparece com os trens lançados no app (o Forms não traz por técnico).</span>'}</div>
   </div>`;
 }
 const normCod = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1508,16 +1519,21 @@ function historicoVagao(cod) {
   return out.sort((a, b) => b.t.data - a.t.data);
 }
 function progVagao() {
-  const todos = [...new Set(DB.trens.flatMap(t => t.vagoes))], q = S.busca.trim();
+  const hist = linhasHist().filter(r => r.forms && r.apl.length);
+  const todos = [...new Set(DB.trens.flatMap(t => t.vagoes).concat(hist.flatMap(r => r.apl.map(x => x.vagao))))], q = S.busca.trim();
   const cod = q ? todos.find(c => normCod(c) === normCod(q)) || todos.find(c => normCod(c).includes(normCod(q)) && normCod(q).length >= 6) : null;
-  const h = cod ? historicoVagao(cod) : null;
-  return `<div class="card"><h2>Buscar vagão <span class="dir">últimos 35 dias</span></h2>
+  const h0 = cod ? historicoVagao(cod) : null, hf = cod ? hist.filter(r => r.apl.some(x => x.vagao === cod)).reverse() : [];
+  const h = h0 && (h0.length || hf.length) ? h0 : null;
+  const cardForms = hf.length ? `<div class="card"><h2>Materiais aplicados · histórico do Forms <span class="dir">${hf.length} passagens</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Turno</th><th>Materiais</th></tr></thead><tbody>
+    ${hf.map(r => `<tr><td>${diaRot(r.dataISO)}/${r.dataISO.slice(2, 4)}</td><td><b>${esc(r.prefixo)}</b><br><span class="small muted">${esc(r.linha || '')}</span></td><td>${r.turno || '–'}</td><td class="small">${r.apl.filter(x => x.vagao === cod).map(x => `${x.qtd}× ${esc(x.nome)}${x.pos.length ? ' (' + x.pos.join(', ') + ')' : ''}`).join(' · ')}</td></tr>`).join('')}
+  </tbody></table></div></div>` : '';
+  return `<div class="card"><h2>Buscar vagão <span class="dir">app (35 dias) + materiais do Forms</span></h2>
     <div style="display:flex;gap:8px"><input id="busca" value="${esc(S.busca)}" placeholder="Ex.: HPT 031995-3" class="inp"><button class="btn primary" data-act="buscar">Buscar</button></div>
     ${todos.length ? `<p class="small muted" style="margin:8px 0 0">Exemplos: ${todos.slice(-5).map(c => `<a href="#" data-act="ver-vagao" data-v="${esc(c)}">${esc(c)}</a>`).join(' · ')}</p>` : ''}</div>
   ${!q ? '' : !h ? '<div class="card muted">Vagão não encontrado nos trens carregados.</div>' : `
-  <div class="card"><h2>${esc(cod)} <span class="dir">${h.length} passagens pelo revistamento</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Equipe que revistou</th><th>Resultado</th><th>Detalhes</th></tr></thead><tbody>
+${h0.length ? `<div class="card"><h2>${esc(cod)} <span class="dir">${h0.length} passagens pelo revistamento (app)</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Equipe que revistou</th><th>Resultado</th><th>Detalhes</th></tr></thead><tbody>
     ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em andamento</span>' : ''}</td><td class="num">${posF(t, p)}</td><td>Equipe ${d.n}<br><span class="small">${esc(d.membros.map(nomeTec).join(', '))}</span></td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td><td class="small">${r ? (r.st === 'ok' ? '–' : esc(txtReg(r)) + (r.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷</button>` : '')) : esc(t.motivoNao || t.motivoParcial || '')}</td></tr>`).join('')}
-  </tbody></table></div></div>`}`;
+  </tbody></table></div></div>` : ''}`}${h ? cardForms : ''}`;
 }
 function progCadastros() {
   const lst = (tit, arr) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(m => `<li><span></span><span>${esc(m)}</span></li>`).join('')}</ul></div>`;
