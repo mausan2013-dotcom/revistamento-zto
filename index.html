@@ -309,6 +309,8 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .tabela tr.tot td { border-top: 2px solid var(--line); font-weight: 700; }
 .upload.plan-up { margin: 0; padding: 10px 12px; border-radius: 14px; }
 .upload.plan-up .ic { font-size: 22px; }
+.aviso-plano { display: flex; gap: 8px; align-items: flex-start; background: var(--info-bg); color: var(--info); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 2px; font-size: 14px; }
+.aviso-plano b { color: var(--info); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -599,6 +601,25 @@ async function emLotes(ids, montar) {
   for (let i = 0; i < ids.length; i += 80) out.push(...await tudo(() => montar(ids.slice(i, i + 80))));
   return out;
 }
+// planos especiais pendentes por vagão (planilha diária enviada pelo Programador)
+const PEND = Object.assign({ mapa: {}, carga: null, quando: null, em: 0 }, lsLer('rzto_pend', {}), { em: 0 });
+async function carregarPendentes(forcar) {
+  if (!forcar && Date.now() - PEND.em < 10 * 60e3) return;
+  try {
+    const { data: c, error } = await sb.from('planos_cargas').select('id,quando').order('quando', { ascending: false }).limit(1);
+    if (error) return;
+    PEND.em = Date.now();
+    if (!c?.length) { Object.assign(PEND, { mapa: {}, carga: null, quando: null }); return; }
+    if (PEND.carga === c[0].id) return;
+    const rows = await tudo(() => sb.from('planos_vagoes').select('vagao,plano,prioridade').eq('carga_id', c[0].id).is('data_inspecao', null));
+    const mapa = {}; rows.forEach(r => (mapa[r.vagao] ||= []).push({ plano: r.plano, prioridade: r.prioridade || '' }));
+    Object.assign(PEND, { mapa, carga: c[0].id, quando: c[0].quando });
+    lsGravar('rzto_pend', { mapa, carga: PEND.carga, quando: PEND.quando });
+  } catch {}
+}
+const planosPend = cod => PEND.mapa[cod] || [];
+const txtPlanos = l => l.map(x => x.plano).join(', ');
+
 async function carregar() {
   const prog = DB.me.perfil === 'programador', dias = prog ? 35 : 3;
   const desde = new Date(); desde.setDate(desde.getDate() - dias);
@@ -623,6 +644,7 @@ async function carregar() {
   DB.planos = planos.filter(p => ['aberta', 'feita', 'reaberta'].includes(p.status) || new Date(p.criado_em) > desde).map(planoDe);
   DB.equipesDia = eqd;
   if (prog) { DB.planosTodos = planos.map(planoDe); await carregarHist(); }
+  await carregarPendentes();
   DB.log = log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
   sincronizarEquipes();
   DB.carregado = true; DB.atualizadoEm = new Date();
@@ -852,7 +874,7 @@ function cardTrem(t) {
     return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
   return `<div class="card">
     <h2>Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · chegou ${t.chegada}</span></h2>
-    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande">${Math.round(pct)}%</span><span class="muted small">inspecionado · ${ins} de ${t.vagoes.length} vagões${t.desvios.length ? ` · desvio ${dur(tempoDesvio(t))}` : ''}</span></div>
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande">${Math.round(pct)}%</span><span class="muted small">inspecionado · ${ins} de ${t.vagoes.length} vagões${t.desvios.length ? ` · desvio ${dur(tempoDesvio(t))}` : ''}${(n => n ? ` · <b style="color:var(--info)">📋 ${n} com plano especial</b>` : '')(t.vagoes.filter(c => planosPend(c).length).length)}</span></div>
     ${barra(pct)}
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
     ${eqs}
@@ -907,6 +929,7 @@ function supNovo() {
         <p style="margin:0 0 4px"><span class="tag ok">✓ ${N.lidos.length} vagões lidos</span> ${N.declarados != null ? (N.declarados === N.lidos.length ? `<span class="small" style="color:var(--ok);font-weight:700">confere com a ficha (${N.declarados})</span>` : `<span class="small" style="color:var(--bad);font-weight:700">⚠ a ficha diz ${N.declarados}. Confira!</span>`) : ''}</p>
         <p class="small muted" style="margin:0">Primeiro ${esc(N.lidos[0])}${N.posFicha ? ` (pos. ${N.posFicha[0]})` : ''}, último ${esc(N.lidos[N.lidos.length - 1])}${N.posFicha ? ` (pos. ${N.posFicha[N.posFicha.length - 1]})` : ''}</p>
         ${N.ignorados.length ? `<p class="small muted" style="margin:4px 0 0">Ignorados (locomotivas): ${N.ignorados.map(v => `${esc(v.cod)} · pos. ${v.pos} · ${v.eixos} eixos`).join('; ')}</p>` : ''}
+        ${(() => { const l = N.lidos.map((c, i) => ({ c, i, pp: planosPend(c) })).filter(x => x.pp.length); return l.length ? `<p class="small" style="margin:6px 0 0"><b style="color:var(--info)">📋 ${l.length} vagão(ões) com plano especial pendente:</b> ${l.map(x => `pos. ${N.posFicha ? N.posFicha[x.i] : x.i + 1} ${esc(x.c)} (${esc(txtPlanos(x.pp))})`).join('; ')}. As equipes verão o aviso no vagão.</p>` : ''; })()}
         ${Object.keys(N.restr).length ? `<p class="small" style="margin:6px 0 0"><b style="color:var(--warn)">⚠ Com restrição na ficha:</b> ${Object.entries(N.restr).map(([c, x]) => `pos. ${x.pos} ${esc(c)} (${esc(x.motivo)})`).join('; ')}. As equipes verão o aviso no vagão.</p>` : ''}
       </div>` : ''}
       <details ${N.colar || N.texto ? 'open' : ''} style="margin-top:10px"><summary class="small" style="cursor:pointer;font-weight:700;color:var(--muted)">Sem o PDF? Colar a lista de vagões</summary>
@@ -1126,7 +1149,7 @@ function tecMeu() {
     const r = t.reg[pos];
     if (S.tecFiltro === 'faltam' && r) continue;
     if (S.tecFiltro === 'feitos' && !r) continue;
-    const rf = restrDe(t, pos), det = [rf ? '⚠ Na ficha: ' + rf.motivo : '', r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : ''].filter(Boolean).join(' · ');
+    const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), det = [rf ? '⚠ Na ficha: ' + rf.motivo : '', pp.length ? '📋 Plano: ' + txtPlanos(pp) : '', r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : ''].filter(Boolean).join(' · ');
     lista.push(`<button class="vg ${r ? 'feito' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>${det ? `<span class="det">${esc(det)}</span>` : ''}</span>${tagReg(r)}</button>`);
   }
   return `${meus.length > 1 ? `<div class="chips">${meus.map(x => `<button class="chip ${x.id === t.id ? 'on' : ''}" data-act="tec-trem" data-v="${x.id}">Trem ${esc(x.prefixo)} · ${x.linha}</button>`).join('')}</div>` : ''}
@@ -1177,7 +1200,7 @@ function blocoArvore(M) {
     ${N.falha ? '<button class="btn" style="width:100%;margin-bottom:12px" data-act="add-falha">+ Adicionar falha</button>' : ''}`;
 }
 function modalVagao(M) {
-  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}`;
+  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}`;
   if (!M.modo) return cab + `<div class="escolhas">
     <button class="btn ok big" data-act="salvar-ok">✓ Revistado, sem intervenção</button>
     <button class="btn big" style="color:var(--title);border-color:var(--title)" data-act="modo" data-v="int">🔧 Troca de material / ocorrência</button>
@@ -1335,6 +1358,7 @@ async function enviarPlanilhaPlanos(arq) {
   }
   await sb.from('planos_cargas').delete().neq('id', c.id);                          // fica só a carga nova
   HIST.planos = await carregarPlanosExt();
+  await carregarPendentes(true);
   return dados.length;
 }
 
