@@ -1,0 +1,1582 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Revistamento ZTO</title>
+<meta name="theme-color" content="#043865">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #ebf0f2; --card: #ffffff; --ink: #2b3a48; --title: #043865; --muted: #5f7180; --line: #d3dde3;
+  --bar: #ffffff; --bar-ink: #043865;
+  --primary: #043865; --primary-ink: #ffffff;
+  --accent: #32a6e6; --accent-ink: #ffffff;
+  --mark: #043865; --track: #e3eaee;
+  --ok: #138a6c; --ok-bg: #e1f4ee; --bad: #c62828; --bad-bg: #fdeaea; --warn: #c45a12; --warn-bg: #fff0e5;
+  --radius: 6px; --radius-sm: 4px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #021a30; --card: #06294a; --ink: #e6eef5; --title: #ffffff; --muted: #9db3c6; --line: #16416a;
+    --bar: #06294a; --bar-ink: #ffffff;
+    --primary: #32a6e6; --primary-ink: #021a30;
+    --mark: #32a6e6; --track: #0d3558;
+    --ok: #4fd1a8; --ok-bg: #0c3a33; --bad: #ff7272; --bad-bg: #3d1a24; --warn: #f7a26b; --warn-bg: #3d2a1c;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 "Open Sans", Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+.proto { background: #fff3c4; color: #5a4300; font-size: 13px; padding: 6px 16px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.proto b { letter-spacing: .4px; }
+.proto .seg { display: inline-flex; border: 1px solid #c9a227; border-radius: 999px; overflow: hidden; }
+.proto .seg button { border: 0; background: transparent; padding: 4px 12px; font-weight: 700; font-size: 13px; cursor: pointer; color: #5a4300; }
+.proto .seg button.on { background: #5a4300; color: #fff3c4; }
+.proto select { font-size: 13px; padding: 2px 6px; border-radius: 4px; border: 1px solid #c9a227; background: #fffaf0; color: #5a4300; }
+
+header.top { position: sticky; top: 0; z-index: 5; background: var(--bar); color: var(--bar-ink); border-bottom: 1px solid var(--line); padding: calc(10px + env(safe-area-inset-top)) 16px 0; }
+.top-linha { display: flex; align-items: center; gap: 10px; max-width: 1180px; margin: 0 auto; }
+header.top .logo { height: 20px; width: auto; color: var(--title); flex: none; }
+header.top .divisor { width: 1px; height: 28px; background: var(--line); }
+header.top h1 { font-size: 18px; margin: 0; font-weight: 800; line-height: 1.15; }
+header.top .sub { font-size: 12px; color: var(--muted); font-weight: 600; display: block; text-transform: uppercase; letter-spacing: .5px; }
+header.top .quem { margin-left: auto; text-align: right; font-size: 13px; color: var(--muted); font-weight: 600; }
+header.top .quem b { display: block; color: var(--title); font-size: 14px; }
+nav.tabs { display: flex; gap: 2px; max-width: 1180px; margin: 8px auto 0; overflow-x: auto; scrollbar-width: none; }
+nav.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 8px 12px 9px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+nav.tabs button.on { color: var(--title); border-bottom-color: var(--accent); }
+nav.tabs .n { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 999px; background: var(--bad); color: #fff; font-size: 11px; line-height: 18px; }
+
+main { padding: 14px 16px 40px; max-width: 1180px; margin: 0 auto; }
+main.estreito { max-width: 620px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; align-items: start; }
+.grid .larga { grid-column: 1 / -1; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; min-width: 0; }
+.grid .card { margin-bottom: 0; }
+.card h2 { font-size: 13px; margin: 0 0 10px; color: var(--title); text-transform: uppercase; letter-spacing: .6px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.card h2 .dir { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--muted); font-size: 12px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.nota { font-size: 13px; color: var(--muted); background: var(--bg); border-left: 3px solid var(--accent); padding: 8px 10px; border-radius: var(--radius-sm); margin: 0 0 12px; }
+.faixa-turno { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; margin: 0 0 12px; }
+.faixa-turno h2 { margin: 0; font-size: 20px; color: var(--title); font-weight: 800; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--card); color: var(--title); font-weight: 700; cursor: pointer; }
+.btn.primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.btn.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+.btn.big { width: 100%; min-height: 58px; font-size: 17px; }
+.btn.sm { min-height: 34px; padding: 0 10px; font-size: 13px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+label.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 700; color: var(--muted); }
+label.campo input, label.campo select, label.campo textarea { display: block; width: 100%; margin-top: 4px; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); font-size: 16px; font-weight: 400; color: var(--ink); }
+label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+.linha-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0 10px; }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.chip.on { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tag.ok { background: var(--ok-bg); color: var(--ok); }
+.tag.bad { background: var(--bad-bg); color: var(--bad); }
+.tag.warn { background: var(--warn-bg); color: var(--warn); }
+.tag.neu { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+
+/* progresso */
+.prog { height: 10px; background: var(--track); border-radius: 999px; overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--mark); border-radius: 0 4px 4px 0; }
+.grande { font-size: 34px; font-weight: 800; color: var(--title); line-height: 1; }
+.dupla-linha { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.dupla-linha .prog { grid-column: 1 / -1; }
+.dupla-linha .nome { font-weight: 700; color: var(--title); }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.kpi .r { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+.kpi .v { font-size: 28px; font-weight: 800; color: var(--title); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.kpi .d { font-size: 12px; color: var(--muted); }
+
+/* barras horizontais (série única) */
+.hb { display: grid; grid-template-columns: minmax(90px, 38%) minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; }
+.hb .l { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb .t { height: 14px; position: relative; }
+.hb .t i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--mark); border-radius: 0 4px 4px 0; min-width: 2px; }
+.hb .n { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; }
+.hb .hit { display: contents; }
+
+/* tabelas */
+.tabela { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tabela th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); font-weight: 700; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.tabela td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tabela td.num, .tabela th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabela tr.click { cursor: pointer; }
+.tabela tr.click:hover td { background: var(--bg); }
+.rolagem { overflow-x: auto; }
+.tabela input { width: 70px; min-height: 36px; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--card); }
+
+/* lista de vagões (técnico) */
+.vagoes { display: flex; flex-direction: column; gap: 6px; }
+.vg { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; min-height: 58px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; }
+.vg .pos { font-size: 20px; font-weight: 800; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.vg .cod { font-weight: 700; color: var(--title); font-size: 16px; }
+.vg .det { font-size: 12px; color: var(--muted); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vg.feito { opacity: .78; }
+
+.feed { list-style: none; padding: 0; margin: 0; }
+.feed li { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 8px; }
+.feed li:first-child { border-top: 0; }
+.feed .h { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+
+/* modal */
+.modal { position: fixed; inset: 0; background: rgba(2, 20, 40, .55); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+.modal[hidden] { display: none; }
+.sheet { background: var(--card); width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; border-radius: 12px 12px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); }
+@media (min-width: 700px) { .modal { align-items: center; } .sheet { border-radius: 10px; } }
+.sheet h3 { margin: 0; color: var(--title); font-size: 20px; }
+.sheet .fechar { float: right; background: none; border: 0; font-size: 28px; line-height: 1; color: var(--muted); cursor: pointer; }
+.escolhas { display: grid; gap: 8px; margin: 14px 0; }
+.def-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; padding: 8px 10px; background: var(--bad-bg); border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 14px; }
+.def-item button { background: none; border: 0; color: var(--bad); font-weight: 700; cursor: pointer; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.stepper button { width: 44px; height: 44px; border: 0; background: none; font-size: 22px; font-weight: 700; color: var(--title); cursor: pointer; }
+.stepper span { min-width: 34px; text-align: center; font-weight: 800; font-size: 18px; }
+.radio { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 6px; cursor: pointer; }
+
+.arvore details { border-top: 1px solid var(--line); padding: 6px 0; }
+.arvore summary { cursor: pointer; font-weight: 700; color: var(--title); }
+.arvore ul { margin: 6px 0 6px 4px; padding-left: 18px; font-size: 14px; }
+
+.tt { position: fixed; z-index: 30; pointer-events: none; background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.18); border-radius: var(--radius-sm); padding: 6px 9px; font-size: 13px; max-width: 260px; }
+.tt[hidden] { display: none; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(120px); background: var(--primary); color: var(--primary-ink); padding: 12px 18px; border-radius: var(--radius); font-weight: 700; z-index: 40; transition: transform .25s, opacity .25s; opacity: 0; pointer-events: none; max-width: calc(100% - 32px); }
+.toast.on { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* v0.3 */
+:root { --info: #0b6fa8; --info-bg: #e3f2fb; --heat: 4, 56, 101; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --info: #7cc8f2; --info-bg: #0d3a5c; --heat: 50, 166, 230; } }
+.tag.info { background: var(--info-bg); color: var(--info); }
+.alerta { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--warn-bg); color: var(--warn); border-radius: var(--radius-sm); padding: 8px 10px; margin: 10px 0 2px; font-size: 14px; }
+.secao { font-size: 13px; font-weight: 800; color: var(--title); text-transform: uppercase; letter-spacing: .5px; margin: 16px 0 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.grade-sap { display: grid; grid-template-columns: 28px repeat(4, 1fr); gap: 6px; align-items: center; margin-bottom: 4px; }
+.grade-sap > b { text-align: center; font-size: 13px; color: var(--muted); }
+.pos-btn { min-height: 52px; border: 2px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--muted); font-weight: 800; font-size: 16px; cursor: pointer; }
+.pos-btn.on { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
+.grade-sap.leitura .cel { min-height: 44px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; background: rgba(var(--heat), var(--a)); color: #fff; text-shadow: 0 0 3px rgba(0,0,0,.45); }
+.radio.marcado { border-color: var(--bad); background: var(--bad-bg); }
+.resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0; }
+.resumo div { background: var(--bg); border-radius: var(--radius-sm); padding: 8px; text-align: center; }
+.resumo b { display: block; font-size: 22px; color: var(--title); }
+.resumo span { font-size: 11px; color: var(--muted); font-weight: 700; }
+.inp { flex: 1; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); font-size: 16px; }
+.sel-p { min-height: 40px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); max-width: 100%; }
+.filtros { align-items: center; }
+.ev-bad b:first-child { color: var(--bad); }
+.tabela td b { white-space: nowrap; }
+.upload { display: flex; align-items: center; gap: 12px; padding: 14px; border: 2px dashed var(--accent); border-radius: var(--radius); background: var(--bg); cursor: pointer; margin-bottom: 10px; }
+.upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.upload .ic { font-size: 28px; }
+.upload b { color: var(--title); }
+.upload.lendo { opacity: .6; pointer-events: none; }
+.escala { border-collapse: separate; border-spacing: 3px; font-size: 13px; }
+.escala th { font-size: 12px; color: var(--muted); font-weight: 700; padding: 2px 4px; text-align: center; white-space: nowrap; }
+.escala th span { font-weight: 600; font-size: 11px; }
+.escala th.hoje { color: var(--title); }
+.escala td { width: 34px; height: 30px; text-align: center; font-weight: 800; border-radius: 4px; }
+.escala td.e6 { background: #fff3c4; color: #5a4300; } .escala td.e14 { background: #e3f2fb; color: #0b6fa8; } .escala td.e22 { background: #043865; color: #fff; }
+.escala td.eR, .escala td.eF { background: var(--bg); color: var(--muted); }
+.escala td.hoje { box-shadow: inset 0 0 0 1px var(--muted); }
+.escala td.agora { box-shadow: 0 0 0 3px var(--accent); }
+.ap.conferido { opacity: .7; }
+@media (max-width: 520px) { .proto .seg button { padding: 4px 8px; font-size: 12px; } }
+.ficha-ok { background: var(--ok-bg); border-radius: var(--radius-sm); padding: 10px; }
+@media (max-width: 520px) { .resumo { grid-template-columns: repeat(2, 1fr); } }
+
+/* app real */
+.barra-prog { background: #fff3c4; color: #5a4300; font-size: 13px; padding: 6px 16px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.barra-prog[hidden] { display: none; }
+.barra-prog .seg { display: inline-flex; border: 1px solid #c9a227; border-radius: 999px; overflow: hidden; }
+.barra-prog .seg button { border: 0; background: transparent; padding: 4px 10px; font-weight: 700; font-size: 13px; cursor: pointer; color: #5a4300; }
+.barra-prog .seg button.on { background: #5a4300; color: #fff3c4; }
+.barra-prog select { font-size: 13px; padding: 2px 6px; border-radius: 4px; border: 1px solid #c9a227; background: #fffaf0; color: #5a4300; max-width: 210px; }
+.topo-acoes { display: flex; align-items: center; gap: 8px; margin-left: 12px; }
+.sinc { font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 999px; background: var(--bg); color: var(--title); border: 1px solid var(--line); white-space: nowrap; cursor: pointer; }
+.sinc.off, .sinc.erro { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+.sair { background: none; border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; }
+#tela-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+#tela-login[hidden], #tela-app[hidden] { display: none; }
+.login { width: 100%; max-width: 400px; }
+.login .marca { text-align: center; margin-bottom: 18px; color: var(--title); }
+.login .marca .logo { height: 40px; width: auto; }
+.login .marca div { font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
+.erro-login { color: var(--bad); font-weight: 700; font-size: 14px; margin: 0 0 10px; }
+@media (max-width: 560px) { header.top .quem, header.top .sub, header.top .divisor { display: none; } header.top h1 { font-size: 15px; } .topo-acoes { margin-left: auto; gap: 6px; } .sinc { padding: 4px 7px; font-size: 11px; } }
+@media (max-width: 520px) { .barra-prog .seg button { padding: 4px 7px; font-size: 12px; } }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div id="tela-login" hidden>
+  <div class="login">
+    <div class="marca"><span id="logo-login"></span><div>Revistamento ZTO</div></div>
+    <div class="card" id="login-caixa"></div>
+  </div>
+</div>
+<div id="tela-app" hidden>
+  <div class="barra-prog" id="barra-prog" hidden></div>
+  <header class="top">
+    <div class="top-linha">
+      <span id="logo"></span><span class="divisor"></span>
+      <div><h1>Revistamento ZTO</h1><span class="sub" id="sub"></span></div>
+      <div class="quem" id="quem"></div>
+      <div class="topo-acoes"><button class="sinc" id="sinc" data-act="atualizar" title="Toque para atualizar">☁</button><button class="sair" data-act="sair">Sair</button></div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <main id="main"></main>
+</div>
+<div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
+<div id="tt" class="tt" hidden></div>
+<div id="toast" class="toast"></div>
+<script>
+// Logo da Rumo (uso autorizado pela empresa, igual à Ferramentaria)
+const LOGO_RUMO = '<svg class="logo" role="img" aria-label="Rumo" viewBox="0 0 114 27" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#rumoClip)"><path fill-rule="evenodd" clip-rule="evenodd" d="M-0.000109514 25.8154H6.38353V16.8099C6.38353 13.2851 6.38368 6.80642 11.575 6.80642C12.555 6.76208 13.5326 6.94121 14.4332 7.33025V0.898625C13.7942 0.744051 13.1365 0.680374 12.4797 0.7095C8.66906 0.7095 6.0482 4.56636 5.76143 6.85348H5.66735V1.28217H-0.000976562L-0.000109514 25.8154Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M40.9186 1.28235H34.5323V13.2853C34.5323 16.431 33.5334 21.4332 28.9121 21.4332C24.8164 21.4332 24.7668 17.3827 24.7668 14.3809V1.28235H18.3831V16.7639C18.3831 22.2882 20.907 26.3856 26.7181 26.3856C28.2686 26.3872 29.7996 26.0364 31.1946 25.3596C32.5897 24.6828 33.8127 23.6978 34.7712 22.479H34.8679V25.8156H40.9194L40.9186 1.28235Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M47.3903 25.8154H53.7748V13.9039C53.7748 10.7129 54.2971 5.66188 58.5357 5.66188C62.2061 5.66188 62.206 8.90079 62.206 11.1906V25.8154H68.5896V13.9039C68.5896 10.7129 69.111 5.66188 73.3523 5.66188C77.0191 5.66188 77.019 8.90079 77.019 11.1906V25.8154H83.4035V10.332C83.4035 4.85394 81.6837 0.709413 75.6374 0.709413C74.0833 0.652283 72.5441 1.02725 71.1903 1.79261C69.8365 2.55798 68.7215 3.68376 67.9692 5.04483C66.5851 1.99415 64.1566 0.709413 60.7268 0.709413C59.2736 0.709517 57.844 1.0762 56.5701 1.7755C55.2963 2.47481 54.2194 3.48415 53.4392 4.71011H53.3434V1.28208H47.3894L47.3903 25.8154Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M104.735 6.86688L103.078 8.27591C101.777 7.69466 100.368 7.39511 98.9428 7.39693C97.4051 7.41166 95.8906 7.76951 94.5087 8.44435C93.1269 9.11918 91.9127 10.094 90.9556 11.2976C89.9985 12.5013 89.3223 13.9034 88.9761 15.4018C88.6299 16.9001 88.6224 18.4568 88.9544 19.9583C87.8765 18.0161 87.3174 15.8288 87.3313 13.6075C87.3313 7.29306 91.1497 2.17456 96.9607 2.17456C98.551 2.22071 100.102 2.67695 101.464 3.49907C102.826 4.32119 103.953 5.48128 104.735 6.86688Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M114 12.5331C114 16.3287 111.822 19.2223 108.368 20.7955L105.437 16.5507C106.492 14.934 107.054 13.045 107.054 11.1143C106.997 8.33273 105.839 5.6874 103.833 3.75969C101.827 1.83198 99.1373 0.779604 96.3556 0.833838H96.2724C97.6492 0.408752 99.077 0.173962 100.517 0.135986C107.965 0.136874 114 6.27818 114 12.5331Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M112.813 19.1024C111.15 23.1706 106.369 26.9324 100.43 26.9324C94.1115 26.9324 89.9313 22.6707 89.9313 17.4199C89.9329 16.1601 90.2278 14.918 90.7931 13.7921L95.157 14.7617C95.7785 19.3501 100.474 22.7834 105.139 22.7834C106.599 22.7133 108.031 22.3515 109.349 21.7193C110.667 21.087 111.844 20.1972 112.813 19.1024Z" fill="currentColor"/></g><defs><clipPath id="rumoClip"><rect width="114" height="26.7955" fill="white" transform="translate(0 0.136963)"/></clipPath></defs></svg>';
+
+// Árvore de falhas oficial: "Árvore de Falhas - Vagões Graneleiros" (Diretoria de Material Rodante)
+// Formato: SISTEMA / " Subsistema" / "  Componente: falha; falha; ..."
+const ARVORE_TXT = `
+SUPERESTRUTURA
+ Caixa
+  Escada: Degrau faltando; Faltando; Quebrada; Torta
+  Estribo: Degrau faltando; Faltando; Quebrado; Torto
+  Montante: Quebrado; Amassado; Faltando
+  Numeração: Ilegível; Divergente
+  Cabeceira: Trincada; Furada; Amassada
+  Lateral: Trincada; Furada; Amassada
+ Teto
+  Cobertura: Furada; Trincada
+  Escotilha: Tampa furada; Tampa quebrada; Tampa faltando; Tampa faltando fixação; Tampa faltando trava; Tampa faltando baten bar; Dobradiça faltando
+ Longarina
+  Batente traseiro: Trinca interna; Trinca externa
+  Batente dianteiro: Trinca > 200; Trinca < 200
+  Sobre o prato pião: Oblongo trincado
+  Atrás do prato pião: Trinca
+ Descarga
+  Descarga rápida: Não abre; Não fecha; Tirante maior quebrado; Tirante maior faltando; Tirante menor quebrado; Tirante menor faltando; Tirante regulável quebrado / faltando; Contrapino faltando; Flange quebrada / faltando; Eixo central empenado
+  Tremonha: Travada; Quadro quebrado; Eixo faltando; Eixo faltando fixação; Eixo faltando punho; Eixo girando em falso; Eixo sem pião; Tampa faltando; Cremalheira quebrada / faltando
+FREIO
+ Encanamento
+  Cabo DDV: Faltando; Desregulado
+  Mangueira DDV: Furada; Solta; Em contato com a viga
+  Suporte DDV: Quebrado; Trincado; Fora de posição; Faltando
+  Válvula DDV: Vazando; Faltando; Inoperante
+  União DDV: Vazando
+  Coletor de pó: Isolado; Trincado
+  União do EG: Vazando; Solto; Solda quebrada
+  Mangueira do EG: Faltando; Vazando; Fora de posição; Fora do padrão; Braçadeira faltando; Desgastada
+  Suporte de torneira: Quebrado; Sem fixação
+  União rotativa: Faltando; Quebrada; Fora de posição; Suporte quebrado; Sem fixação
+ Timoneria
+  Triângulo de freio: Quebrado; Empenado; Trincado; Faltando
+  Dispositivo anti queda: Faltando
+  Chapa anti queda do pino: Faltando
+  Ajustador: Travado; Quebrado
+  Biela do ajustador: Quebrada; Encostando na caixa
+  Alavanca: Solta
+  Tirante: Faltando; Quebrado
+ Retentor de alívio
+  Retentor: Faltando; Entupido
+  Punho: Faltando
+ Freio
+  Freio isolado: Freio isolado; Freio agarrado; Sapata faltando
+ Cilindro
+  Cilindro: Vazando
+  Haste: Travada
+  Curso: Fora do padrão
+  Mangueira: Vazando
+ Freio manual
+  Freio manual: Quebrado; Travado
+  Volante: Faltando
+  Quadrante: Inoperante
+  Corrente: Curta; Faltando
+ Reservatório
+  Parafuso: Sem fixação
+  Suporte: Quebrado
+ Sapata
+  Contra sapata: Caldeada; Quebrada
+  Chaveta: Quebrada; Faltando
+  Sapata: Desgastada; Trincada; Faltando
+ Torneira
+  Torneira: Vazando; Quebrada; Inoperante
+ Válvula de controle
+  Emergência: Inoperante; Vazando; Disparada
+  Serviço: Inoperante; Vazando
+ Válvula vazio carregado
+  Válvula: Inoperante
+  Braço de regulagem: Travado; Sem parafuso
+  Reservatório: Faltando; Vazando
+  Mangueira: Furada; Faltando
+CCT
+ ACT
+  ACT: Folga; Estourado; Marcas no espelho
+  Braçadeira: Quebrada; Trincada; Chapa sem fixação
+ Engate
+  Cruzeta: Quebrada
+  Engate: Altura; Desalinhado; Trincado; Quebrado; Chapa de desgaste faltando
+  Haste de manobra: Faltando; Suporte quebrado; Suporte fora de posição; Empenada; Fixação; Quebrada
+  Mandíbula: Desgastada; Trincada; Quebrada; Folga; Pino quebrado; Pino faltando; Pino torto
+  Olhal do engate: Trincado; Quebrado
+  Pino do engate F: Parafuso de fixação faltando; Fixação inadequada; Porca sem contrapino
+  Pino T: Faltando; Sem espaçador; Quebrado; Desgastado
+  Rotor: Quebrado; Faltando; Solto
+  Suporte do engate: Quebrado; Trincado; Faltando
+  Trava dual: Faltando
+  Chaveta: Quebrada; Faltando; Desgastada
+  Telha: Faltando
+RODEIRO
+ Pad
+  Pad: Deformado; Trincado; Faltando
+ Roda
+  Friso: Quebradiço; Diferença; Altura; Fino
+  Roda: Trincada
+  Bandagem: Fina
+  Pista: Cascalhado; Cova
+ Rolamento
+  Adaptador: Trincado; Quebrado; Deslocado
+  Rolamento: Trincado; Quebrado; Deslocado
+  Retentor: Deformado
+  Capa: Trincada
+  Trava dos parafusos: Solta
+  Topador: Faltando
+  Parafuso: Solto; Faltando
+TRUQUE
+ Ampara balanço
+  Mola AB: Faltando; Quebrada
+  Parafuso da chapa AB: Faltando; Quebrado; Travado
+  Base: Trincada; Quebrada; Parafuso de fixação faltando
+  Elastômero: Faltando; Danificado
+  Chapa: Faltando; Empenada; Quebrada; Trincada
+ Barra compressão
+  Chapa anti queda: Faltando
+  DAQ: Quebrado; Faltando
+  Pino: Contrapino faltando; Faltando
+  Chapa da cunha: Faltando; Trincada; Solta
+ Cunha
+  Cunha: Rejeito; Mola quebrada; Diferença de altura; Trincada
+ Pacote de mola
+  Mola: Quebrada 1 mola; Marca sólida; Quebrada 2 ou mais molas; Fora de posição
+ Prato pião
+  Prato pião: Trincado; Quebrado; Desgaste excessivo; Falta de fixação > 50%; Falta de fixação < 50%; Sem folga
+ Travessa central
+  Alojamento da cunha: Trincado
+  Borda do prato: Trincado
+  Travessa central: Trincada
+`;
+const ARVORE = [];
+ARVORE_TXT.split('\n').forEach(l => {
+  if (!l.trim()) return;
+  if (l.startsWith('  ')) { const [c, f] = l.trim().split(': '); ARVORE.at(-1).subs.at(-1).comps.push({ c, falhas: f.split('; ') }); }
+  else if (l.startsWith(' ')) ARVORE.at(-1).subs.push({ sub: l.trim(), comps: [] });
+  else ARVORE.push({ sis: l.trim(), subs: [] });
+});
+const FOLHAS = ARVORE.flatMap(s => s.subs.flatMap(b => b.comps.flatMap(c => c.falhas.map(f => ({ sis: s.sis, sub: b.sub, comp: c.c, falha: f })))));
+const semAcento = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+// Recursos prontos mas OCULTOS. Para liberar a árvore de falhas: mudar para true.
+const RECURSOS = { arvoreFalhas: false };
+
+
+// =====================================================================
+// Revistamento ZTO — app ligado ao Supabase
+// =====================================================================
+const VERSAO = '1.0';
+const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
+const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
+const DOMINIO = 'revistamento.app';
+const sb = supabase.createClient(SUPA_URL, SUPA_CHAVE, { auth: { persistSession: true, storageKey: 'rzto_sessao' } });
+
+// ---------- utilidades ----------
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const hhmm = m => pad(Math.floor(((m % 1440) + 1440) % 1440 / 60)) + ':' + pad(((m % 60) + 60) % 60);
+const dur = m => m >= 60 ? Math.floor(m / 60) + 'h' + pad(Math.round(m % 60)) : Math.round(m) + ' min';
+const dataBR = d => pad(d.getDate()) + '/' + pad(d.getMonth() + 1);
+const minAgora = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const agora = () => hhmm(minAgora());
+const paraMin = h => { const [a, b] = h.split(':').map(Number); return a * 60 + b; };
+const difMin = (a, b) => { let d = paraMin(b) - paraMin(a); return d < 0 ? d + 1440 : d; };
+const fmt = n => n.toLocaleString('pt-BR');
+const pct1 = (a, b) => b ? String(Math.round(a / b * 1000) / 10).replace('.', ',') : '0';
+const hm = t => t ? String(t).slice(0, 5) : null;                       // '14:05:00' -> '14:05'
+const isoData = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const deISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const horaDe = ts => ts ? hhmm(new Date(ts).getHours() * 60 + new Date(ts).getMinutes()) : '';
+const uuid = () => crypto.randomUUID();
+const distribuir = (n, k) => { const base = Math.floor(n / k), extra = n % k; const r = []; let ini = 1; for (let i = 0; i < k; i++) { const q = base + (i < extra ? 1 : 0); r.push([ini, ini + q - 1]); ini += q; } return r; };
+const $ = id => document.getElementById(id);
+const lsLer = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+const lsGravar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+// ---------- cadastros fixos (do Forms atual) ----------
+const LINHAS = ['ZTO 1', 'ZTO 2'];
+const MATERIAIS = [
+  { id: 'sapata', nome: 'Sapata de freio', desc: 'SAPATA DE FREIO (registrada por posição no vagão)', pos: true },
+  { id: 'chaveta', nome: 'Chaveta', desc: 'CHAVETA' },
+  { id: 'pino_e', nome: 'Pino mandíbula engate tipo E', desc: 'PINO MANDIBULA ENGATE TIPO E' },
+  { id: 'pino_t', nome: 'Pino T sem aba', desc: 'PINO T SEM ABA PARA CHAVETA DO ENGATE' },
+  { id: 'trava_t', nome: 'Trava pata pino T', desc: 'TRAVA PATA PINO "T"' },
+  { id: 'daq', nome: 'DAQ (anti-queda barra compressão)', desc: 'DISP ANTIQ BARRA COMPRESSAO BIT LARGA - DAQ' },
+  { id: 'dual', nome: 'Trava de engate dual', desc: 'TRAVA DE ENGATE DUAL 3/8"X2"X4"' },
+  { id: 'par_ab', nome: 'Parafuso francês do A.B. + porca', desc: "PARAFUSO FRANCES 3/4'' X 2.1/2'' UNC - DO A. B. - PORCA SEXTAVADA AUTOTRAVANTE 3/4POL - PORCA DO A. B." },
+  { id: 'par_ret', nome: 'Parafuso do retentor + porca castelo', desc: 'PORCA CASTELO SEXTA. C/ COROA M20 MA 2.5 - PARAFUSO SX 8.8 M20X185MM ABRAC TIPO F (PARAFUSO DO RETENTOR)' },
+  { id: 'sup_mang', nome: 'Suporte flexível mangueira PCT', desc: 'SUPORTE FLEXIVEL PARA MANGUEIRA PCT' }
+];
+const MAT = Object.fromEntries(MATERIAIS.map(m => [m.id, m]));
+const POSICOES = ['1E','2E','3E','4E','1D','2D','3D','4D'];
+const OCORRENCIAS = ['Retenção de vagão', 'Isolado fora da ficha', 'Normalizado fora da ficha', 'Normalizado dentro da ficha', 'Isolado pela mecânica de vagões'];
+const MOTIVOS_PARCIAL = ['Falta temporária de efetivo', 'Equipe em refeição', 'Movimentação de trens', 'Condições climáticas', 'Intervenção mecânica em vagão', 'Restrição de acesso à área', 'Transposição de composição', 'Passagem de turno', 'Desvios operacionais', 'Outro'];
+const MOTIVOS_NAO_REV = ['Condições climáticas', 'Falta temporária de efetivo', 'Restrição de acesso à área', 'Equipe em refeição', 'Desvios operacionais', 'Outro'];
+const MOTIVOS_DESVIO = ['Aguardando partida / entrada de trem', 'Sem autorização para transpor linha', 'Intervenção mecânica em vagão', 'Equipe em intervalo', 'Falha de comunicação', 'Manobra da composição', 'Outro'];
+const MOTIVOS_AFAST = ['Atestado médico', 'Férias', 'Licença', 'Afastamento INSS', 'Treinamento', 'Outro'];
+const PERFIS = { tecnico: 'Técnico', supervisor: 'Supervisor', especializado: 'Especializado', programador: 'Programador' };
+
+// ---------- escala 8 horas (ciclo de 8 dias) ----------
+const CICLO = ['6', '6', '14', '14', '22', '22', 'R', 'F'];
+const DESLOC = { A: 6, B: 4, C: 2, D: 0 };                 // em relação a 01/10/2026
+const BASE_ESCALA = new Date(2026, 9, 1);
+const HORARIO = { '6': '06:00–14:00', '14': '14:00–22:00', '22': '22:00–06:00' };
+const diasDesde = d => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - BASE_ESCALA) / 864e5);
+const escalaDia = (eq, data) => CICLO[(((diasDesde(data) - DESLOC[eq]) % 8) + 8) % 8];
+const equipeNoHorario = (data, h) => 'ABCD'.split('').find(e => escalaDia(e, data) === h);
+function emServico(agoraD = new Date()) {
+  const h = agoraD.getHours();
+  if (h >= 6 && h < 14) return { turno: equipeNoHorario(agoraD, '6'), h: '6', ini: 6 * 60, data: isoData(agoraD) };
+  if (h >= 14 && h < 22) return { turno: equipeNoHorario(agoraD, '14'), h: '14', ini: 14 * 60, data: isoData(agoraD) };
+  const dia = h < 6 ? new Date(agoraD.getTime() - 864e5) : agoraD;
+  return { turno: equipeNoHorario(dia, '22'), h: '22', ini: 22 * 60, data: isoData(dia) };
+}
+let SERVICO = emServico();
+const hojeD = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+
+// ---------- dados (vindos do Supabase) ----------
+const DB = { me: null, colab: [], trens: [], planos: [], equipesDia: [], log: [], carregado: false };
+const C = id => DB.colab.find(x => x.id === id) || { id, nome: '—', curto: '—', turno: null, status: 'ativo', perfil: '' };
+const nomeTec = id => C(id).nome;
+const primeiro = id => C(id).curtoCalc || C(id).nome;
+const nomesEquipe = m => m.map(primeiro).join(', ');
+const ativos = t => DB.colab.filter(x => x.perfil === 'tecnico' && x.turno === t && x.status === 'ativo').sort((a, b) => a.nome.localeCompare(b.nome)).map(x => x.id);
+const liderDe = t => DB.colab.find(x => x.perfil === 'supervisor' && x.turno === t && x.status === 'ativo')?.nome || '—';
+const validadorDe = t => DB.colab.find(x => x.perfil === 'especializado' && x.turno === t && x.status === 'ativo') || { nome: '—', codigo: '' };
+const curtoV = v => v.nome.split(' ').slice(0, 2).join(' ');
+function recalcCurto() {
+  DB.colab.forEach(x => {
+    const p = x.nome.split(' ')[0], dup = DB.colab.filter(y => y.turno === x.turno && y.status !== 'desligado' && y.nome.split(' ')[0] === p).length > 1;
+    x.curtoCalc = x.curto || (dup ? [p, x.nome.split(' ').slice(1).find(w => !/^(de|da|do|dos|das|e)$/i.test(w)) || ''].join(' ').trim() : p);
+  });
+}
+const regDe = r => ({ st: r.resultado, h: hm(r.hora), mats: r.materiais || [], oc: r.ocorrencias || [], obs: r.obs || '', foto: !!r.foto_url, fotoUrl: r.foto_url, motivo: r.motivo || '', falhas: r.falhas || [], val: r.val, valPor: r.val_por ? C(r.val_por).nome : '', antes: r.antes || '', equipe: r.equipe });
+function montarTrem(t, eqs, regs, dsv) {
+  const vag = t.vagoes || [], ini = hm(t.inicio), fim = hm(t.fim);
+  const tr = { id: t.id, prefixo: t.prefixo, data: deISO(t.data), dataISO: t.data, turno: t.turno, liderId: t.lider_id, lider: t.lider_id ? C(t.lider_id).nome : liderDe(t.turno), linha: t.linha, chegada: hm(t.chegada) || '–',
+    vagoes: vag.map(v => v.cod), posFicha: vag.length && vag.every(v => v.pos != null) ? vag.map(v => v.pos) : null, restr: t.restricoes || {}, fichaNome: t.ficha_nome,
+    status: t.status, motivoNao: t.motivo_nao || '', motivoParcial: t.motivo_parcial || '', obsFech: t.obs_fechamento || '', inicio: ini, fim, durMin: ini && fim ? difMin(ini, fim) : 0,
+    dist: eqs.sort((a, b) => a.numero - b.numero).map(e => ({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, inicio: hm(e.inicio), termino: hm(e.termino) })),
+    reg: Object.fromEntries(regs.map(r => [r.posicao, regDe(r)])),
+    desvios: dsv.sort((a, b) => a.ini.localeCompare(b.ini)).map(d => ({ id: d.id, ini: hm(d.ini), fim: hm(d.fim), motivo: d.motivo, obs: d.obs || '' })),
+    validacao: { status: t.validacao, por: t.validado_por ? C(t.validado_por).nome : '', em: t.validado_em, parecer: t.parecer || '', corrigidos: regs.filter(r => r.val === 'corrigido').length } };
+  return tr;
+}
+const planoDe = p => ({ id: p.id, titulo: p.titulo, desc: p.descricao || '', turno: p.turno, eq: p.equipe, por: p.criado_por ? C(p.criado_por).nome : '—', criada: horaDe(p.criado_em), criadaData: p.criado_em, status: p.status, feitaEm: horaDe(p.feito_em), obs: p.obs_equipe || '', validadaEm: horaDe(p.validado_em), coment: p.comentario || '' });
+
+// busca paginada (o servidor entrega no máximo 1000 linhas por vez)
+async function tudo(montar) {
+  const out = [];
+  for (let i = 0; ; i += 1000) {
+    const { data, error } = await montar().range(i, i + 999);
+    if (error) throw error;
+    out.push(...data);
+    if (data.length < 1000) return out;
+  }
+}
+async function emLotes(ids, montar) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += 80) out.push(...await tudo(() => montar(ids.slice(i, i + 80))));
+  return out;
+}
+async function carregar() {
+  const prog = DB.me.perfil === 'programador', dias = prog ? 35 : 3;
+  const desde = new Date(); desde.setDate(desde.getDate() - dias);
+  const [colab, trens, planos, eqd, log] = await Promise.all([
+    tudo(() => sb.from('colaboradores').select('*').order('nome')),
+    tudo(() => sb.from('trens').select('*').or(`data.gte.${isoData(desde)},status.eq.andamento,validacao.eq.pendente`).order('criado_em')),
+    tudo(() => sb.from('planos').select('*').order('criado_em', { ascending: false })),
+    tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5)))),
+    ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve([])
+  ]);
+  DB.colab = colab; recalcCurto();
+  DB.me = colab.find(x => x.id === DB.me.id) || DB.me;
+  const ids = trens.map(t => t.id);
+  const [eqs, regs, dsv] = ids.length ? await Promise.all([
+    emLotes(ids, l => sb.from('trem_equipes').select('*').in('trem_id', l)),
+    emLotes(ids, l => sb.from('registros').select('*').in('trem_id', l).order('posicao')),
+    emLotes(ids, l => sb.from('desvios').select('*').in('trem_id', l))
+  ]) : [[], [], []];
+  const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
+  const pe = por(eqs, 'trem_id'), pr = por(regs, 'trem_id'), pd = por(dsv, 'trem_id');
+  DB.trens = trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || []));
+  DB.planos = planos.filter(p => ['aberta', 'feita', 'reaberta'].includes(p.status) || new Date(p.criado_em) > desde).map(planoDe);
+  DB.equipesDia = eqd;
+  DB.log = log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
+  sincronizarEquipes();
+  DB.carregado = true; DB.atualizadoEm = new Date();
+  if (DB.me.perfil !== 'programador') lsGravar('rzto_cache', { me: DB.me.id, colab, trens, planos, eqd, eqs, regs, dsv, em: Date.now() });
+}
+function usarCache() {
+  const c = lsLer('rzto_cache', null);
+  if (!c || c.me !== DB.me.id) return false;
+  DB.colab = c.colab; recalcCurto();
+  const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
+  const pe = por(c.eqs, 'trem_id'), pr = por(c.regs, 'trem_id'), pd = por(c.dsv, 'trem_id');
+  DB.trens = c.trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || []));
+  DB.planos = c.planos.map(planoDe); DB.equipesDia = c.eqd; DB.carregado = true; DB.atualizadoEm = new Date(c.em);
+  sincronizarEquipes();
+  return true;
+}
+
+// ---------- fila de envio (funciona sem sinal: guarda no aparelho e envia quando voltar) ----------
+let FILA = lsLer('rzto_fila', []), enviando = false, semSinal = false, erroFila = '';
+function enviar(op) { FILA.push({ ...op, quando: Date.now() }); lsGravar('rzto_fila', FILA); processarFila(); indicador(); }
+const ehRede = e => !e?.code && /fetch|network|Failed|Load failed|NetworkError/i.test(String(e?.message || e));
+async function executar(op) {
+  if (op.acao === 'foto') {
+    const blob = await (await fetch(op.dataURL)).blob();
+    const up = await sb.storage.from('fotos').upload(op.path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (up.error) return up.error;
+    return (await sb.from('registros').update({ foto_url: op.path }).eq('trem_id', op.trem_id).eq('posicao', op.posicao)).error;
+  }
+  let q = sb.from(op.tabela);
+  if (op.acao === 'insert') q = q.insert(op.dados);
+  else if (op.acao === 'upsert') q = q.upsert(op.dados, { onConflict: op.onConflict });
+  else q = op.acao === 'delete' ? q.delete() : q.update(op.dados);
+  for (const [col, opr, val] of op.filtro || []) q = q[opr](col, val);
+  return (await q).error;
+}
+async function processarFila() {
+  if (enviando || !FILA.length) return;
+  enviando = true; indicador();
+  while (FILA.length) {
+    let erro;
+    try { erro = await executar(FILA[0]); } catch (e) { erro = e; }
+    if (erro && ehRede(erro)) { semSinal = true; break; }
+    semSinal = false;
+    if (erro) { erroFila = (FILA[0].desc || 'Alteração') + ' não foi aceita: ' + (erro.message || erro); toast('⚠ ' + erroFila); console.warn(erro, FILA[0]); }
+    FILA.shift(); lsGravar('rzto_fila', FILA);
+  }
+  enviando = false; indicador();
+  if (semSinal) setTimeout(processarFila, 15000);
+}
+function indicador() {
+  const el = $('sinc'); if (!el) return;
+  el.className = 'sinc' + (semSinal ? ' off' : erroFila ? ' erro' : '');
+  el.textContent = semSinal ? `sem sinal · ${FILA.length} a enviar` : enviando || FILA.length ? `↻ enviando ${FILA.length}` : erroFila ? '⚠ ver aviso' : '☁ ✓ salvo';
+  el.title = erroFila || (DB.atualizadoEm ? 'Atualizado às ' + hhmm(DB.atualizadoEm.getHours() * 60 + DB.atualizadoEm.getMinutes()) : '');
+}
+addEventListener('online', processarFila);
+
+// ---------- estado da tela ----------
+const S = {
+  papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'painel' }, turnoVer: SERVICO.turno, verTec: null,
+  espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
+  novo: null, periodo: 30, turnoF: 'todos', linhaF: 'todas', busca: '', modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
+};
+const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog' };
+const ehProg = () => DB.me?.perfil === 'programador';
+const T = () => ehProg() ? S.turnoVer : DB.me.turno;                  // turno da tela atual
+const meuTurnoV = () => T();
+const uidTec = () => DB.me.perfil === 'tecnico' ? DB.me.id : S.verTec;
+const atuais = () => DB.trens.filter(t => t.status === 'andamento');
+const fechadosT = () => DB.trens.filter(t => t.status !== 'andamento');
+const tremQualquer = id => DB.trens.find(x => x.id === id);
+const tremPorId = tremQualquer;
+
+// equipes do dia: cópia de trabalho em S.eq[turno]; salva em equipes_dia
+const dataOp = () => (SERVICO.turno === T() ? SERVICO.data : isoData(new Date()));
+function montarEquipes(ids) { const n = ids.length, k = Math.max(1, Math.min(5, Math.floor(n / 2))), out = []; let i = 0;
+  for (let e = 0; e < k; e++) { const tam = Math.floor(n / k) + (e < n % k ? 1 : 0); out.push({ n: e + 1, membros: ids.slice(i, i + tam) }); i += tam; } return out; }
+function sincronizarEquipes() {
+  'ABCD'.split('').forEach(t => {
+    if (S.eqSujo[t]) return;
+    const d = SERVICO.turno === t ? SERVICO.data : isoData(new Date());
+    const rows = DB.equipesDia.filter(e => e.data === d && e.turno === t).sort((a, b) => a.numero - b.numero);
+    S.eqSalvo[t] = rows.length > 0;
+    S.eq[t] = rows.length ? rows.map(r => ({ n: r.numero, membros: r.membros.filter(id => C(id).status === 'ativo') })) : montarEquipes(ativos(t));
+  });
+}
+const EQ = t => S.eq[t] || (S.eq[t] = montarEquipes(ativos(t)));
+function salvarEquipes(t) {
+  const d = dataOp(), l = EQ(t);
+  enviar({ tabela: 'equipes_dia', acao: 'upsert', onConflict: 'data,turno,numero', dados: l.map(e => ({ data: d, turno: t, numero: e.n, membros: e.membros })), desc: 'Equipes do dia' });
+  enviar({ tabela: 'equipes_dia', acao: 'delete', filtro: [['data', 'eq', d], ['turno', 'eq', t], ['numero', 'gt', l.length]], desc: 'Equipes do dia' });
+  DB.equipesDia = DB.equipesDia.filter(e => !(e.data === d && e.turno === t)).concat(l.map(e => ({ data: d, turno: t, numero: e.n, membros: e.membros.slice() })));
+  S.eqSalvo[t] = true; S.eqSujo[t] = false;
+}
+const novoVazio = () => ({ prefixo: '', linha: 'ZTO 1', chegada: '', texto: '', lidos: null, sel: EQ(T()).map(() => true), dist: null, naoRev: false, motivoNao: '', fichaNome: '', posFicha: null, restr: {}, ignorados: [], declarados: null, lendo: false, colar: false });
+
+// ---------- posição na ficha e restrições ----------
+const posF = (t, p) => t.posFicha ? t.posFicha[p - 1] : p;
+const restrDe = (t, p) => t.restr ? t.restr[t.vagoes[p - 1]] : null;
+
+// ---------- leitura da ficha do trem (PDF do Translogic ou texto colado) ----------
+// Linha de veículo: "2 PCT 057312-4 L 545 ZPG TRO ... 26,8 7l-10" -> posição, série, número e faixa de eixos.
+// Veículos com mais de 4 eixos (locomotivas) são ignorados.
+function lerFichaTexto(linhas) {
+  const f = { prefixo: '', declarados: null, vagoes: [], ignorados: [], restr: {} };
+  let emRestr = false;
+  for (const l0 of linhas) {
+    const l = l0.replace(/\s+/g, ' ').trim(); let m;
+    if (!f.prefixo && (m = l.match(/Prefixo:\s*([A-Z0-9]+)/i))) f.prefixo = m[1].toUpperCase();
+    if (f.declarados == null && (m = l.match(/^Vag[õo]es:\s*(\d+)/i))) f.declarados = +m[1];
+    if (/Ve[íi]culos com Restri/i.test(l)) { emRestr = true; continue; }
+    if (emRestr) {
+      if ((m = l.match(/^(\d+) ([A-Z]{3}) (\d{6}-\d) (.+?) (\d{2}\/\d{2})\/\d{4}/))) {
+        let mot = m[4].replace(/^[^ -]+-/, '').trim(); const w = mot.split(' '), h = w.length / 2;
+        if (w.length % 2 === 0 && w.slice(0, h).join(' ') === w.slice(h).join(' ')) mot = w.slice(0, h).join(' ');
+        f.restr[m[2] + ' ' + m[3]] = { pos: +m[1], motivo: mot, data: m[5] };
+      }
+      continue;
+    }
+    if ((m = l.match(/^(\d+) ([A-Z][A-Z0-9]{1,3}) (\d{4,6}-\d)\b.*?\s(\d+)\s*[lI|]?\s*-\s*(\d+)$/))) {
+      const eixos = +m[5] - +m[4] + 1, v = { pos: +m[1], cod: m[2] + ' ' + m[3], eixos };
+      (eixos > 4 ? f.ignorados : f.vagoes).push(v);
+    }
+  }
+  return f;
+}
+let pdfjsPronto = null;
+function carregarPdfJs() {
+  return pdfjsPronto || (pdfjsPronto = new Promise((ok, erro) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    sc.onload = () => { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; ok(); };
+    sc.onerror = () => { pdfjsPronto = null; erro(new Error('Sem internet para abrir o leitor de PDF')); };
+    document.head.appendChild(sc);
+  }));
+}
+async function linhasDoPdf(arquivo) {
+  await carregarPdfJs();
+  const pdf = await pdfjsLib.getDocument({ data: await arquivo.arrayBuffer() }).promise, linhas = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const tc = await (await pdf.getPage(n)).getTextContent(), rows = [];
+    tc.items.forEach(it => {
+      if (!it.str.trim()) return;
+      const y = it.transform[5]; let row = rows.find(r => Math.abs(r.y - y) < 3);
+      if (!row) rows.push(row = { y, itens: [] });
+      row.itens.push({ x: it.transform[4], s: it.str });
+    });
+    rows.sort((a, b) => b.y - a.y).forEach(r => linhas.push(r.itens.sort((a, b) => a.x - b.x).map(i => i.s).join(' ')));
+  }
+  return linhas;
+}
+function aplicarFicha(f, nome) {
+  const N = S.novo;
+  if (!f.vagoes.length) { toast('Não encontrei vagões nessa ficha'); return false; }
+  Object.assign(N, { lidos: f.vagoes.map(v => v.cod), posFicha: f.vagoes.map(v => v.pos), restr: f.restr, ignorados: f.ignorados, declarados: f.declarados, fichaNome: nome, dist: null });
+  if (f.prefixo && !N.prefixo) N.prefixo = f.prefixo;
+  return true;
+}
+
+// ---------- métricas ----------
+const inspecionados = t => Object.values(t.reg).filter(r => r.st !== 'pend').length;
+function progEq(t, i) { const d = t.dist[i]; let n = 0, int = 0, oc = 0; for (let p = d.ini; p <= d.fim; p++) { const r = t.reg[p]; if (r) { n++; if (r.st === 'int') int++; oc += r.oc.length; } } return { n, total: d.fim - d.ini + 1, int, oc }; }
+const tempoDesvio = t => t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : difMin(d.ini, agora())), 0);
+const barra = pct => `<div class="prog" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`;
+const qtdItens = r => r.mats.reduce((a, m) => a + m.qtd, 0);
+function tagReg(r) {
+  if (!r) return '<span class="tag neu">Falta</span>';
+  if (r.st === 'ok') return '<span class="tag ok">✓ OK</span>';
+  if (r.st === 'pend') return '<span class="tag warn">⏸ Pendente</span>';
+  if (r.oc.length) return `<span class="tag bad">⚠ ${esc(r.oc[0].split(' ')[0])}${r.oc.length > 1 ? ' +' + (r.oc.length - 1) : ''}</span>`;
+  return `<span class="tag info">🔧 ${qtdItens(r)} ite${qtdItens(r) > 1 ? 'ns' : 'm'}</span>`;
+}
+const txtMat = m => m.pos && m.pos.length ? `${m.qtd}× ${m.nome} (${m.pos.join(', ')})` : `${m.qtd}× ${m.nome}`;
+function txtReg(r) {
+  if (!r) return '';
+  if (r.st === 'pend') return r.motivo;
+  const p = [...r.oc, ...r.mats.map(txtMat), ...(RECURSOS.arvoreFalhas ? r.falhas.map(f => f.comp + ': ' + f.falha) : [])];
+  if (r.obs) p.push('“' + r.obs + '”');
+  return p.join(' · ');
+}
+
+// ---------- render geral ----------
+$('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
+const ABAS = {
+  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['gestao', 'Gestão da equipe']],
+  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['validados', 'Validados']],
+  tec: [['meu', 'Meu turno'], ['tarefas', 'Planos especiais']],
+  prog: [['painel', 'Painel'], ['vagao', 'Buscar vagão'], ['cadastros', 'Cadastros']]
+};
+const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
+function barraProg() {
+  if (!ehProg()) return '';
+  const papeis = [['prog', 'Programador'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico']];
+  const tecs = ativos(S.turnoVer);
+  if (S.papel === 'tec' && !tecs.includes(S.verTec)) S.verTec = tecs[0] || null;
+  return `<b>Acesso total</b><span>ver como:</span><span class="seg">${papeis.map(([k, l]) => `<button data-act="papel" data-v="${k}" class="${S.papel === k ? 'on' : ''}">${l}</button>`).join('')}</span>
+    ${S.papel !== 'prog' ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
+    ${S.papel === 'tec' ? `<span>mecânico <select data-act="ver-tec">${tecs.map(id => `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select></span>` : ''}`;
+}
+function render() {
+  if (!DB.me) return;
+  $('barra-prog').hidden = !ehProg(); $('barra-prog').innerHTML = barraProg();
+  const t = T(), n = minhaEqN();
+  const quem = { sup: ['Turno ' + t + ' · ' + liderDe(t), 'Líder' + (SERVICO.turno === t ? ' · ' + HORARIO[SERVICO.h] : ' · fora do horário de serviço')],
+    tec: [(n ? 'Equipe ' + n : 'Sem equipe hoje') + ' · Turno ' + t, uidTec() ? nomeTec(uidTec()) : ''],
+    esp: ['Validador técnico' + (ehProg() ? '' : ' · ' + curtoV(DB.me)), 'Turno ' + t],
+    prog: ['Programador · ' + DB.me.nome.split(' ')[0], 'Acesso total'] }[S.papel];
+  $('quem').innerHTML = `<b>${esc(quem[0])}</b>${esc(quem[1])}`;
+  $('sub').textContent = { sup: 'Liderança do turno', tec: 'Revista de vagões', esp: 'Validação técnica', prog: 'Análise de dados' }[S.papel];
+  const aba = S.aba[S.papel];
+  const pendTec = S.papel === 'tec' ? DB.planos.filter(p => p.turno === t && (n == null || p.eq === n) && ['aberta', 'reaberta'].includes(p.status)).length : 0;
+  const nVal = S.papel === 'esp' ? filaValidacao().length : 0, nPlan = S.papel === 'esp' ? DB.planos.filter(p => p.status === 'feita' && (S.espFiltro === 'todos' || p.turno === t)).length : 0;
+  const prontos = S.papel === 'sup' ? atuais().filter(x => x.turno === t && x.dist.length && x.dist.every(d => d.termino)).length : 0;
+  $('tabs').innerHTML = ABAS[S.papel].map(([k, l]) => `<button data-act="aba" data-v="${k}" class="${k === aba ? 'on' : ''}">${l}${k === 'tarefas' && pendTec ? `<span class="n">${pendTec}</span>` : ''}${k === 'validacao' && nVal ? `<span class="n">${nVal}</span>` : ''}${k === 'planos' && nPlan ? `<span class="n">${nPlan}</span>` : ''}${k === 'turno' && prontos ? `<span class="n">${prontos}</span>` : ''}</button>`).join('');
+  $('main').className = S.papel === 'tec' ? 'estreito' : '';
+  $('main').innerHTML = VIEWS[S.papel][aba]();
+  renderModal(); indicador();
+}
+
+// ---------- SUPERVISOR (líder) ----------
+function cardTrem(t) {
+  const ins = inspecionados(t), pct = t.vagoes.length ? ins / t.vagoes.length * 100 : 0, pronto = t.dist.length && t.dist.every(d => d.termino);
+  const aberto = t.desvios.find(d => !d.fim);
+  const eqs = t.dist.map((d, i) => { const p = progEq(t, i);
+    const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : '<span class="tag warn">Não iniciou</span>';
+    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
+  return `<div class="card">
+    <h2>Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · chegou ${t.chegada}</span></h2>
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande">${Math.round(pct)}%</span><span class="muted small">inspecionado · ${ins} de ${t.vagoes.length} vagões${t.desvios.length ? ` · desvio ${dur(tempoDesvio(t))}` : ''}</span></div>
+    ${barra(pct)}
+    ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
+    ${eqs}
+    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}
+      <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
+    ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
+  </div>`;
+}
+function supTurno() {
+  const tt = T(), meus = atuais().filter(t => t.turno === tt), hoje = isoData(new Date());
+  const fechados = fechadosT().filter(t => t.turno === tt && (t.dataISO === dataOp() || t.dataISO === hoje));
+  const eventos = [];
+  meus.forEach(t => Object.entries(t.reg).forEach(([p, r]) => {
+    if (r.st === 'ok') return;
+    const d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: r.equipe, membros: [] };
+    eventos.push({ h: r.h, cls: r.oc.length ? 'bad' : '', txt: `<b>${esc(t.vagoes[p - 1])}</b> <span class="small muted">(${t.prefixo}, pos. ${posF(t, p)})</span><br>${esc(txtReg(r))}<br><span class="muted small">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}</span>` });
+  }));
+  eventos.sort((a, b) => b.h.localeCompare(a.h));
+  const v = validadorDe(tt);
+  return `<div class="faixa-turno"><h2>Turno ${tt}${SERVICO.turno === tt ? ' · ' + HORARIO[SERVICO.h] : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(new Date())}/${new Date().getFullYear()} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
+  ${!S.eqSalvo[tt] ? `<p class="nota">As equipes de hoje ainda não foram confirmadas. <button class="btn sm" data-act="aba" data-v="equipes">Montar equipes →</button></p>` : ''}
+  <div class="grid">
+    <div>${meus.map(cardTrem).join('<div style="height:12px"></div>') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
+    <div class="card"><h2>Ocorrências e intervenções <span class="dir">${eventos.length}</span></h2><ul class="feed">${eventos.slice(0, 20).map(e => `<li><span class="h">${e.h}</span><span class="${e.cls === 'bad' ? 'ev-bad' : ''}">${e.txt}</span></li>`).join('') || '<li><span></span><span class="muted">Nada registrado ainda.</span></li>'}</ul></div>
+    <div>
+      <div class="card"><h2>Fechados no turno <span class="dir">${fechados.length}</span></h2>${fechados.length ? `<table class="tabela"><thead><tr><th>Trem</th><th class="num">Inspec.</th><th class="num">Tempo</th><th>Validação</th></tr></thead><tbody>${fechados.map(t => `<tr><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span></td><td class="num">${t.status === 'nao_revistado' ? '<span class="tag warn">Não revistado</span>' : Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100) + '%'}</td><td class="num">${t.durMin ? dur(t.durMin) : '–'}</td><td>${tagVal(t)}</td></tr>`).join('')}</tbody></table>` : '<span class="muted small">Nenhum ainda.</span>'}</div>
+      <div class="card"><h2>Planos especiais <span class="dir">do validador ${esc(curtoV(v))}</span></h2><ul class="feed">${DB.planos.filter(p => p.turno === tt && p.status !== 'validada').map(p => `<li><span class="h">${p.criada}</span><span>${esc(p.titulo)}<br><span class="small muted">Equipe ${p.eq}</span> ${tagPlano(p)}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum plano aberto para este turno.</span></li>'}</ul></div>
+    </div>
+  </div>`;
+}
+function supNovo() {
+  if (!S.novo) S.novo = novoVazio();
+  const N = S.novo, pN = i => N.posFicha ? N.posFicha[i - 1] : i, eqs = EQ(T()), selIdx = N.sel.map((v, i) => v ? i : -1).filter(i => i >= 0 && eqs[i]);
+  const distHtml = !N.dist ? '' : `<div class="card larga"><h2>3 · Divisão entre as equipes <span class="dir">ajuste o último vagão de cada equipe, se precisar</span></h2>
+    <div class="rolagem"><table class="tabela"><thead><tr><th>Equipe</th><th class="num">${N.posFicha ? 'Da posição' : 'Do nº'}</th><th class="num">${N.posFicha ? 'Até a posição' : 'Até o nº'}</th><th class="num">Vagões</th><th>Primeiro → último</th></tr></thead><tbody>
+    ${N.dist.map((d, k) => `<tr><td><b>Equipe ${eqs[d.ei].n}</b><br><span class="small muted">${esc(nomesEquipe(eqs[d.ei].membros))}</span></td><td class="num">${pN(d.ini)}</td>
+      <td class="num">${k === N.dist.length - 1 ? pN(d.fim) : `<input type="number" min="${pN(d.ini)}" max="${pN(N.lidos.length)}" value="${pN(d.fim)}" data-act="dist-fim" data-k="${k}">`}</td><td class="num">${d.fim - d.ini + 1}</td>
+      <td class="small">${esc(N.lidos[d.ini - 1])}${N.posFicha ? ` (pos. ${N.posFicha[d.ini - 1]})` : ''} → ${esc(N.lidos[d.fim - 1])}${N.posFicha ? ` (pos. ${N.posFicha[d.fim - 1]})` : ''}</td></tr>`).join('')}</tbody></table></div>
+    <div class="acoes"><button class="btn primary" data-act="enviar-trem" ${N.prefixo.trim() ? '' : 'disabled'}>Enviar para as equipes</button>${N.prefixo.trim() ? '' : '<span class="small muted" style="align-self:center">Preencha o prefixo do trem.</span>'}</div>
+    <p class="small muted" style="margin:8px 0 0">Cada equipe recebe no celular só a sua faixa de vagões, na ordem da composição.</p></div>`;
+  return `<p class="nota">Envie o PDF da ficha do trem (impressão do Translogic). O app lê os vagões na ordem da composição, ignora as locomotivas (mais de 4 eixos), traz as restrições da ficha e divide entre as equipes.</p>
+  <div class="grid">
+    <div class="card"><h2>1 · Dados do trem</h2>
+      <div class="linha-campos">
+        <label class="campo">Prefixo<input data-act="novo-campo" data-k="prefixo" value="${esc(N.prefixo)}" placeholder="Ex.: D77"></label>
+        <label class="campo">Linha<select data-act="novo-campo" data-k="linha">${LINHAS.map(l => `<option ${l === N.linha ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="campo">Chegada<input type="time" data-act="novo-campo" data-k="chegada" value="${esc(N.chegada)}"></label>
+      </div>
+      <label class="upload ${N.lendo ? 'lendo' : ''}"><input type="file" accept="application/pdf,.pdf" data-act="ficha-pdf">
+        <span class="ic">📄</span><span><b>${N.lendo ? 'Lendo a ficha…' : N.fichaNome ? 'Trocar ficha do trem' : 'Enviar ficha do trem (PDF)'}</b><br><span class="small muted">${N.fichaNome ? esc(N.fichaNome) : 'O PDF de impressão do trem. Locomotivas (mais de 4 eixos) são ignoradas.'}</span></span></label>
+      ${N.lidos ? `<div class="ficha-ok">
+        <p style="margin:0 0 4px"><span class="tag ok">✓ ${N.lidos.length} vagões lidos</span> ${N.declarados != null ? (N.declarados === N.lidos.length ? `<span class="small" style="color:var(--ok);font-weight:700">confere com a ficha (${N.declarados})</span>` : `<span class="small" style="color:var(--bad);font-weight:700">⚠ a ficha diz ${N.declarados}. Confira!</span>`) : ''}</p>
+        <p class="small muted" style="margin:0">Primeiro ${esc(N.lidos[0])}${N.posFicha ? ` (pos. ${N.posFicha[0]})` : ''}, último ${esc(N.lidos[N.lidos.length - 1])}${N.posFicha ? ` (pos. ${N.posFicha[N.posFicha.length - 1]})` : ''}</p>
+        ${N.ignorados.length ? `<p class="small muted" style="margin:4px 0 0">Ignorados (locomotivas): ${N.ignorados.map(v => `${esc(v.cod)} · pos. ${v.pos} · ${v.eixos} eixos`).join('; ')}</p>` : ''}
+        ${Object.keys(N.restr).length ? `<p class="small" style="margin:6px 0 0"><b style="color:var(--warn)">⚠ Com restrição na ficha:</b> ${Object.entries(N.restr).map(([c, x]) => `pos. ${x.pos} ${esc(c)} (${esc(x.motivo)})`).join('; ')}. As equipes verão o aviso no vagão.</p>` : ''}
+      </div>` : ''}
+      <details ${N.colar || N.texto ? 'open' : ''} style="margin-top:10px"><summary class="small" style="cursor:pointer;font-weight:700;color:var(--muted)">Sem o PDF? Colar a lista de vagões</summary>
+        <label class="campo" style="margin-top:8px"><textarea data-act="novo-campo" data-k="texto" placeholder="HPT 031995-3&#10;HFT 055595-9&#10;...">${esc(N.texto)}</textarea></label>
+        <div class="acoes" style="margin-top:0"><button class="btn sm primary" data-act="ler">Ler lista</button></div>
+      </details>
+      <hr style="border:0;border-top:1px solid var(--line);margin:14px 0 10px">
+      ${N.naoRev ? `<label class="campo">Motivo de o trem não ser revistado<select data-act="novo-campo" data-k="motivoNao"><option value="">Escolha…</option>${MOTIVOS_NAO_REV.map(m => `<option ${m === N.motivoNao ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+        <div class="acoes" style="margin-top:0"><button class="btn primary" data-act="salvar-nao-rev" ${N.prefixo.trim() && N.motivoNao ? '' : 'disabled'}>Registrar trem não revistado</button><button class="btn" data-act="nao-rev" data-v="0">Cancelar</button></div>`
+        : '<button class="btn sm" data-act="nao-rev" data-v="1">Este trem não será revistado…</button>'}
+    </div>
+    <div class="card"><h2>2 · Equipes que vão atuar</h2>
+      ${eqs.map((e, i) => `<label class="radio"><input type="checkbox" data-act="novo-sel" data-i="${i}" ${N.sel[i] !== false ? 'checked' : ''}> <span><b>Equipe ${e.n}</b> · ${esc(nomesEquipe(e.membros)) || '<i>sem integrantes</i>'}</span></label>`).join('')}
+      ${!S.eqSalvo[T()] ? '<p class="small muted" style="margin:6px 0 0">Equipes sugeridas: ao enviar o trem elas ficam confirmadas para hoje. Para mudar, use a aba Equipes.</p>' : ''}
+      <div class="acoes"><button class="btn primary" data-act="distribuir" ${N.lidos && selIdx.length ? '' : 'disabled'}>Dividir igualmente</button></div>
+    </div>
+    ${distHtml}
+  </div>`;
+}
+function supEquipes() {
+  const tt = T(), tec = ativos(tt), l = EQ(tt), sel = (i, j, v) => `<select data-act="membro" data-i="${i}" data-j="${j}" class="sel-p">${j === 2 ? '<option value="">—</option>' : ''}${tec.map(id => `<option value="${id}" ${id === v ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select>`;
+  const usados = l.flatMap(e => e.membros), rep = usados.filter((x, i) => usados.indexOf(x) !== i), fora = tec.filter(id => !usados.includes(id));
+  return `<p class="nota">Monte as equipes no início do turno (2 ou 3 técnicos) e salve. Cada mecânico vê no celular os vagões da equipe em que está.</p>
+  <div class="grid">
+    <div class="card larga"><h2>Equipes do turno ${tt} · ${dataBR(deISO(dataOp()))} ${S.eqSalvo[tt] && !S.eqSujo[tt] ? '<span class="tag ok">salvas</span>' : '<span class="tag warn">não salvas</span>'}</h2><div class="rolagem"><table class="tabela"><thead><tr><th>Equipe</th><th>Técnico 1</th><th>Técnico 2</th><th>Técnico 3 (opcional)</th></tr></thead><tbody>
+    ${l.map((e, i) => `<tr><td><b>${e.n}</b></td>${[0, 1, 2].map(j => `<td>${sel(i, j, e.membros[j])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    ${rep.length ? `<p class="small" style="color:var(--bad);font-weight:700;margin:8px 0 0">⚠ ${esc(rep.map(nomeTec).join(', '))} está em mais de uma equipe.</p>` : ''}
+    ${l.filter(e => e.membros.length < 2).map(e => `<p class="small" style="color:var(--warn);font-weight:700;margin:8px 0 0">⚠ Equipe ${e.n} está com menos de 2 técnicos.</p>`).join('')}
+    ${fora.length ? `<p class="small muted" style="margin:8px 0 0">Fora das equipes: ${esc(fora.map(nomeTec).join(', '))}</p>` : ''}
+    <div class="acoes"><button class="btn sm" data-act="add-eq" ${l.length >= 6 ? 'disabled' : ''}>+ Equipe</button><button class="btn sm" data-act="rem-eq" ${l.length <= 1 ? 'disabled' : ''}>− Remover última</button>
+      <button class="btn primary" data-act="salvar-equipes" ${rep.length ? 'disabled' : ''}>Salvar equipes do dia</button></div></div>
+    <div class="card larga"><h2>Escala <span class="dir">o app identifica o turno de serviço por aqui</span></h2>${escalaHtml(14)}</div>
+    <div class="card"><h2>Liderança</h2><p style="margin:0 0 10px"><b>Líder responsável:</b> ${esc(liderDe(tt))}</p>
+      <label class="campo">Líder backup (se houver)<input data-act="backup" value="${esc(S.backup)}" placeholder="Nome completo"></label></div>
+  </div>`;
+}
+function escalaHtml(nDias) {
+  const H = hojeD(), dias = Array.from({ length: nDias }, (_, i) => { const d = new Date(H); d.setDate(d.getDate() + i - 1); return d; });
+  const sem = 'DSTQQSS';
+  return `<div class="rolagem"><table class="escala"><thead><tr><th></th>${dias.map(d => `<th class="${+d === +H ? 'hoje' : ''}">${pad(d.getDate())}/${pad(d.getMonth() + 1)}<br><span>${sem[d.getDay()]}</span></th>`).join('')}</tr></thead><tbody>
+    ${'ABCD'.split('').map(e => `<tr><th>${e}<br><span>${esc(liderDe(e).split(' ')[0])}</span></th>${dias.map(d => { const c = escalaDia(e, d), agoraC = isoData(d) === SERVICO.data && e === SERVICO.turno && c === SERVICO.h; return `<td class="e${c} ${+d === +H ? 'hoje' : ''} ${agoraC ? 'agora' : ''}">${c}</td>`; }).join('')}</tr>`).join('')}
+  </tbody></table></div>
+  <p class="small muted" style="margin:8px 0 0">6 = 06–14 · 14 = 14–22 · 22 = 22–06 · R = repouso · F = folga. Contorno = turno de serviço agora.</p>`;
+}
+
+// ---------- gestão da equipe ----------
+const brISO = v => v ? String(v).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '';
+const hojeISO = () => isoData(new Date());
+function registrarLog(acao) {
+  DB.log.unshift({ quando: dataBR(new Date()) + ' ' + agora(), quem: DB.me.nome, acao });
+  enviar({ tabela: 'gestao_log', acao: 'insert', dados: { acao }, desc: 'Histórico' });
+}
+function tirarDasEquipes(id) {
+  'ABCD'.split('').forEach(t => { const l = EQ(t); if (l.some(e => e.membros.includes(id))) { l.forEach(e => e.membros = e.membros.filter(x => x !== id)); if (S.eqSalvo[t]) salvarEquipes(t); } });
+}
+const equipeDe = id => { const x = C(id); const e = x.turno && EQ(x.turno).find(e => e.membros.includes(id)); return e ? e.n : null; };
+function tagStatus(x) {
+  if (x.status === 'ativo') return '<span class="tag ok">Ativo</span>';
+  if (x.status === 'afastado') return `<span class="tag warn">Afastado</span><br><span class="small muted">${esc(x.afast_motivo || '')}${x.afast_retorno ? ' · volta ' + brISO(x.afast_retorno) : ''}</span>`;
+  return `<span class="tag neu">Desligado</span><br><span class="small muted">${x.deslig_data ? 'em ' + brISO(x.deslig_data) : ''}</span>`;
+}
+function tabelaColab(turnos) {
+  const prog = ehProg() && S.papel === 'prog';
+  const lista = DB.colab.filter(x => (prog || (x.perfil === 'tecnico' && turnos.includes(x.turno))) && (S.gestDeslig || x.status !== 'desligado'))
+    .sort((a, b) => (a.turno || 'Z').localeCompare(b.turno || 'Z') || ['ativo', 'afastado', 'desligado'].indexOf(a.status) - ['ativo', 'afastado', 'desligado'].indexOf(b.status) || a.nome.localeCompare(b.nome));
+  const nDeslig = DB.colab.filter(x => (prog || turnos.includes(x.turno)) && x.status === 'desligado').length;
+  const btn = (acao, id, rot) => `<button class="btn sm" data-act="colab" data-acao="${acao}" data-id="${id}">${rot}</button>`;
+  return `<div class="acoes" style="margin:0 0 10px"><button class="btn sm primary" data-act="colab" data-acao="novo">+ Cadastrar colaborador</button>
+      ${nDeslig ? `<button class="chip ${S.gestDeslig ? 'on' : ''}" data-act="gest-deslig">Mostrar desligados (${nDeslig})</button>` : ''}</div>
+    <div class="rolagem"><table class="tabela"><thead><tr><th>Colaborador</th>${prog ? '<th>Perfil</th><th>Turno</th>' : ''}<th>Login</th><th>Situação</th><th>Equipe hoje</th><th>Ações</th></tr></thead><tbody>
+    ${lista.map(x => `<tr><td><b>${esc(x.nome)}</b><br><span class="small muted">${esc(x.funcao)} · aparece como “${esc(x.curtoCalc)}”</span></td>${prog ? `<td>${PERFIS[x.perfil] || ''}</td><td>${x.turno || '–'}</td>` : ''}<td class="small">${esc(x.login)}${x.trocar_senha ? '<br><span class="muted">senha provisória</span>' : ''}</td><td>${tagStatus(x)}</td>
+      <td>${equipeDe(x.id) ? 'Equipe ' + equipeDe(x.id) : '<span class="muted">–</span>'}</td>
+      <td><div style="display:flex;gap:6px;flex-wrap:wrap">${x.id === DB.me.id ? '<span class="small muted">você</span>' : (x.status === 'ativo' ? btn('afastar', x.id, 'Afastar') + (x.perfil === 'tecnico' ? btn('transferir', x.id, 'Transferir') : '') + btn('desligar', x.id, 'Desligar')
+        : x.status === 'afastado' ? btn('reativar', x.id, 'Reativar') + btn('desligar', x.id, 'Desligar') : btn('reativar', x.id, 'Readmitir')) + (x.status !== 'desligado' ? btn('senha', x.id, '🔑 Nova senha') : '')}</div></td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+const cardLog = n => `<div class="card"><h2>Histórico de alterações</h2><ul class="feed">${DB.log.slice(0, n).map(l => `<li><span class="h">${l.quando.split(' ')[0]}</span><span>${esc(l.acao)}<br><span class="small muted">${esc(l.quem)} · ${l.quando.split(' ')[1] || ''}</span></span></li>`).join('') || '<li><span></span><span class="muted small">Nenhuma alteração ainda.</span></li>'}</ul></div>`;
+function supGestao() {
+  const tt = T(), n = st => DB.colab.filter(x => x.perfil === 'tecnico' && x.turno === tt && x.status === st).length;
+  return `<p class="nota">Cadastre quem entrou, afaste quem está de atestado, férias ou licença, e desligue quem saiu. Afastados e desligados não entram no app nem aparecem nas equipes. O histórico de cada pessoa continua guardado.</p>
+  <div class="kpis"><div class="kpi"><div class="r">Ativos</div><div class="v">${n('ativo')}</div></div><div class="kpi"><div class="r">Afastados</div><div class="v">${n('afastado')}</div></div><div class="kpi"><div class="r">Líder</div><div class="v" style="font-size:18px;padding-top:6px">${esc(liderDe(tt))}</div></div></div>
+  <div class="grid"><div class="card larga"><h2>Mecânicos do turno ${tt}</h2>${tabelaColab([tt])}</div>${cardLog(10)}</div>`;
+}
+function modalColab(M) {
+  const x = M.id ? C(M.id) : null, c = M.campos;
+  if (M.acao === 'credencial') return `<h3>Acesso de ${esc(M.cred.nome)}</h3><p>Entregue ao colaborador. A senha é provisória: no primeiro acesso o app pede uma nova.</p>
+    <div class="ficha-ok" style="font-size:18px"><p style="margin:0 0 6px">Usuário <b style="font-family:monospace">${esc(M.cred.login)}</b></p><p style="margin:0">Senha provisória <b style="font-family:monospace">${esc(M.cred.senha)}</b></p></div>
+    <p class="small muted">Esta senha não aparece de novo. Anote ou tire um print agora.</p><button class="btn primary big" data-act="fechar">Pronto</button>`;
+  const cab = x ? `<div class="small muted">Turno ${x.turno || '–'} · ${esc(x.funcao)}</div><h3>${esc(x.nome)}</h3>` : '';
+  if (M.acao === 'afastar') return cab + `<div class="secao">Motivo do afastamento</div>${MOTIVOS_AFAST.map(m => `<label class="radio"><input type="radio" name="af" data-act="motivo" value="${m}" ${M.motivo === m ? 'checked' : ''}> ${m}</label>`).join('')}
+    <div class="linha-campos" style="margin-top:10px"><label class="campo">Desde<input type="date" id="c-desde" value="${c.desde || hojeISO()}"></label><label class="campo">Previsão de retorno<input type="date" id="c-retorno" value="${c.retorno || ''}"></label></div>
+    ${equipeDe(x.id) ? `<p class="small" style="color:var(--warn);margin:0 0 10px">Sai da Equipe ${equipeDe(x.id)} de hoje.</p>` : ''}
+    <button class="btn primary big" data-act="salvar-colab" ${M.motivo ? '' : 'disabled'}>Afastar</button>`;
+  if (M.acao === 'desligar') return cab + `<p>O colaborador deixa de aparecer nas equipes e não consegue mais entrar no app. <b>O histórico dele continua guardado</b> nos relatórios.</p>
+    <label class="campo">Data do desligamento<input type="date" id="c-data" value="${c.data || hojeISO()}"></label>
+    <button class="btn big" style="background:var(--bad);border-color:var(--bad);color:#fff" data-act="salvar-colab">Confirmar desligamento</button>`;
+  if (M.acao === 'transferir') return cab + `<div class="secao">Para qual turno?</div>${'ABCD'.split('').filter(t => t !== x.turno).map(t => `<label class="radio"><input type="radio" name="tr" data-act="motivo" value="${t}" ${M.motivo === t ? 'checked' : ''}> Turno ${t} · líder ${esc(liderDe(t))}</label>`).join('')}
+    <button class="btn primary big" data-act="salvar-colab" style="margin-top:10px" ${M.motivo ? '' : 'disabled'}>Transferir</button>`;
+  if (M.acao === 'senha') return cab + `<p>Gera uma nova senha provisória para <b>${esc(x.login)}</b>. A senha atual deixa de funcionar e o app pede uma senha nova no próximo acesso.</p>
+    <button class="btn primary big" data-act="salvar-colab" ${M.ocupado ? 'disabled' : ''}>${M.ocupado ? 'Gerando…' : 'Gerar nova senha'}</button>`;
+  const prog = ehProg() && S.papel === 'prog', turnos = prog ? 'ABCD'.split('') : [T()];
+  return `<h3>Cadastrar colaborador</h3><p class="small muted">Cria o login (nome.sobrenome) com uma senha provisória para entregar.</p>
+    <label class="campo">Nome completo<input id="c-nome" value="${esc(c.nome || '')}" placeholder="Ex.: João Vitor da Silva"></label>
+    <div class="linha-campos"><label class="campo">Como é chamado (opcional)<input id="c-curto" value="${esc(c.curto || '')}" placeholder="Ex.: Ventura"></label><label class="campo">Matrícula (opcional)<input id="c-mat" value="${esc(c.mat || '')}"></label></div>
+    <div class="linha-campos"><label class="campo">Turno<select id="c-turno">${prog ? '<option value="">sem turno</option>' : ''}${turnos.map(t => `<option ${t === (c.turno ?? T()) ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label class="campo">Perfil<select id="c-perfil">${(prog ? Object.entries(PERFIS) : [['tecnico', 'Técnico (mecânico)']]).map(([k, l]) => `<option value="${k}" ${k === (c.perfil || 'tecnico') ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <button class="btn primary big" data-act="salvar-colab" ${M.ocupado ? 'disabled' : ''}>${M.ocupado ? 'Cadastrando…' : 'Cadastrar'}</button>`;
+}
+async function chamarFuncao(corpo) {
+  const { data, error } = await sb.functions.invoke('gerenciar-colaborador', { body: corpo });
+  if (error) {
+    let msg = error.message; try { msg = (await error.context.json()).erro || msg; } catch {}
+    throw new Error(/Failed to send|not found|404/i.test(msg) ? 'A função de cadastro ainda não foi instalada no Supabase' : msg);
+  }
+  if (data?.erro) throw new Error(data.erro);
+  return data;
+}
+async function salvarColab() {
+  const M = S.modal, c = M.campos;
+  if (M.acao === 'novo' || M.acao === 'senha') {
+    M.ocupado = true; renderModal();
+    try {
+      const r = M.acao === 'novo'
+        ? await chamarFuncao({ acao: 'criar', nome: c.nome, curto: (c.curto || '').trim() || null, matricula: (c.mat || '').trim() || null, turno: c.turno || null, perfil: c.perfil || 'tecnico' })
+        : await chamarFuncao({ acao: 'senha', id: M.id });
+      S.modal = { tipo: 'colab', acao: 'credencial', cred: r, campos: {} };
+      await carregar().catch(() => {}); render();
+    } catch (e) { M.ocupado = false; renderModal(); toast('⚠ ' + e.message); }
+    return;
+  }
+  const x = C(M.id), upd = d => { Object.assign(x, d); enviar({ tabela: 'colaboradores', acao: 'update', dados: d, filtro: [['id', 'eq', x.id]], desc: 'Cadastro de ' + x.nome }); };
+  if (M.acao === 'afastar') { upd({ status: 'afastado', afast_motivo: M.motivo, afast_desde: c.desde || hojeISO(), afast_retorno: c.retorno || null }); tirarDasEquipes(x.id); registrarLog(`Afastou ${x.nome} (${M.motivo}${c.retorno ? ', volta ' + brISO(c.retorno) : ''})`); toast(x.nome + ' afastado'); }
+  if (M.acao === 'desligar') { upd({ status: 'desligado', deslig_data: c.data || hojeISO() }); tirarDasEquipes(x.id); registrarLog(`Desligou ${x.nome} em ${brISO(c.data || hojeISO())}`); chamarFuncao({ acao: 'bloquear', id: x.id }).catch(e => toast('⚠ Login não bloqueado: ' + e.message)); toast(x.nome + ' desligado'); }
+  if (M.acao === 'transferir') { const de = x.turno; upd({ turno: M.motivo }); tirarDasEquipes(x.id); registrarLog(`Transferiu ${x.nome} do turno ${de} para o ${M.motivo}`); toast(x.nome + ' agora é do turno ' + M.motivo); }
+  recalcCurto(); S.modal = null; render();
+}
+
+// ---------- ESPECIALIZADOS (validador técnico) ----------
+const tagVal = t => t.validacao?.status === 'validado' ? `<span class="tag ok">✓ Validado</span>` : t.status === 'concluido' && t.validacao?.status === 'pendente' ? '<span class="tag warn">Aguardando validação</span>' : '<span class="muted small">–</span>';
+function tagPlano(p) {
+  if (p.status === 'validada') return `<span class="tag ok">✓ Validado ${p.validadaEm || ''}</span>`;
+  if (p.status === 'feita') return `<span class="tag warn">Feito ${p.feitaEm} · aguardando validação</span>`;
+  if (p.status === 'reaberta') return '<span class="tag bad">↩ Reaberto</span>';
+  return '<span class="tag neu">Aberto</span>';
+}
+const apontamentos = t => Object.entries(t.reg).filter(([, r]) => r.st !== 'ok' || r.val === 'corrigido').map(([p, r]) => ({ p: +p, r })).sort((a, b) => a.p - b.p);
+const filaValidacao = () => DB.trens.filter(t => t.status === 'concluido' && t.validacao?.status === 'pendente' && (S.espFiltro === 'todos' || t.turno === meuTurnoV()));
+const filtroTurnoV = () => `<div class="chips"><button class="chip ${S.espFiltro === 'turno' ? 'on' : ''}" data-act="esp-filtro" data-v="turno">Meu turno (${meuTurnoV()})</button><button class="chip ${S.espFiltro === 'todos' ? 'on' : ''}" data-act="esp-filtro" data-v="todos">Todos os turnos</button></div>`;
+function espValidacao() {
+  if (S.valTrem) return telaValidar(tremQualquer(S.valTrem));
+  const fila = filaValidacao(), andamento = atuais().filter(t => S.espFiltro === 'todos' || t.turno === meuTurnoV());
+  return `<p class="nota">Depois que o líder fecha o trem, os apontamentos das equipes (sapatas, materiais, ocorrências e pendências) chegam aqui para a validação técnica. Valide ou corrija cada um e conclua o trem.</p>
+  ${filtroTurnoV()}
+  <div class="grid">
+    <div class="larga">${fila.length ? fila.map(t => { const aps = apontamentos(t), oc = aps.reduce((a, x) => a + x.r.oc.length, 0), feitos = aps.filter(x => x.r.val).length;
+      return `<div class="card"><h2>Trem ${esc(t.prefixo)} <span class="dir">${dataBR(t.data)} · turno ${t.turno} · ${t.linha} · líder ${esc(t.lider)}</span></h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="tag info">${aps.length} apontamento(s)</span>${oc ? `<span class="tag bad">${oc} ocorrência(s)</span>` : ''}<span class="small muted">${inspecionados(t)} de ${t.vagoes.length} vagões inspecionados${t.motivoParcial ? ' · ' + esc(t.motivoParcial) : ''}</span>
+        ${feitos ? `<span class="small muted">· ${feitos} já conferido(s)</span>` : ''}<button class="btn sm primary" style="margin-left:auto" data-act="validar-trem" data-id="${t.id}">Validar →</button></div></div>`; }).join('')
+      : '<div class="card"><p style="margin:0" class="muted">✓ Nenhum trem aguardando validação.</p></div>'}</div>
+    <div class="card"><h2>Em revista agora <span class="dir">${andamento.length}</span></h2>${andamento.length ? andamento.map(t => `<p style="margin:0 0 6px"><b>${esc(t.prefixo)}</b> · turno ${t.turno} · ${t.linha} · ${Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100)}% <span class="small muted">· chega para validação quando o líder fechar</span></p>`).join('') : '<span class="muted small">Nenhum.</span>'}</div>
+  </div>`;
+}
+function telaValidar(t) {
+  if (!t) { S.valTrem = null; return espValidacao(); }
+  const aps = apontamentos(t), falta = aps.filter(x => !x.r.val).length;
+  return `<button class="btn sm" data-act="val-voltar" style="margin-bottom:12px">← Fila de validação</button>
+  <div class="card"><h2>Trem ${esc(t.prefixo)} <span class="dir">${dataBR(t.data)} · turno ${t.turno} · ${t.linha}</span></h2>
+    <div class="resumo"><div><b>${t.vagoes.length}</b><span>na composição</span></div><div><b>${inspecionados(t)}</b><span>inspecionados</span></div><div><b>${aps.length}</b><span>apontamentos</span></div><div><b style="color:${falta ? 'var(--warn)' : 'var(--ok)'}">${falta}</b><span>a conferir</span></div></div>
+    <p class="small muted" style="margin:0">Líder ${esc(t.lider)}${t.motivoParcial ? ' · inspeção parcial: ' + esc(t.motivoParcial) : ''}${t.desvios.length ? ' · desvio ' + dur(tempoDesvio(t)) : ''}${t.obsFech ? ' · “' + esc(t.obsFech) + '”' : ''}</p>
+    ${falta ? `<div class="acoes"><button class="btn sm" data-act="val-todos" data-id="${t.id}">✓ Validar todos os que faltam (${falta})</button></div>` : ''}</div>
+  <div class="vagoes">${aps.map(({ p, r }) => { const d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: r.equipe, membros: [] }, rf = restrDe(t, p);
+    return `<div class="card ap ${r.val ? 'conferido' : ''}" style="margin:0"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${tagReg(r)}<br>
+        <span class="small">${esc(txtReg(r))}</span>${r.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 ver foto</button>` : ''}<br>
+        <span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))} · ${r.h}${rf ? ' · ficha: ' + esc(rf.motivo) : ''}</span>
+        ${r.val === 'corrigido' ? `<br><span class="small" style="color:var(--info)">✏ Corrigido${r.valPor ? ' por ' + esc(r.valPor) : ''}${r.antes ? ' · antes: ' + esc(r.antes) : ''}</span>` : ''}</div>
+      <div style="display:flex;gap:6px">${r.val ? `<span class="tag ok">${r.val === 'corrigido' ? '✏ Corrigido' : '✓ Validado'}</span>` : `<button class="btn sm ok" data-act="val-ok" data-id="${t.id}" data-p="${p}">✓ Validar</button>`}
+        ${r.st !== 'pend' ? `<button class="btn sm" data-act="val-corrigir" data-id="${t.id}" data-p="${p}">✏ Corrigir</button>` : ''}</div></div></div>`; }).join('') || '<div class="card muted">Nenhum apontamento neste trem: só vagões sem intervenção.</div>'}</div>
+  <div class="card" style="margin-top:12px"><h2>Concluir validação</h2>
+    <label class="campo">Parecer técnico (opcional)<textarea id="parecer" style="font-family:inherit;font-size:15px;min-height:60px"></textarea></label>
+    <button class="btn primary big" data-act="val-concluir" data-id="${t.id}" ${falta ? 'disabled' : ''}>${falta ? `Faltam ${falta} apontamento(s)` : '✓ Concluir validação do trem'}</button></div>`;
+}
+function espPlanos() {
+  const mt = S.espFiltro === 'todos' ? null : meuTurnoV(), lista = DB.planos.filter(p => !mt || p.turno === mt), grupo = (tit, arr, acoes) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(p => `<li><span class="h">${p.criada}</span><span><b>${esc(p.titulo)}</b><br><span class="small">${esc(p.desc)}</span><br><span class="small muted">Turno ${p.turno} · Equipe ${p.eq} · por ${esc(p.por.split(' ')[0])}</span> ${tagPlano(p)}${p.obs ? `<br><span class="small">Retorno da equipe: “${esc(p.obs)}”</span>` : ''}${acoes ? `<div class="acoes" style="margin-top:6px"><button class="btn sm ok" data-act="plano-validar" data-id="${p.id}">✓ Validar</button><input id="coment-${p.id}" class="inp" style="min-height:34px;font-size:14px" placeholder="Motivo para reabrir"><button class="btn sm" data-act="plano-reabrir" data-id="${p.id}">↩ Reabrir</button></div>` : ''}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum.</span></li>'}</ul></div>`;
+  const eqs = EQ(S.planoTurno);
+  return `<p class="nota">O validador técnico cria o plano, a equipe executa e devolve, e o validador valida ou reabre. O líder acompanha pelo painel do turno.</p>
+  ${filtroTurnoV()}
+  <div class="grid">
+    <div class="card"><h2>Novo plano especial</h2>
+      <label class="campo">Título<input id="t-tit" placeholder="Ex.: Conferir travas dual da série PCT"></label>
+      <div class="linha-campos"><label class="campo">Turno<select data-act="plano-turno">${'ABCD'.split('').map(t => `<option ${t === S.planoTurno ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="campo">Equipe<select id="t-eq">${eqs.map(e => `<option value="${e.n}">Equipe ${e.n} · ${esc(nomesEquipe(e.membros))}</option>`).join('')}</select></label></div>
+      <label class="campo">O que fazer<textarea id="t-desc" style="font-family:inherit;font-size:15px"></textarea></label>
+      <button class="btn primary" data-act="nova-tarefa">Enviar para a equipe</button></div>
+    ${grupo('Aguardando validação', lista.filter(p => p.status === 'feita'), true)}
+    ${grupo('Com as equipes', lista.filter(p => ['aberta', 'reaberta'].includes(p.status)), false)}
+    ${grupo('Validados', lista.filter(p => p.status === 'validada').slice(0, 15), false)}
+  </div>`;
+}
+function espValidados() {
+  const lst = DB.trens.filter(t => t.validacao?.status === 'validado' && (S.espFiltro === 'todos' || t.turno === meuTurnoV())).slice().reverse().slice(0, 30);
+  return `${filtroTurnoV()}<div class="card"><h2>Trens validados <span class="dir">últimos ${lst.length}</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Apontamentos</th><th class="num">Corrigidos</th><th>Validado por</th><th>Parecer</th></tr></thead><tbody>
+    ${lst.map(t => `<tr><td>${dataBR(t.data)}</td><td>${t.turno}</td><td><b>${esc(t.prefixo)}</b></td><td>${t.linha}</td><td class="num">${apontamentos(t).length}</td><td class="num">${t.validacao.corrigidos || 0}</td><td class="small">${esc((t.validacao.por || '').split(' ').slice(0, 2).join(' '))}</td><td class="small muted">${esc(t.validacao.parecer || '')}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum ainda.</td></tr>'}
+  </tbody></table></div></div>`;
+}
+
+// ---------- TÉCNICO ----------
+const eqDoTrem = t => t.dist.findIndex(d => d.membros.includes(uidTec()));
+function tecMeu() {
+  if (!uidTec()) return '<div class="card muted">Escolha um mecânico na barra acima.</div>';
+  const meus = atuais().filter(t => eqDoTrem(t) >= 0);
+  if (!meus.length) return `<div class="card"><p style="margin:0" class="muted">Nenhum trem para a sua equipe agora. Aguarde o líder.</p><p class="small muted" style="margin:8px 0 0">${minhaEqN() ? 'Você está na Equipe ' + minhaEqN() + ' hoje.' : 'Você ainda não está em nenhuma equipe hoje.'} A tela atualiza sozinha.</p></div>`;
+  if (!meus.some(t => t.id === S.tecTrem)) S.tecTrem = meus[meus.length - 1].id;
+  const t = meus.find(x => x.id === S.tecTrem), di = eqDoTrem(t), d = t.dist[di], p = progEq(t, di);
+  const lista = [];
+  for (let pos = d.ini; pos <= d.fim; pos++) {
+    const r = t.reg[pos];
+    if (S.tecFiltro === 'faltam' && r) continue;
+    if (S.tecFiltro === 'feitos' && !r) continue;
+    const rf = restrDe(t, pos), det = [rf ? '⚠ Na ficha: ' + rf.motivo : '', r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : ''].filter(Boolean).join(' · ');
+    lista.push(`<button class="vg ${r ? 'feito' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>${det ? `<span class="det">${esc(det)}</span>` : ''}</span>${tagReg(r)}</button>`);
+  }
+  return `${meus.length > 1 ? `<div class="chips">${meus.map(x => `<button class="chip ${x.id === t.id ? 'on' : ''}" data-act="tec-trem" data-v="${x.id}">Trem ${esc(x.prefixo)} · ${x.linha}</button>`).join('')}</div>` : ''}
+  <div class="card">
+    <h2>Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · Equipe ${d.n}</span></h2>
+    <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
+    <div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
+    ${barra(p.n / p.total * 100)}
+    <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
+      : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
+      : p.n === p.total ? '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>'
+      : `<span class="small muted">Revista iniciada às ${d.inicio}</span>`}</div>
+  </div>
+  ${d.inicio ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos']].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
+  <div class="vagoes">${lista.join('') || '<div class="card muted">Nada nesta lista.</div>'}</div>` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
+}
+function tecTarefas() {
+  const n = minhaEqN(), minhas = DB.planos.filter(p => p.turno === T() && (n == null || p.eq === n) && p.status !== 'validada');
+  return minhas.length ? minhas.map(p => `<div class="card"><h2>${esc(p.titulo)} <span class="dir">Equipe ${p.eq} · ${p.criada}</span></h2><p style="margin:0 0 6px">${esc(p.desc)}</p><p class="small muted" style="margin:0 0 10px">Enviado por ${esc(p.por)} (validador técnico)</p>
+    ${p.status === 'reaberta' ? `<div class="alerta" style="margin:0 0 10px"><span>↩ <b>Reaberto pelo validador:</b> ${esc(p.coment || '')}</span></div>` : ''}
+    ${['aberta', 'reaberta'].includes(p.status) ? `<label class="campo">Observação (opcional)<input id="obs-${p.id}"></label><button class="btn ok big" data-act="tarefa-feita" data-id="${p.id}">✓ Marcar como feito</button>` : tagPlano(p)}</div>`).join('')
+    : '<div class="card muted">Nenhum plano especial para a sua equipe.</div>';
+}
+
+// ---------- modais ----------
+function abrirVagao(pos, tremId = S.tecTrem, validando = false) {
+  const t = tremQualquer(tremId), r = t.reg[pos];
+  S.modal = { tipo: 'vagao', pos, tremId, validando, modo: validando ? 'int' : r && r.st !== 'ok' ? r.st : null,
+    sap: r ? (r.mats.find(m => m.id === 'sapata')?.pos || []).slice() : [], mats: r ? r.mats.filter(m => m.id !== 'sapata').map(m => ({ ...m })) : [],
+    oc: r ? r.oc.slice() : [], obs: r?.obs || '', foto: null, temFoto: !!r?.fotoUrl, motivo: r?.motivo || '', falhas: r ? r.falhas.slice() : [],
+    novoMat: '', novoQtd: 1, outroNome: '', arv: { sis: '', sub: '', comp: '', falha: '' } };
+  renderModal();
+}
+function renderModal() {
+  const M = S.modal;
+  $('modal').hidden = !M;
+  if (!M) return;
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+}
+function blocoArvore(M) {
+  if (!RECURSOS.arvoreFalhas) return '';
+  const N = M.arv, s = ARVORE.find(x => x.sis === N.sis), b = s?.subs.find(x => x.sub === N.sub), c = b?.comps.find(x => x.c === N.comp);
+  const sel = (k, rot, ops, val) => `<label class="campo">${rot}<select data-act="arv" data-k="${k}"><option value="">Escolha…</option>${ops.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></label>`;
+  return `<div class="secao">Falhas (árvore)</div>
+    ${M.falhas.map((f, i) => `<div class="def-item"><span><b>${esc(f.comp)}: ${esc(f.falha)}</b><br><span class="small">${esc(f.sis)} › ${esc(f.sub)}</span></span><button data-act="rem-falha" data-i="${i}" aria-label="Remover">✕</button></div>`).join('')}
+    <label class="campo">Buscar falha<input id="busca-falha" placeholder="Ex.: sapata, mangueira, mola…" autocomplete="off"></label><div id="res-falha" class="escolhas" style="margin:0 0 10px"></div>
+    ${sel('sis', 'Sistema', ARVORE.map(x => x.sis), N.sis)}${s ? sel('sub', 'Subsistema', s.subs.map(x => x.sub), N.sub) : ''}${b ? sel('comp', 'Componente', b.comps.map(x => x.c), N.comp) : ''}${c ? sel('falha', 'Falha', c.falhas, N.falha) : ''}
+    ${N.falha ? '<button class="btn" style="width:100%;margin-bottom:12px" data-act="add-falha">+ Adicionar falha</button>' : ''}`;
+}
+function modalVagao(M) {
+  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}`;
+  if (!M.modo) return cab + `<div class="escolhas">
+    <button class="btn ok big" data-act="salvar-ok">✓ Revistado, sem intervenção</button>
+    <button class="btn big" style="color:var(--title);border-color:var(--title)" data-act="modo" data-v="int">🔧 Troca de material / ocorrência</button>
+    <button class="btn big" style="color:var(--warn);border-color:var(--warn)" data-act="modo" data-v="pend">⏸ Não consegui revistar</button></div>`;
+  if (M.modo === 'pend') return cab + `<div style="margin:12px 0">${MOTIVOS_PARCIAL.map(m => `<label class="radio"><input type="radio" name="mot" data-act="motivo" value="${esc(m)}" ${M.motivo === m ? 'checked' : ''}> ${esc(m)}</label>`).join('')}</div>
+    <button class="btn primary big" data-act="salvar-pend" ${M.motivo ? '' : 'disabled'}>Salvar como pendente</button><button class="btn" style="width:100%;margin-top:8px" data-act="modo" data-v="">Voltar</button>`;
+  const celula = p => `<button class="pos-btn ${M.sap.includes(p) ? 'on' : ''}" data-act="sap" data-v="${p}" aria-pressed="${M.sap.includes(p)}">${p}</button>`;
+  return cab + `
+    <div class="secao">Sapatas trocadas ${M.sap.length ? `<span class="tag info">${M.sap.length}</span>` : ''}</div>
+    <p class="small muted" style="margin:0 0 6px">Toque nas posições trocadas (rodeiro 1 a 4, lado esquerdo e direito).</p>
+    <div class="grade-sap"><span></span><b>1</b><b>2</b><b>3</b><b>4</b><b>E</b>${['1E','2E','3E','4E'].map(celula).join('')}<b>D</b>${['1D','2D','3D','4D'].map(celula).join('')}</div>
+    <div class="secao">Outros materiais</div>
+    ${M.mats.map((m, i) => `<div class="def-item" style="background:var(--info-bg)"><span><b>${m.qtd}× ${esc(m.nome)}</b></span><button data-act="rem-mat" data-i="${i}" aria-label="Remover">✕</button></div>`).join('')}
+    <label class="campo"><select data-act="novo-mat"><option value="">Escolha um material…</option>${MATERIAIS.filter(m => !m.pos).map(m => `<option value="${m.id}" ${m.id === M.novoMat ? 'selected' : ''}>${esc(m.nome)}</option>`).join('')}<option value="outro" ${M.novoMat === 'outro' ? 'selected' : ''}>Outro (não está na lista)…</option></select></label>
+    ${M.novoMat === 'outro' ? `<label class="campo">Qual material?<input id="outro-nome" value="${esc(M.outroNome)}"></label>` : ''}
+    ${M.novoMat ? `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><span class="stepper"><button data-act="qtd" data-v="-1">−</button><span>${M.novoQtd}</span><button data-act="qtd" data-v="1">+</button></span><button class="btn" style="flex:1" data-act="add-mat">+ Adicionar</button></div>` : ''}
+    <div class="secao">Ocorrências <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">o validador técnico confere</span></div>
+    ${OCORRENCIAS.map(o => `<label class="radio ${M.oc.includes(o) ? 'marcado' : ''}"><input type="checkbox" data-act="oc" value="${esc(o)}" ${M.oc.includes(o) ? 'checked' : ''}> ${esc(o)}</label>`).join('')}
+    ${blocoArvore(M)}
+    <label class="campo" style="margin-top:12px">Observação<textarea id="obs-reg" style="font-family:inherit;font-size:16px;min-height:70px" placeholder="Ex.: rolamento com retentor estourado">${esc(M.obs)}</textarea></label>
+    <label class="campo">Foto<input type="file" accept="image/*" capture="environment" data-act="foto"></label>
+    ${M.foto ? '<p class="small" style="margin:-4px 0 10px"><span class="tag ok">📷 Foto pronta para enviar</span></p>' : M.temFoto ? '<p class="small" style="margin:-4px 0 10px"><span class="tag ok">📷 Já tem foto</span></p>' : ''}
+    <button class="btn primary big" data-act="salvar-int">${M.validando ? 'Salvar correção' : 'Salvar vagão'}</button>
+    ${M.validando ? '' : '<button class="btn" style="width:100%;margin-top:8px" data-act="modo" data-v="">Voltar</button>'}`;
+}
+// reduz a foto (lado maior 1280 px, JPEG) para enviar rápido e caber no aparelho sem sinal
+function reduzirFoto(arquivo) {
+  return new Promise((ok, erro) => {
+    const img = new Image(); img.onload = () => {
+      const k = Math.min(1, 1280 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(img.src); ok(cv.toDataURL('image/jpeg', 0.72));
+    }; img.onerror = erro; img.src = URL.createObjectURL(arquivo);
+  });
+}
+function salvarVagao(st) {
+  const M = S.modal, t = tremQualquer(M.tremId), antigo = t.reg[M.pos], d = t.dist.find(x => M.pos >= x.ini && M.pos <= x.fim);
+  const r = { st: 'ok', h: M.validando && antigo ? antigo.h : agora(), mats: [], oc: [], obs: '', motivo: '', falhas: [], foto: antigo?.foto, fotoUrl: antigo?.fotoUrl, equipe: d?.n ?? null };
+  if (st === 'pend') Object.assign(r, { st, motivo: M.motivo });
+  if (st === 'int') {
+    if (M.sap.length) r.mats.push({ id: 'sapata', nome: MAT.sapata.nome, qtd: M.sap.length, pos: POSICOES.filter(p => M.sap.includes(p)) });
+    r.mats.push(...M.mats); Object.assign(r, { st: (r.mats.length || M.oc.length || M.falhas.length) ? 'int' : 'ok', oc: M.oc.slice(), obs: M.obs.trim(), falhas: M.falhas.slice() });
+  }
+  const dados = { resultado: r.st, materiais: r.mats, ocorrencias: r.oc, obs: r.obs || null, motivo: r.motivo || null, falhas: r.falhas };
+  if (M.validando) {
+    Object.assign(r, { val: 'corrigido', valPor: DB.me.nome, antes: txtReg(antigo) || 'sem intervenção' });
+    enviar({ tabela: 'registros', acao: 'update', dados: { ...dados, val: 'corrigido', antes: r.antes }, filtro: [['trem_id', 'eq', t.id], ['posicao', 'eq', M.pos]], desc: 'Correção do vagão ' + t.vagoes[M.pos - 1] });
+  } else {
+    enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', dados: { trem_id: t.id, posicao: M.pos, vagao: t.vagoes[M.pos - 1], equipe: r.equipe, hora: r.h, ...dados }, desc: 'Vagão ' + t.vagoes[M.pos - 1] });
+  }
+  if (M.foto) { const path = `${t.id}/${M.pos}-${Date.now()}.jpg`; r.foto = true; r.fotoUrl = path; enviar({ acao: 'foto', path, dataURL: M.foto, trem_id: t.id, posicao: M.pos, desc: 'Foto do vagão ' + t.vagoes[M.pos - 1] }); }
+  t.reg[M.pos] = r; S.modal = null;
+  toast(M.validando ? 'Correção salva' : r.st === 'ok' ? 'Vagão registrado' : r.st === 'pend' ? 'Vagão marcado como pendente' : r.oc.length ? 'Ocorrência registrada' : 'Intervenção registrada');
+  render();
+}
+function modalDesvio(M) {
+  const t = tremPorId(M.id);
+  return `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.linha}</div><h3>Registrar desvio</h3><p class="small muted">Tempo em que a equipe ficou parada ou desviada da revista. Começa agora (${agora()}) e você encerra quando voltar.</p>
+    ${MOTIVOS_DESVIO.map(m => `<label class="radio"><input type="radio" name="dv" data-act="motivo" value="${esc(m)}" ${M.motivo === m ? 'checked' : ''}> ${esc(m)}</label>`).join('')}
+    <label class="campo" style="margin-top:10px">Observação<input id="obs-desvio" placeholder="Ex.: aguardando a partida da ZTO 1"></label>
+    <button class="btn primary big" data-act="salvar-desvio" ${M.motivo ? '' : 'disabled'}>Iniciar desvio agora</button>`;
+}
+function modalFechar(M) {
+  const t = tremPorId(M.id), total = t.vagoes.length, ins = inspecionados(t), naoIns = total - ins;
+  const ocs = []; Object.entries(t.reg).forEach(([p, r]) => r.oc.forEach(o => ocs.push({ p, o, r })));
+  const mats = {}; Object.values(t.reg).forEach(r => r.mats.forEach(m => mats[m.nome] = (mats[m.nome] || 0) + m.qtd));
+  return `<div class="small muted">Turno ${t.turno} · ${esc(t.lider)}</div><h3>Fechar trem ${esc(t.prefixo)} · ${t.linha}</h3>
+    <div class="resumo"><div><b>${total}</b><span>na composição</span></div><div><b>${ins}</b><span>inspecionados</span></div><div><b style="color:${naoIns ? 'var(--warn)' : 'var(--ok)'}">${naoIns}</b><span>não inspecionados</span></div><div><b>${dur(tempoDesvio(t))}</b><span>de desvio</span></div></div>
+    ${naoIns ? `<label class="campo">Por que nem todos foram inspecionados? <span style="color:var(--bad)">*</span><select data-act="mot-parcial"><option value="">Escolha…</option>${MOTIVOS_PARCIAL.map(m => `<option ${m === M.motivoParcial ? 'selected' : ''}>${m}</option>`).join('')}</select></label>` : '<p class="small" style="color:var(--ok);font-weight:700;margin:0 0 10px">✓ 100% do trem inspecionado</p>'}
+    <div class="secao">Apontamentos das equipes</div>
+    <p class="small" style="margin:0 0 6px">${Object.values(t.reg).filter(r => r.st !== 'ok').length} apontamento(s): ${ocs.length} ocorrência(s), intervenções e pendências.</p>
+    <p class="nota" style="margin:0 0 6px">Ao fechar, os apontamentos seguem para a <b>validação técnica</b> de ${esc(validadorDe(t.turno).nome)}.</p>
+    <div class="secao">Desvios</div>${t.desvios.length ? t.desvios.map(d => `<p class="small" style="margin:0 0 4px">${d.ini}–${d.fim || 'agora'} · ${esc(d.motivo)}${d.obs ? ' · ' + esc(d.obs) : ''}</p>`).join('') : '<p class="small muted">Nenhum.</p>'}
+    <div class="secao">Materiais aplicados</div>${Object.keys(mats).length ? `<p class="small" style="margin:0">${Object.entries(mats).map(([n, q]) => `${q}× ${esc(n)}`).join(' · ')}</p>` : '<p class="small muted">Nenhum.</p>'}
+    <label class="campo" style="margin-top:12px">Observações do líder<textarea id="obs-fech" style="font-family:inherit;font-size:15px;min-height:60px">${esc(M.obs)}</textarea></label>
+    <button class="btn primary big" data-act="confirmar-fech" ${naoIns && !M.motivoParcial ? 'disabled' : ''}>Confirmar e fechar trem</button>`;
+}
+
+// ---------- PROGRAMADOR ----------
+function trensFiltrados() {
+  const lim = hojeD(); lim.setDate(lim.getDate() - S.periodo);
+  return fechadosT().filter(t => t.data > lim && (S.turnoF === 'todos' || t.turno === S.turnoF) && (S.linhaF === 'todas' || t.linha === S.linhaF));
+}
+function hbars(itens, unidade) {
+  if (!itens.length) return '<span class="muted small">Sem dados no período.</span>';
+  const max = Math.max(...itens.map(i => i[1]), 1);
+  return `<div class="hb">${itens.map(([l, v]) => `<span class="l" title="${esc(l)}">${esc(l)}</span><span class="t" data-tip="${esc(`${l}: ${fmt(v)} ${unidade}`)}"><i style="width:${v / max * 100}%"></i></span><span class="n">${fmt(v)}</span>`).join('')}</div>`;
+}
+const chips = (rot, campo, ops) => `<span class="small muted" style="font-weight:700">${rot}</span>${ops.map(([v, l]) => `<button class="chip ${S[campo] === v ? 'on' : ''}" data-act="filtro" data-k="${campo}" data-v="${v}">${l}</button>`).join('')}`;
+function progPainel() {
+  const ts = trensFiltrados(), rev = ts.filter(t => t.status !== 'nao_revistado');
+  let tot = 0, ins = 0, tempo = 0, nTempo = 0, desv = 0, nDesv = 0, sap = 0;
+  const mat = {}, porVagao = {}, porTec = {}, motivos = {}, ocs = {}, posSap = Object.fromEntries(POSICOES.map(p => [p, 0]));
+  rev.forEach(t => {
+    tot += t.vagoes.length; if (t.durMin) { tempo += t.durMin; nTempo++; }
+    if (t.desvios.length) { nDesv++; desv += tempoDesvio(t); }
+    if (t.motivoParcial) motivos[t.motivoParcial] = (motivos[t.motivoParcial] || 0) + 1;
+    Object.entries(t.reg).forEach(([p, r]) => {
+      if (r.st === 'pend') return;
+      ins++;
+      (t.dist.find(x => p >= x.ini && p <= x.fim)?.membros || []).forEach(id => porTec[id] = (porTec[id] || 0) + 1);
+      r.oc.forEach(o => ocs[o] = (ocs[o] || 0) + 1);
+      if (!r.mats.length) return;
+      const v = t.vagoes[p - 1], o = porVagao[v] || (porVagao[v] = { itens: 0, vezes: 0, sap: 0, ultimo: t.data });
+      o.vezes++; if (t.data > o.ultimo) o.ultimo = t.data;                 // uma vez por passagem do vagão
+      r.mats.forEach(m => {
+        mat[m.nome] = (mat[m.nome] || 0) + m.qtd; o.itens += m.qtd;
+        if (m.id === 'sapata') { sap += m.qtd; o.sap += m.qtd; (m.pos || []).forEach(x => posSap[x] = (posSap[x] || 0) + 1); }
+      });
+    });
+  });
+  const dias = new Set(ts.map(t => t.dataISO)).size || 1;
+  const topVag = Object.entries(porVagao).sort((a, b) => b[1].itens - a[1].itens || b[1].vezes - a[1].vezes).slice(0, 10);
+  const topTec = Object.entries(porTec).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, v]) => [nomeTec(id), v]);
+  const maxPos = Math.max(...Object.values(posSap), 1);
+  return `<div class="chips filtros">${chips('Período', 'periodo', [[1, 'Hoje'], [7, '7 dias'], [30, '30 dias']])}${chips('Turno', 'turnoF', [['todos', 'Todos'], ['A', 'A'], ['B', 'B'], ['C', 'C'], ['D', 'D']])}${chips('Linha', 'linhaF', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
+    <span style="margin-left:auto;display:flex;gap:6px"><button class="btn sm" data-act="exportar" data-v="trens">⬇ Planilha por trem</button><button class="btn sm" data-act="exportar" data-v="vagoes">⬇ Planilha por vagão</button></span></div>
+  ${!ts.length ? '<p class="nota">Ainda não há trens fechados neste período. Os números aparecem assim que os líderes começarem a fechar trens no app.</p>' : ''}
+  <div class="kpis">
+    <div class="kpi"><div class="r">Trens revistados</div><div class="v">${fmt(rev.length)}</div><div class="d">${(rev.length / dias).toFixed(1).replace('.', ',')} por dia · ${ts.length - rev.length} não revistado(s)</div></div>
+    <div class="kpi"><div class="r">Vagões inspecionados</div><div class="v">${fmt(ins)}</div><div class="d">de ${fmt(tot)} nas composições</div></div>
+    <div class="kpi"><div class="r">% do trem inspecionado</div><div class="v">${pct1(ins, tot)}%</div><div class="d">média do período</div></div>
+    <div class="kpi"><div class="r">Tempo médio / trem</div><div class="v">${nTempo ? dur(tempo / nTempo) : '–'}</div><div class="d">início ao fim da revisão</div></div>
+    <div class="kpi"><div class="r">Tempo de desvio</div><div class="v">${dur(desv)}</div><div class="d">${nDesv} trens com desvio · média ${nDesv ? dur(desv / nDesv) : '–'}</div></div>
+    <div class="kpi"><div class="r">Sapatas trocadas</div><div class="v">${fmt(sap)}</div><div class="d">${rev.length ? (sap / rev.length).toFixed(1).replace('.', ',') : 0} por trem</div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>Materiais mais consumidos <span class="dir">unidades</span></h2>${hbars(Object.entries(mat).sort((a, b) => b[1] - a[1]).slice(0, 10), 'un.')}</div>
+    <div class="card"><h2>Vagões que mais recebem material</h2>${topVag.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Vagão</th><th class="num">Vezes</th><th class="num">Sapatas</th><th class="num">Itens</th><th>Último</th></tr></thead><tbody>
+      ${topVag.map(([v, o]) => `<tr class="click" data-act="ver-vagao" data-v="${esc(v)}"><td><b>${esc(v)}</b></td><td class="num">${o.vezes}</td><td class="num">${o.sap}</td><td class="num">${o.itens}</td><td>${dataBR(o.ultimo)}</td></tr>`).join('')}
+      </tbody></table></div><p class="small muted" style="margin:8px 0 0">Toque no vagão para ver o histórico e quem revistou.</p>` : '<span class="muted small">Sem dados no período.</span>'}</div>
+    <div class="card"><h2>Sapatas trocadas por posição</h2>
+      <div class="grade-sap leitura"><span></span><b>1</b><b>2</b><b>3</b><b>4</b>${['E', 'D'].map(l => `<b>${l}</b>${[1, 2, 3, 4].map(n => { const v = posSap[n + l]; return `<span class="cel" style="--a:${(0.12 + 0.88 * v / maxPos).toFixed(2)}" data-tip="Rodeiro ${n}, lado ${l === 'E' ? 'esquerdo' : 'direito'}: ${fmt(v)} sapatas">${fmt(v)}</span>`; }).join('')}`).join('')}</div>
+      <p class="small muted" style="margin:8px 0 0">Rodeiro 1 a 4 × lado esquerdo (E) e direito (D). Mais escuro = mais trocas.</p></div>
+    <div class="card"><h2>Motivos de inspeção parcial <span class="dir">trens</span></h2>${hbars(Object.entries(motivos).sort((a, b) => b[1] - a[1]), 'trens')}</div>
+    <div class="card"><h2>Ocorrências <span class="dir">vagões</span></h2>${hbars(OCORRENCIAS.map(o => [o, ocs[o] || 0]), 'vagões')}</div>
+    <div class="card"><h2>Vagões inspecionados por técnico <span class="dir">top 10</span></h2>${hbars(topTec, 'vagões')}</div>
+    <div class="card larga"><h2>Trens do período <span class="dir">últimos 20</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Líder</th><th>Trem</th><th>Linha</th><th style="min-width:150px">% inspecionado</th><th class="num">Tempo</th><th class="num">Desvio</th><th>Validação</th><th>Obs.</th></tr></thead><tbody>
+      ${ts.slice().reverse().slice(0, 20).map(t => { const p = t.status === 'nao_revistado' ? 0 : Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100);
+        return `<tr><td>${dataBR(t.data)}</td><td>${t.turno}</td><td class="small">${esc(t.lider.split(' ')[0])}</td><td><b>${esc(t.prefixo)}</b></td><td>${t.linha}</td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Não revistado</span>' : `<div style="display:flex;align-items:center;gap:8px"><div style="flex:1">${barra(p)}</div><span class="small" style="font-weight:700;min-width:36px;text-align:right">${p}%</span></div>`}</td><td class="num">${t.durMin ? dur(t.durMin) : '–'}</td><td class="num">${t.desvios.length ? dur(tempoDesvio(t)) : '–'}</td><td>${tagVal(t)}</td><td class="small muted">${esc(t.motivoNao || t.motivoParcial)}</td></tr>`; }).join('') || '<tr><td colspan="10" class="muted">Nenhum trem no período.</td></tr>'}
+      </tbody></table></div></div>
+  </div>`;
+}
+const normCod = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+function historicoVagao(cod) {
+  const out = [];
+  DB.trens.forEach(t => t.vagoes.forEach((c, i) => { if (c === cod) { const p = i + 1; out.push({ t, p, r: t.reg[p], d: t.dist.find(x => p >= x.ini && p <= x.fim) || { n: '–', membros: [] } }); } }));
+  return out.sort((a, b) => b.t.data - a.t.data);
+}
+function progVagao() {
+  const todos = [...new Set(DB.trens.flatMap(t => t.vagoes))], q = S.busca.trim();
+  const cod = q ? todos.find(c => normCod(c) === normCod(q)) || todos.find(c => normCod(c).includes(normCod(q)) && normCod(q).length >= 6) : null;
+  const h = cod ? historicoVagao(cod) : null;
+  return `<div class="card"><h2>Buscar vagão <span class="dir">últimos 35 dias</span></h2>
+    <div style="display:flex;gap:8px"><input id="busca" value="${esc(S.busca)}" placeholder="Ex.: HPT 031995-3" class="inp"><button class="btn primary" data-act="buscar">Buscar</button></div>
+    ${todos.length ? `<p class="small muted" style="margin:8px 0 0">Exemplos: ${todos.slice(-5).map(c => `<a href="#" data-act="ver-vagao" data-v="${esc(c)}">${esc(c)}</a>`).join(' · ')}</p>` : ''}</div>
+  ${!q ? '' : !h ? '<div class="card muted">Vagão não encontrado nos trens carregados.</div>' : `
+  <div class="card"><h2>${esc(cod)} <span class="dir">${h.length} passagens pelo revistamento</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Equipe que revistou</th><th>Resultado</th><th>Detalhes</th></tr></thead><tbody>
+    ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em andamento</span>' : ''}</td><td class="num">${posF(t, p)}</td><td>Equipe ${d.n}<br><span class="small">${esc(d.membros.map(nomeTec).join(', '))}</span></td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td><td class="small">${r ? (r.st === 'ok' ? '–' : esc(txtReg(r)) + (r.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷</button>` : '')) : esc(t.motivoNao || t.motivoParcial || '')}</td></tr>`).join('')}
+  </tbody></table></div></div>`}`;
+}
+function progCadastros() {
+  const lst = (tit, arr) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(m => `<li><span></span><span>${esc(m)}</span></li>`).join('')}</ul></div>`;
+  const de = p => DB.colab.filter(x => x.perfil === p && x.status === 'ativo');
+  return `<div class="grid">
+    <div class="card larga"><h2>Colaboradores <span class="dir">${DB.colab.filter(x => x.status === 'ativo').length} ativos · ${DB.colab.filter(x => x.status === 'afastado').length} afastado(s)</span></h2>${tabelaColab('ABCD'.split(''))}</div>
+    <div class="card"><h2>Líderes</h2><ul class="feed">${'ABCD'.split('').map(k => `<li><span class="h">${k}</span><span>${esc(liderDe(k))}<br><span class="small muted">${ativos(k).length} mecânicos ativos</span></span></li>`).join('')}</ul></div>
+    <div class="card"><h2>Validadores técnicos</h2><ul class="feed">${de('especializado').map(v => `<li><span class="h">${esc(v.codigo || '')}</span><span>${esc(v.nome)}<br><span class="small muted">Turno ${v.turno} · com ${esc(liderDe(v.turno))}</span></span></li>`).join('')}</ul></div>
+    <div class="card"><h2>Programadores</h2><ul class="feed">${de('programador').map(x => `<li><span></span><span>${esc(x.nome)}<br><span class="small muted">${esc(x.login)}</span></span></li>`).join('')}</ul></div>
+    ${cardLog(15)}
+    <div class="card larga"><h2>Escala 8 horas</h2>${escalaHtml(16)}</div>
+    <div class="card larga"><h2>Materiais <span class="dir">${MATERIAIS.length} + “outro”</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>No app</th><th>Descrição oficial</th></tr></thead><tbody>${MATERIAIS.map(m => `<tr><td><b>${esc(m.nome)}</b></td><td class="small">${esc(m.desc)}</td></tr>`).join('')}</tbody></table></div></div>
+    ${lst('Ocorrências por vagão', OCORRENCIAS)}${lst('Motivos de inspeção parcial', MOTIVOS_PARCIAL)}${lst('Motivos de trem não revistado', MOTIVOS_NAO_REV)}${lst('Motivos de desvio', MOTIVOS_DESVIO)}
+    <div class="card"><h2>Sobre</h2><p class="small" style="margin:0">Revistamento ZTO v${VERSAO}<br>${RECURSOS.arvoreFalhas ? 'Árvore de falhas ligada.' : 'Árvore de falhas oficial pronta, mas oculta.'}</p></div>
+  </div>`;
+}
+function baixarCSV(linhas, nome) {
+  const csv = '﻿' + linhas.map(l => l.map(c => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(';')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); a.download = nome; a.click();
+  toast('Planilha gerada (' + fmt(linhas.length - 1) + ' linhas)');
+}
+function exportar(tipo) {
+  const dt = t => dataBR(t.data) + '/' + t.data.getFullYear();
+  if (tipo === 'trens') {
+    const L = [['Data', 'Turno', 'Líder', 'Prefixo', 'Linha', 'Trem revistado?', 'Motivo não revistado', 'Início', 'Término', 'Tempo (min)', 'Total vagões', 'Inspecionados', 'Motivo inspeção parcial', 'Tempo desvio (min)', 'Desvios', 'Equipes', 'Sapatas trocadas', ...OCORRENCIAS, 'Validação', 'Validado por', 'Apontamentos corrigidos', 'Parecer técnico']];
+    trensFiltrados().forEach(t => { const regs = Object.values(t.reg);
+      L.push([dt(t), t.turno, t.lider, t.prefixo, t.linha, t.status === 'nao_revistado' ? 'Não' : 'Sim', t.motivoNao, t.inicio, t.fim, t.durMin, t.vagoes.length, inspecionados(t), t.motivoParcial, tempoDesvio(t), t.desvios.map(d => `${d.ini}-${d.fim} ${d.motivo}`).join(' | '),
+        t.dist.map(d => `Equipe ${d.n}: ${d.membros.map(nomeTec).join(', ')} (${posF(t, d.ini)}-${posF(t, d.fim)})`).join(' | '), regs.reduce((a, r) => a + r.mats.filter(m => m.id === 'sapata').reduce((b, m) => b + m.qtd, 0), 0), ...OCORRENCIAS.map(o => regs.filter(r => r.oc.includes(o)).length), { validado: 'Validado', pendente: 'Aguardando', na: '' }[t.validacao?.status] || '', t.validacao?.por || '', t.validacao?.corrigidos ?? '', t.validacao?.parecer || '']); });
+    return baixarCSV(L, 'revistamento-zto-trens.csv');
+  }
+  const L = [['Data', 'Turno', 'Líder', 'Trem', 'Linha', 'Posição na ficha', 'Vagão', 'Equipe', 'Integrantes', 'Hora', 'Resultado', 'Sapatas (posições)', 'Outros materiais', 'Ocorrências', 'Observação', 'Motivo pendência', 'Validação', ...(RECURSOS.arvoreFalhas ? ['Falhas'] : [])]];
+  trensFiltrados().forEach(t => Object.entries(t.reg).forEach(([p, r]) => { const d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: r.equipe, membros: [] }, s = r.mats.find(m => m.id === 'sapata');
+    L.push([dt(t), t.turno, t.lider, t.prefixo, t.linha, posF(t, p), t.vagoes[p - 1], d.n, d.membros.map(nomeTec).join(', '), r.h, { ok: 'OK', int: 'Intervenção', pend: 'Pendente' }[r.st], s ? s.pos.join(' ') : '', r.mats.filter(m => m.id !== 'sapata').map(txtMat).join(' | '), r.oc.join(' | '), r.obs, r.motivo, r.val === 'corrigido' ? 'Corrigido' : r.val === 'ok' ? 'Validado' : '', ...(RECURSOS.arvoreFalhas ? [r.falhas.map(f => f.comp + ': ' + f.falha).join(' | ')] : [])]); }));
+  baixarCSV(L, 'revistamento-zto-vagoes.csv');
+}
+
+const VIEWS = {
+  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, gestao: supGestao },
+  tec: { meu: tecMeu, tarefas: tecTarefas },
+  esp: { validacao: espValidacao, planos: espPlanos, validados: espValidados },
+  prog: { painel: progPainel, vagao: progVagao, cadastros: progCadastros }
+};
+
+// ---------- login, troca de senha, entrada ----------
+function mostrarTela(qual) {
+  ['tela-login', 'tela-app'].forEach(id => $(id).hidden = id !== qual);
+}
+function telaLogin(msg) {
+  mostrarTela('tela-login');
+  $('login-caixa').innerHTML = `<form id="f-login" autocomplete="on">
+      <label class="campo">Usuário<input id="l-usuario" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="nome.sobrenome" required></label>
+      <label class="campo">Senha<input id="l-senha" name="password" type="password" autocomplete="current-password" required></label>
+      ${msg ? `<p class="erro-login">${esc(msg)}</p>` : ''}
+      <button class="btn primary big" type="submit" id="l-entrar">Entrar</button>
+      <p class="small muted" style="text-align:center;margin:14px 0 0">Esqueceu a senha? Peça ao seu líder ou a um programador para gerar uma nova.</p></form>`;
+  $('f-login').onsubmit = async e => {
+    e.preventDefault();
+    const u = $('l-usuario').value.trim().toLowerCase(), email = u.includes('@') ? u : u + '@' + DOMINIO;
+    $('l-entrar').disabled = true; $('l-entrar').textContent = 'Entrando…';
+    const { error } = await sb.auth.signInWithPassword({ email, password: $('l-senha').value });
+    if (error) return telaLogin(/Invalid login|invalid/i.test(error.message) ? 'Usuário ou senha incorretos.' : /fetch|network/i.test(error.message) ? 'Sem internet. Para o primeiro acesso é preciso sinal.' : error.message);
+    entrar();
+  };
+}
+function telaTrocarSenha() {
+  mostrarTela('tela-login');
+  $('login-caixa').innerHTML = `<form id="f-senha"><h3 style="margin:0 0 4px;color:var(--title)">Olá, ${esc(DB.me.nome.split(' ')[0])}!</h3>
+      <p class="small muted" style="margin:0 0 12px">Crie sua senha pessoal para continuar. Use pelo menos 6 caracteres e não compartilhe.</p>
+      <label class="campo">Nova senha<input id="s-nova" type="password" autocomplete="new-password" minlength="6" required></label>
+      <label class="campo">Repita a nova senha<input id="s-rep" type="password" autocomplete="new-password" minlength="6" required></label>
+      <p class="erro-login" id="s-erro" hidden></p>
+      <button class="btn primary big" type="submit" id="s-ok">Salvar senha e entrar</button>
+      <button class="btn" type="button" style="width:100%;margin-top:8px" data-act="sair">Sair</button></form>`;
+  $('f-senha').onsubmit = async e => {
+    e.preventDefault();
+    const a = $('s-nova').value, b = $('s-rep').value, erro = m => { $('s-erro').hidden = false; $('s-erro').textContent = m; };
+    if (a.length < 6) return erro('A senha precisa ter pelo menos 6 caracteres.');
+    if (a !== b) return erro('As duas senhas não são iguais.');
+    $('s-ok').disabled = true;
+    const { error } = await sb.auth.updateUser({ password: a });
+    if (error) { $('s-ok').disabled = false; return erro(/different/i.test(error.message) ? 'Escolha uma senha diferente da provisória.' : error.message); }
+    const r2 = await sb.rpc('marcar_senha_trocada');
+    if (r2.error) { $('s-ok').disabled = false; return erro('A senha foi trocada, mas não consegui registrar: ' + r2.error.message); }
+    toast('Senha criada. Bem-vindo!'); entrar();
+  };
+}
+function telaAviso(titulo, texto) {
+  mostrarTela('tela-login');
+  $('login-caixa').innerHTML = `<h3 style="margin:0 0 6px;color:var(--title)">${esc(titulo)}</h3><p>${esc(texto)}</p><button class="btn big" style="width:100%" data-act="sair">Sair</button>`;
+}
+async function entrar() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return telaLogin();
+  let me = null, offline = false;
+  try {
+    const { data, error } = await sb.from('colaboradores').select('*').eq('user_id', session.user.id).maybeSingle();
+    if (error) throw error;
+    me = data;
+  } catch (e) { offline = ehRede(e); me = lsLer('rzto_me', null); }
+  if (!me) return telaAviso('Cadastro não encontrado', 'Seu login existe, mas não está ligado a um colaborador. Fale com um programador.');
+  if (me.status !== 'ativo') return telaAviso('Acesso suspenso', me.status === 'afastado' ? 'Você está afastado no momento. Quando voltar, o líder reativa seu acesso.' : 'Seu acesso foi encerrado.');
+  DB.me = me; lsGravar('rzto_me', me);
+  if (me.trocar_senha && !offline) return telaTrocarSenha();
+  S.papel = PAPEL[me.perfil];
+  if (me.perfil !== 'programador') S.turnoVer = me.turno;
+  S.planoTurno = me.turno || SERVICO.turno;
+  mostrarTela('tela-app');
+  $('main').innerHTML = '<div class="card muted">Carregando…</div>';
+  try { await carregar(); } catch (e) {
+    if (!usarCache()) { $('main').innerHTML = `<div class="card"><p>Não consegui carregar os dados${ehRede(e) ? ' (sem internet)' : ': ' + esc(e.message)}.</p><button class="btn primary" data-act="recarregar">Tentar de novo</button></div>`; return; }
+    semSinal = ehRede(e); toast('Sem internet: mostrando os últimos dados guardados');
+  }
+  if (!S.novo) S.novo = novoVazio();
+  render(); processarFila();
+}
+async function atualizar(forcar) {
+  if (!DB.me || !DB.carregado || document.hidden) return;
+  SERVICO = emServico();
+  const ocupado = S.modal || FILA.length || enviando || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && $('main').contains(document.activeElement));
+  if (ocupado && !forcar) return;
+  try { await carregar(); semSinal = false; render(); } catch (e) { if (ehRede(e)) { semSinal = true; indicador(); } }
+}
+setInterval(() => atualizar(false), 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { processarFila(); atualizar(false); } });
+
+// ---------- eventos ----------
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 3000); }
+const lerCampos = () => { const M = S.modal; if (!M) return; if ($('obs-reg')) M.obs = $('obs-reg').value; if ($('outro-nome')) M.outroNome = $('outro-nome').value; if ($('obs-fech')) M.obs = $('obs-fech').value; if (M.campos) [['c-desde', 'desde'], ['c-retorno', 'retorno'], ['c-data', 'data'], ['c-nome', 'nome'], ['c-curto', 'curto'], ['c-mat', 'mat'], ['c-turno', 'turno'], ['c-perfil', 'perfil']].forEach(([i, k]) => { if ($(i)) M.campos[k] = $(i).value; }); };
+
+document.addEventListener('click', async e => {
+  $('tt').hidden = true;
+  const el = e.target.closest('[data-act]');
+  if (!el) { if (e.target === $('modal')) { S.modal = null; renderModal(); } return; }
+  if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio')) return;
+  const a = el.dataset.act, v = el.dataset.v, N = S.novo, M = S.modal;
+  lerCampos();
+  switch (a) {
+    case 'sair': {
+      if (FILA.length && !confirm(`Há ${FILA.length} alteração(ões) ainda não enviada(s). Se sair agora, elas se perdem. Sair mesmo assim?`)) return;
+      await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
+    }
+    case 'recarregar': entrar(); return;
+    case 'atualizar': toast('Atualizando…'); await processarFila(); await atualizar(true); return;
+    case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
+    case 'aba': S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
+    case 'tec-trem': S.tecTrem = v; break;
+    case 'tec-filtro': S.tecFiltro = v; break;
+    case 'iniciar': case 'encerrar': {
+      const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'iniciar' ? 'inicio' : 'termino';
+      d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: a === 'iniciar' ? 'Início da revista' : 'Fim da revista' });
+      toast(a === 'iniciar' ? 'Revista iniciada às ' + d.inicio : 'Parte da equipe concluída; o líder foi avisado'); break;
+    }
+    case 'abrir': abrirVagao(+el.dataset.p); return;
+    case 'fechar': S.modal = null; renderModal(); return;
+    case 'modo': M.modo = v || null; renderModal(); return;
+    case 'salvar-ok': salvarVagao('ok'); return;
+    case 'salvar-int': if (M.novoMat) { toast('Toque em “+ Adicionar” para incluir o material escolhido'); return; } salvarVagao('int'); return;
+    case 'salvar-pend': salvarVagao('pend'); return;
+    case 'motivo': M.motivo = el.value; renderModal(); return;
+    case 'sap': M.sap = M.sap.includes(v) ? M.sap.filter(x => x !== v) : [...M.sap, v]; renderModal(); return;
+    case 'oc': M.oc = el.checked ? [...M.oc, el.value] : M.oc.filter(x => x !== el.value); renderModal(); return;
+    case 'qtd': M.novoQtd = Math.max(1, M.novoQtd + +v); renderModal(); return;
+    case 'add-mat': {
+      if (M.novoMat === 'outro' && !M.outroNome.trim()) { toast('Escreva o nome do material'); return; }
+      M.mats.push({ id: M.novoMat, nome: M.novoMat === 'outro' ? M.outroNome.trim() : MAT[M.novoMat].nome, qtd: M.novoQtd, pos: [] });
+      M.novoMat = ''; M.novoQtd = 1; M.outroNome = ''; renderModal(); return;
+    }
+    case 'rem-mat': M.mats.splice(+el.dataset.i, 1); renderModal(); return;
+    case 'add-falha': M.falhas.push({ ...M.arv }); M.arv = { sis: '', sub: '', comp: '', falha: '' }; renderModal(); return;
+    case 'rem-falha': M.falhas.splice(+el.dataset.i, 1); renderModal(); return;
+    case 'escolher-falha': M.falhas.push({ ...FOLHAS[+el.dataset.i] }); renderModal(); return;
+    case 'ver-foto': {
+      S.modal = { tipo: 'foto', url: null }; renderModal();
+      const { data, error } = await sb.storage.from('fotos').createSignedUrl(v, 3600);
+      if (error) { S.modal = null; renderModal(); toast('⚠ Foto ainda não disponível'); return; }
+      if (S.modal?.tipo === 'foto') { S.modal.url = data.signedUrl; renderModal(); } return;
+    }
+    case 'tarefa-feita': {
+      const p = DB.planos.find(x => x.id === el.dataset.id), obs = ($('obs-' + p.id)?.value || '').trim();
+      Object.assign(p, { status: 'feita', feitaEm: agora(), obs }); enviar({ tabela: 'planos', acao: 'update', dados: { status: 'feita', obs_equipe: obs || null }, filtro: [['id', 'eq', p.id]], desc: 'Plano especial' });
+      toast('Plano devolvido; aguardando validação técnica'); break;
+    }
+    // líder
+    case 'novo-desvio': S.modal = { tipo: 'desvio', id: el.dataset.id, motivo: '' }; renderModal(); return;
+    case 'salvar-desvio': {
+      const d = { id: uuid(), ini: agora(), fim: null, motivo: M.motivo, obs: ($('obs-desvio').value || '').trim() };
+      tremPorId(M.id).desvios.push(d); enviar({ tabela: 'desvios', acao: 'insert', dados: { id: d.id, trem_id: M.id, ini: d.ini, motivo: d.motivo, obs: d.obs || null }, desc: 'Desvio' });
+      S.modal = null; toast('Desvio iniciado às ' + d.ini); break;
+    }
+    case 'fim-desvio': { const d = tremPorId(el.dataset.id).desvios.find(x => !x.fim); d.fim = agora(); enviar({ tabela: 'desvios', acao: 'update', dados: { fim: d.fim }, filtro: [['id', 'eq', d.id]], desc: 'Fim do desvio' }); toast('Desvio encerrado: ' + dur(difMin(d.ini, d.fim))); break; }
+    case 'fechar-trem': S.modal = { tipo: 'fechar', id: el.dataset.id, motivoParcial: '', obs: '' }; renderModal(); return;
+    case 'confirmar-fech': {
+      const t = tremPorId(M.id);
+      t.desvios.filter(d => !d.fim).forEach(d => { d.fim = agora(); enviar({ tabela: 'desvios', acao: 'update', dados: { fim: d.fim }, filtro: [['id', 'eq', d.id]], desc: 'Fim do desvio' }); });
+      const ini = t.dist.map(d => d.inicio).filter(Boolean).sort()[0] || agora(), fim = t.dist.map(d => d.termino).filter(Boolean).sort().pop() || agora();
+      Object.assign(t, { status: 'concluido', motivoParcial: M.motivoParcial, obsFech: M.obs.trim(), inicio: ini, fim, durMin: difMin(ini, fim), validacao: { status: 'pendente', corrigidos: 0 } });
+      enviar({ tabela: 'trens', acao: 'update', dados: { status: 'concluido', motivo_parcial: M.motivoParcial || null, obs_fechamento: t.obsFech || null, inicio: ini, fim, fechado_em: new Date().toISOString() }, filtro: [['id', 'eq', t.id]], desc: 'Fechamento do trem ' + t.prefixo });
+      S.modal = null; toast('Trem ' + t.prefixo + ' fechado e enviado para validação'); break;
+    }
+    case 'ler': {
+      N.colar = true;
+      const f = lerFichaTexto(N.texto.split(/\n/));
+      if (f.vagoes.length) { aplicarFicha(f, 'Texto colado'); break; }
+      const achados = [...N.texto.toUpperCase().matchAll(/\b([A-Z]{3})\s*-?\s*(\d{6})\s*-?\s*(\d)\b/g)].map(m => `${m[1]} ${m[2]}-${m[3]}`);
+      Object.assign(N, { lidos: achados.length ? achados : null, posFicha: null, restr: {}, ignorados: [], declarados: null, fichaNome: achados.length ? 'Texto colado' : '', dist: null });
+      if (!achados.length) toast('Nenhum vagão encontrado no texto');
+      break;
+    }
+    case 'novo-sel': N.sel[+el.dataset.i] = el.checked; N.dist = null; break;
+    case 'distribuir': { const eqs = EQ(T()), sel = eqs.map((x, i) => N.sel[i] !== false ? i : -1).filter(i => i >= 0); N.dist = distribuir(N.lidos.length, sel.length).map((f, k) => ({ ei: sel[k], ini: f[0], fim: f[1] })); break; }
+    case 'enviar-trem': {
+      const tt = T(), eqs = EQ(tt);
+      if (!S.eqSalvo[tt] || S.eqSujo[tt]) salvarEquipes(tt);
+      const id = uuid(), lider = DB.me.perfil === 'supervisor' ? DB.me.id : DB.colab.find(x => x.perfil === 'supervisor' && x.turno === tt && x.status === 'ativo')?.id || null;
+      const row = { id, prefixo: N.prefixo.trim().toUpperCase(), data: dataOp(), turno: tt, lider_id: lider, lider_backup: S.backup || null, linha: N.linha, chegada: N.chegada || agora(), ficha_nome: N.fichaNome || null,
+        vagoes: N.lidos.map((c, i) => ({ cod: c, pos: N.posFicha ? N.posFicha[i] : null })), restricoes: N.restr || {}, status: 'andamento' };
+      const teq = N.dist.map(d => ({ id: uuid(), trem_id: id, numero: eqs[d.ei].n, membros: eqs[d.ei].membros.slice(), ini: d.ini, fim: d.fim }));
+      enviar({ tabela: 'trens', acao: 'insert', dados: row, desc: 'Trem ' + row.prefixo });
+      enviar({ tabela: 'trem_equipes', acao: 'insert', dados: teq, desc: 'Equipes do trem ' + row.prefixo });
+      DB.trens.push(montarTrem({ ...row, validacao: 'pendente' }, teq, [], []));
+      S.novo = novoVazio(); S.aba.sup = 'turno'; toast('Trem ' + row.prefixo + ' enviado para ' + teq.length + ' equipes'); break;
+    }
+    case 'nao-rev': N.naoRev = v === '1'; break;
+    case 'salvar-nao-rev': {
+      const tt = T(), row = { id: uuid(), prefixo: N.prefixo.trim().toUpperCase(), data: dataOp(), turno: tt, lider_id: DB.me.perfil === 'supervisor' ? DB.me.id : null, linha: N.linha, chegada: N.chegada || agora(),
+        vagoes: (N.lidos || []).map((c, i) => ({ cod: c, pos: N.posFicha ? N.posFicha[i] : null })), restricoes: N.restr || {}, status: 'nao_revistado', validacao: 'na', motivo_nao: N.motivoNao };
+      enviar({ tabela: 'trens', acao: 'insert', dados: row, desc: 'Trem ' + row.prefixo });
+      DB.trens.push(montarTrem(row, [], [], []));
+      toast('Trem ' + row.prefixo + ' registrado como não revistado'); S.novo = novoVazio(); S.aba.sup = 'turno'; break;
+    }
+    case 'colab': {
+      const acao = el.dataset.acao, id = el.dataset.id || null;
+      if (acao === 'reativar') {
+        const x = C(id), era = x.status, d = { status: 'ativo', afast_motivo: null, afast_desde: null, afast_retorno: null, deslig_data: null };
+        Object.assign(x, d); enviar({ tabela: 'colaboradores', acao: 'update', dados: d, filtro: [['id', 'eq', x.id]], desc: 'Cadastro de ' + x.nome });
+        if (era === 'desligado') chamarFuncao({ acao: 'desbloquear', id: x.id }).catch(e => toast('⚠ Login não destravado: ' + e.message));
+        recalcCurto(); registrarLog(`${era === 'desligado' ? 'Readmitiu' : 'Reativou'} ${x.nome}`); toast(x.nome + ' ativo de novo. Inclua numa equipe na aba Equipes.'); break;
+      }
+      S.modal = { tipo: 'colab', acao, id, motivo: '', campos: {} }; renderModal(); return;
+    }
+    case 'salvar-colab': salvarColab(); return;
+    case 'gest-deslig': S.gestDeslig = !S.gestDeslig; break;
+    case 'add-eq': { const tt = T(), l = EQ(tt), livres = ativos(tt).filter(id => !l.some(e => e.membros.includes(id))); l.push({ n: l.length + 1, membros: livres.slice(0, 2) }); S.eqSujo[tt] = true; S.novo = novoVazio(); break; }
+    case 'rem-eq': { const tt = T(); EQ(tt).pop(); S.eqSujo[tt] = true; S.novo = novoVazio(); break; }
+    case 'salvar-equipes': salvarEquipes(T()); S.novo = novoVazio(); toast('Equipes do dia salvas'); break;
+    case 'nova-tarefa': {
+      const tit = $('t-tit').value.trim(); if (!tit) { toast('Dê um título ao plano'); return; }
+      const p = { id: uuid(), titulo: tit, descricao: $('t-desc').value.trim() || null, turno: S.planoTurno, equipe: +$('t-eq').value, status: 'aberta' };
+      enviar({ tabela: 'planos', acao: 'insert', dados: p, desc: 'Plano especial' });
+      DB.planos.unshift(planoDe({ ...p, criado_por: DB.me.id, criado_em: new Date().toISOString() })); toast('Plano enviado para a Equipe ' + p.equipe + ' do turno ' + p.turno); break;
+    }
+    case 'plano-validar': { const p = DB.planos.find(x => x.id === el.dataset.id); Object.assign(p, { status: 'validada', validadaEm: agora() }); enviar({ tabela: 'planos', acao: 'update', dados: { status: 'validada' }, filtro: [['id', 'eq', p.id]], desc: 'Plano especial' }); toast('Plano validado'); break; }
+    case 'plano-reabrir': {
+      const p = DB.planos.find(x => x.id === el.dataset.id), c = ($('coment-' + p.id)?.value || '').trim(); if (!c) { toast('Escreva o motivo para reabrir'); return; }
+      Object.assign(p, { status: 'reaberta', coment: c }); enviar({ tabela: 'planos', acao: 'update', dados: { status: 'reaberta', comentario: c }, filtro: [['id', 'eq', p.id]], desc: 'Plano especial' }); toast('Plano reaberto para a equipe'); break;
+    }
+    case 'esp-filtro': S.espFiltro = v; break;
+    case 'validar-trem': S.valTrem = el.dataset.id; break;
+    case 'val-voltar': S.valTrem = null; break;
+    case 'val-ok': { const t = tremQualquer(el.dataset.id), p = +el.dataset.p; Object.assign(t.reg[p], { val: 'ok', valPor: DB.me.nome }); enviar({ tabela: 'registros', acao: 'update', dados: { val: 'ok' }, filtro: [['trem_id', 'eq', t.id], ['posicao', 'eq', p]], desc: 'Validação' }); break; }
+    case 'val-todos': {
+      const t = tremQualquer(el.dataset.id), ps = apontamentos(t).filter(x => !x.r.val).map(x => x.p);
+      ps.forEach(p => Object.assign(t.reg[p], { val: 'ok', valPor: DB.me.nome }));
+      enviar({ tabela: 'registros', acao: 'update', dados: { val: 'ok' }, filtro: [['trem_id', 'eq', t.id], ['posicao', 'in', ps]], desc: 'Validação' }); toast('Apontamentos validados'); break;
+    }
+    case 'val-corrigir': abrirVagao(+el.dataset.p, el.dataset.id, true); return;
+    case 'val-concluir': {
+      const t = tremQualquer(el.dataset.id), parecer = ($('parecer')?.value || '').trim();
+      t.validacao = { status: 'validado', por: DB.me.nome, em: new Date().toISOString(), parecer, corrigidos: apontamentos(t).filter(x => x.r.val === 'corrigido').length };
+      enviar({ tabela: 'trens', acao: 'update', dados: { validacao: 'validado', parecer: parecer || null }, filtro: [['id', 'eq', t.id]], desc: 'Validação do trem ' + t.prefixo });
+      S.valTrem = null; toast('Trem ' + t.prefixo + ' validado'); break;
+    }
+    case 'filtro': S[el.dataset.k] = el.dataset.k === 'periodo' ? +v : v; break;
+    case 'exportar': exportar(v); return;
+    case 'ver-vagao': e.preventDefault(); S.busca = v; S.papel = 'prog'; S.aba.prog = 'vagao'; break;
+    case 'buscar': S.busca = $('busca').value; break;
+    default: return;
+  }
+  render();
+});
+document.addEventListener('change', async e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act, N = S.novo, M = S.modal;
+  if (a === 'turno-ver') { S.turnoVer = el.value; S.planoTurno = el.value; S.novo = novoVazio(); S.valTrem = null; render(); }
+  else if (a === 'ver-tec') { S.verTec = el.value; S.tecTrem = null; render(); }
+  else if (a === 'plano-turno') { S.planoTurno = el.value; render(); }
+  else if (a === 'novo-campo') { N[el.dataset.k] = el.value; if (el.dataset.k === 'texto') { N.lidos = null; N.dist = null; } render(); }
+  else if (a === 'dist-fim') {
+    const k = +el.dataset.k, d = N.dist;
+    let v = +el.value || 0; if (N.posFicha) { const i = N.posFicha.findIndex(x => x >= v); v = i < 0 ? N.lidos.length : i + 1; }
+    d[k].fim = Math.max(d[k].ini, Math.min(v || d[k].ini, N.lidos.length - (d.length - 1 - k)));
+    for (let j = k + 1; j < d.length; j++) { d[j].ini = d[j - 1].fim + 1; d[j].fim = j < d.length - 1 ? Math.max(d[j].ini, d[j].fim) : N.lidos.length; }
+    render();
+  }
+  else if (a === 'membro') { const tt = T(), eq = EQ(tt)[+el.dataset.i], j = +el.dataset.j; if (el.value) eq.membros[j] = el.value; else eq.membros.splice(j, 1); eq.membros = eq.membros.filter(Boolean); S.eqSujo[tt] = true; S.novo = novoVazio(); render(); }
+  else if (a === 'ficha-pdf') {
+    const arq = el.files[0]; if (!arq) return;
+    N.lendo = true; render();
+    linhasDoPdf(arq).then(l => { N.lendo = false; if (aplicarFicha(lerFichaTexto(l), arq.name)) toast('Ficha lida: ' + N.lidos.length + ' vagões'); render(); })
+      .catch(err => { N.lendo = false; toast('Não consegui ler o PDF: ' + err.message); render(); });
+  }
+  else if (a === 'backup') { S.backup = el.value.trim(); lsGravar('rzto_backup', S.backup); }
+  else if (a === 'novo-mat') { lerCampos(); M.novoMat = el.value; M.novoQtd = 1; renderModal(); }
+  else if (a === 'mot-parcial') { lerCampos(); M.motivoParcial = el.value; renderModal(); }
+  else if (a === 'arv') { lerCampos(); const n = M.arv, k = el.dataset.k, ordem = ['sis', 'sub', 'comp', 'falha']; n[k] = el.value; ordem.slice(ordem.indexOf(k) + 1).forEach(x => n[x] = ''); renderModal(); }
+  else if (a === 'foto') { lerCampos(); const f = el.files[0]; if (!f) return; try { M.foto = await reduzirFoto(f); } catch { toast('Não consegui ler a foto'); } renderModal(); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id !== 'busca-falha') return;
+  const q = semAcento(e.target.value.trim());
+  const res = q.length < 2 ? [] : FOLHAS.map((f, i) => [f, i]).filter(([f]) => q.split(' ').every(w => semAcento(f.comp + ' ' + f.falha + ' ' + f.sub + ' ' + f.sis).includes(w))).slice(0, 8);
+  $('res-falha').innerHTML = res.map(([f, i]) => `<button class="btn" style="justify-content:flex-start;text-align:left;min-height:52px;font-weight:600;padding:6px 12px" data-act="escolher-falha" data-i="${i}"><span><b>${esc(f.comp)}: ${esc(f.falha)}</b><br><span class="small muted">${esc(f.sis)} › ${esc(f.sub)}</span></span></button>`).join('');
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'busca') { S.busca = e.target.value; render(); }
+  if (e.key === 'Escape' && S.modal) { S.modal = null; renderModal(); }
+});
+document.addEventListener('mousemove', e => {
+  const el = e.target.closest('[data-tip]'), tt = $('tt');
+  if (!el) { tt.hidden = true; return; }
+  tt.textContent = el.dataset.tip; tt.hidden = false;
+  tt.style.left = Math.min(e.clientX + 14, innerWidth - tt.offsetWidth - 8) + 'px'; tt.style.top = (e.clientY + 16) + 'px';
+});
+sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT' && DB.me) { DB.me = null; telaLogin('Sua sessão terminou. Entre de novo.'); } });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+
+entrar();
+
+</script>
+</body>
+</html>
