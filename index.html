@@ -271,7 +271,9 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .tabela.compacta td.small { white-space: normal; min-width: 140px; }
 .tabela thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
 /* aba Aderência no formato do report (v1.2) */
-:root { --g-ruim: #c62828; --g-ruim-f: #fdeaea; --g-medio: #e0a400; --g-bom: #2e8b6f; }
+:root { --g-ruim: #c62828; --g-ruim-f: #fdeaea; --g-medio: #e0a400; --g-bom: #2e8b6f; --g-bom-f: #e1f4ee; }
+.st-plano { justify-self: end; cursor: help; line-height: 0; }
+.leg-planos { margin: 0; font-size: 12px; }
 .rep-topo { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
 .rep-topo h2 { margin: 0; color: var(--title); font-size: 22px; font-weight: 800; }
 .rep-topo span { font-size: 12px; color: var(--muted); font-weight: 600; }
@@ -302,7 +304,7 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .rcard.plano .fr span { display: block; font-size: 11px; color: var(--muted); font-weight: 600; }
 .rcard.plano .fr b { font-size: 24px; color: var(--title); font-variant-numeric: tabular-nums; }
 .rcard.plano .fr i { height: 30px; background: var(--ink); width: 2px; }
-.rcard.plano .ico { width: 30px; height: 30px; justify-self: end; }
+.rcard.plano .ico { width: 30px; height: 30px; }
 @media (max-width: 1000px) { .rep { grid-template-columns: 1fr; } .rep-main { grid-template-columns: repeat(6, minmax(0, 1fr)); } .rep-main > * { grid-column: span 3 !important; grid-row: auto !important; } .rep-main .c3, .rep-main .c9, .rep-main .c10, .rep-main .c11, .rep-main .c12, .rep-main .c13, .rep-main .c14 { grid-column: 1 / -1 !important; } .rep-planos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } .rep-planos h3 { grid-column: 1 / -1; } }
 @media (max-width: 560px) { .rep-main .c6 { grid-column: 1 / -1 !important; } .rcard { padding: 10px 12px; } .rcard .rv { font-size: 24px; } .rgauge .grande-pct { font-size: 24px; } }
 .c14 { grid-column: 1 / -1; }
@@ -1560,14 +1562,31 @@ function gaugeFaixas(v, meta) {
     <polygon points="${px.toFixed(1)},${py.toFixed(1)} ${bx.toFixed(1)},${by.toFixed(1)} ${cx.toFixed(1)},${cy.toFixed(1)}" fill="var(--title)"/>
     <text x="4" y="104" class="gm2">0%</text><text x="196" y="104" class="gm2" text-anchor="end">100%</text></svg>`;
 }
+const icoOk = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="var(--g-bom-f)" stroke="var(--g-bom)" stroke-width="1.6"/><path d="m7.5 12.3 3 3 6-6.3" fill="none" stroke="var(--g-bom)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const icoAlerta = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z" fill="var(--g-ruim-f)" stroke="var(--g-ruim)" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9v6M12 17.6v.4" stroke="var(--g-ruim)" stroke-width="2" stroke-linecap="round"/></svg>';
 // planos especiais da aba Aderência: os lançados no app, agrupados pelo título (a planilha externa entra aqui)
+// prazo dos planos especiais (como na aba "Curva" da planilha: previsto linear do mês da 1ª inspeção até o prazo)
+const PRAZO_PLANOS = '2026-12-31';
+function ritmoPlano(rs) {
+  const total = rs.length, feitos = rs.filter(r => r.data_inspecao), realizados = feitos.length;
+  if (realizados >= total) return { st: 'ok', txt: 'Plano concluído' };
+  const hoje = hojeD(), prazo = deISO(PRAZO_PLANOS), datas = feitos.map(r => r.data_inspecao).sort();
+  const ini = datas.length ? deISO(datas[0].slice(0, 8) + '01') : hoje;
+  const frac = Math.max(0, Math.min(1, (hoje - ini) / Math.max(1, prazo - ini))), previsto = Math.round(total * frac);
+  const d30 = isoData(new Date(hoje.getTime() - 30 * 864e5)), ritmo = feitos.filter(r => r.data_inspecao > d30).length / 30;   // vagões por dia
+  const restam = Math.max(0, (prazo - hoje) / 864e5), projetado = realizados + ritmo * restam;
+  const fimRitmo = ritmo > 0 ? new Date(hoje.getTime() + (total - realizados) / ritmo * 864e5) : null;
+  const base = `Previsto até hoje: ${fmt(previsto)} · realizado: ${fmt(realizados)} · ritmo dos últimos 30 dias: ${dec1(ritmo * 30)} por mês`;
+  if (realizados >= previsto) return { st: 'ok', previsto, txt: 'Em linha com o previsto. ' + base };
+  if (projetado >= total) return { st: 'ok', previsto, txt: `No ritmo atual fecha antes do prazo (${dataBR(fimRitmo)}/${fimRitmo.getFullYear()}). ` + base };
+  return { st: 'atraso', previsto, txt: `Atrasado: no ritmo atual ${fimRitmo ? 'fecha só em ' + MESES_L[fimRitmo.getMonth()] + '/' + fimRitmo.getFullYear() : 'não fecha (sem inspeções nos últimos 30 dias)'}; prazo ${PRAZO_PLANOS.split('-').reverse().join('/')}. ` + base };
+}
 function planosAderencia() {
   const ext = HIST.planos?.rows;
   if (ext?.length) {
     const [ini, fim] = periodoDe(F.per);
     return Object.entries(porChave(ext, r => r.plano)).map(([t, rs]) => ({ titulo: t, realizados: rs.filter(r => r.data_inspecao).length, faltam: rs.filter(r => !r.data_inspecao).length,
-      noPeriodo: rs.filter(r => r.data_inspecao && r.data_inspecao >= ini && r.data_inspecao <= fim).length, chegando: rs.filter(r => !r.data_inspecao && r.previsao).length }))
+      noPeriodo: rs.filter(r => r.data_inspecao && r.data_inspecao >= ini && r.data_inspecao <= fim).length, chegando: rs.filter(r => !r.data_inspecao && r.previsao).length, ritmo: ritmoPlano(rs) }))
       .sort((a, b) => b.faltam + b.realizados - a.faltam - a.realizados);
   }
   return Object.entries(porChave((DB.planosTodos || DB.planos).filter(p => F.turno === 'todos' || p.turno === F.turno), p => p.titulo.trim()))
@@ -1581,8 +1600,9 @@ function tabelaPlanos(planos) {
   const chegando = ext.filter(r => !r.data_inspecao && r.previsao).sort((a, b) => (a.previsao || '9').localeCompare(b.previsao || '9') || (a.posicao || 0) - (b.posicao || 0));
   const linha = (p, b) => `<tr${b ? ' class="tot"' : ''}><td>${b ? '<b>Total</b>' : esc(p.titulo)}</td><td class="num">${fmt(p.realizados)}</td><td class="num">${fmt(p.faltam)}</td>
     <td style="min-width:140px"><div style="display:flex;align-items:center;gap:8px"><div style="flex:1">${barra(p.realizados / Math.max(1, p.realizados + p.faltam) * 100)}</div><span class="small" style="font-weight:700;min-width:40px;text-align:right">${pct1(p.realizados, p.realizados + p.faltam)}%</span></div></td>
+    <td class="num">${p.ritmo?.previsto != null ? fmt(p.ritmo.previsto) : b ? fmt(planos.reduce((a, x) => a + (x.ritmo?.previsto ?? x.realizados), 0)) : '–'}</td><td>${p.ritmo ? `<span class="tag ${p.ritmo.st === 'ok' ? 'ok' : 'bad'}" data-tip="${esc(p.ritmo.txt)}">${p.ritmo.st !== 'ok' ? '⚠ Atrasado' : p.faltam ? '✓ Em dia' : '✓ Concluído'}</span>` : ''}</td>
     <td class="num">${fmt(p.noPeriodo)}</td><td class="num">${p.chegando ? `<b style="color:var(--warn)">${fmt(p.chegando)}</b>` : '–'}</td></tr>`;
-  return `<div class="card c14"><h2>Planos especiais <span class="dir">planilha de ${dataBR(new Date(HIST.planos.carga.quando))}</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Plano</th><th class="num">Realizados</th><th class="num">Faltam</th><th>Concluído</th><th class="num">Realizados no período</th><th class="num">Pendentes chegando</th></tr></thead><tbody>
+  return `<div class="card c14"><h2>Planos especiais <span class="dir">planilha de ${dataBR(new Date(HIST.planos.carga.quando))}</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Plano</th><th class="num">Realizados</th><th class="num">Faltam</th><th>Concluído</th><th class="num">Previsto até hoje</th><th>Situação</th><th class="num">Realizados no período</th><th class="num">Pendentes chegando</th></tr></thead><tbody>
     ${planos.map(p => linha(p)).join('')}${linha({ realizados: tot.r, faltam: tot.f, noPeriodo: tot.m, chegando: tot.c }, true)}</tbody></table></div></div>
   <div class="card c14"><h2>Vagões com plano pendente chegando a ZTO <span class="dir">${fmt(chegando.length)}</span></h2>${chegando.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Previsão</th><th>Trem</th><th class="num">Posição</th><th>Vagão</th><th>Plano</th><th>Prioridade</th><th>Local</th></tr></thead><tbody>
     ${chegando.map(r => `<tr><td>${r.previsao ? dataBR(new Date(r.previsao)) + ' ' + horaDe(r.previsao) : '–'}</td><td><b>${esc(r.trem)}</b>${r.os ? `<br><span class="small muted">OS ${esc(r.os)}</span>` : ''}</td><td class="num">${r.posicao ?? '–'}</td><td><b>${esc(r.vagao)}</b></td><td>${esc(r.plano)}</td><td>${esc(r.prioridade || '')}</td><td>${esc(r.local || '')}</td></tr>`).join('')}
@@ -1624,7 +1644,9 @@ function progAderencia() {
     <aside class="rep-planos">
       <h3>Planos especiais</h3>
       <label class="upload plan-up"><input type="file" accept=".xlsx,.xls" data-act="planos-xlsx"><span class="ic">📊</span><span><b>${S.enviandoPlanos ? 'Enviando…' : 'Enviar planilha do dia'}</b><br><span class="small muted">${HIST.planos?.carga ? 'Atualizada ' + dataBR(new Date(HIST.planos.carga.quando)) + ' ' + horaDe(HIST.planos.carga.quando) + ' · ' + fmt(HIST.planos.carga.linhas) + ' vagões' : HIST.planos === null ? 'Rode o 05-planos-especiais.sql' : 'Planos Especiais 2026.xlsx'}</span></span></label>
-      ${planos.length ? planos.map(p => `<div class="rcard plano"><div class="rr">${esc(p.titulo)}</div><div class="fr"><div><span>Faltam:</span><b>${fmt(p.faltam)}</b></div><i></i><div><span>Realizados:</span><b>${fmt(p.realizados)}</b></div>${icoAlerta}</div></div>`).join('') : '<div class="rcard plano"><span class="muted small">Nenhum plano especial ainda.</span></div>'}
+      ${planos.map(p => `<div class="rcard plano"><div class="rr">${esc(p.titulo)}</div><div class="fr"><div><span>Faltam:</span><b>${fmt(p.faltam)}</b></div><i></i><div><span>Realizados:</span><b>${fmt(p.realizados)}</b></div>${p.ritmo ? `<span class="st-plano" data-tip="${esc(p.ritmo.txt)}" aria-label="${p.ritmo.st === 'ok' ? 'Em dia' : 'Atrasado'}">${p.ritmo.st === 'ok' ? icoOk : icoAlerta}</span>` : ''}</div></div>`).join('')}
+      ${planos.length ? '' : '<div class="rcard plano"><span class="muted small">Nenhum plano especial ainda.</span></div>'}
+      ${planos.some(p => p.ritmo) ? `<p class="small muted leg-planos">✓ em linha ou no ritmo de fechar até ${PRAZO_PLANOS.split('-').reverse().slice(0, 2).join('/')} · ⚠ atrasado. Toque no ícone para ver o cálculo.</p>` : ''}
     </aside>
   </div>`;
 }

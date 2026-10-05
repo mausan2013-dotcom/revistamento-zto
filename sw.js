@@ -2,7 +2,7 @@
 // HTML do app: rede primeiro (pega a versão nova), cache como reserva.
 // Bibliotecas e fontes de fora (Supabase, leitor de PDF, Open Sans): cache depois da 1ª vez.
 // Dados (Supabase API) nunca passam pelo cache: o app guarda o que precisa e reenvia sozinho.
-const CACHE = 'revistamento-20261005195423';
+const CACHE = 'revistamento-20261005200144';
 const ARQUIVOS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 const DE_FORA = ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com'];
 
