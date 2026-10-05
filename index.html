@@ -313,6 +313,8 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .upload.plan-up .ic { font-size: 22px; }
 .aviso-plano { display: flex; gap: 8px; align-items: flex-start; background: var(--info-bg); color: var(--info); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 2px; font-size: 14px; }
 .aviso-plano b { color: var(--info); }
+.tag.plano { background: var(--info-bg); color: var(--info); }
+.pl-item { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -1078,6 +1080,7 @@ function tagPlano(p) {
   return '<span class="tag neu">Aberto</span>';
 }
 const apontamentos = t => Object.entries(t.reg).filter(([, r]) => r.st !== 'ok' || r.val === 'corrigido').map(([p, r]) => ({ p: +p, r })).sort((a, b) => a.p - b.p);
+const comPlano = t => t.vagoes.map((c, i) => ({ p: i + 1, c, pp: planosPend(c) })).filter(x => x.pp.length);
 const filaValidacao = () => DB.trens.filter(t => t.status === 'concluido' && t.validacao?.status === 'pendente' && (S.espFiltro === 'todos' || t.turno === meuTurnoV()));
 const filtroTurnoV = () => `<div class="chips"><button class="chip ${S.espFiltro === 'turno' ? 'on' : ''}" data-act="esp-filtro" data-v="turno">Meu turno (${meuTurnoV()})</button><button class="chip ${S.espFiltro === 'todos' ? 'on' : ''}" data-act="esp-filtro" data-v="todos">Todos os turnos</button></div>`;
 function espValidacao() {
@@ -1088,10 +1091,10 @@ function espValidacao() {
   <div class="grid">
     <div class="larga">${fila.length ? fila.map(t => { const aps = apontamentos(t), oc = aps.reduce((a, x) => a + x.r.oc.length, 0), feitos = aps.filter(x => x.r.val).length;
       return `<div class="card"><h2>Trem ${esc(t.prefixo)} <span class="dir">${dataBR(t.data)} · turno ${t.turno} · ${t.linha} · líder ${esc(t.lider)}</span></h2>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="tag info">${aps.length} apontamento(s)</span>${oc ? `<span class="tag bad">${oc} ocorrência(s)</span>` : ''}<span class="small muted">${inspecionados(t)} de ${t.vagoes.length} vagões inspecionados${t.motivoParcial ? ' · ' + esc(t.motivoParcial) : ''}</span>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="tag info">${aps.length} apontamento(s)</span>${oc ? `<span class="tag bad">${oc} ocorrência(s)</span>` : ''}${(n => n ? `<span class="tag plano">📋 ${n} com plano especial</span>` : '')(comPlano(t).length)}<span class="small muted">${inspecionados(t)} de ${t.vagoes.length} vagões inspecionados${t.motivoParcial ? ' · ' + esc(t.motivoParcial) : ''}</span>
         ${feitos ? `<span class="small muted">· ${feitos} já conferido(s)</span>` : ''}<button class="btn sm primary" style="margin-left:auto" data-act="validar-trem" data-id="${t.id}">Validar →</button></div></div>`; }).join('')
       : '<div class="card"><p style="margin:0" class="muted">✓ Nenhum trem aguardando validação.</p></div>'}</div>
-    <div class="card"><h2>Em revista agora <span class="dir">${andamento.length}</span></h2>${andamento.length ? andamento.map(t => `<p style="margin:0 0 6px"><b>${esc(t.prefixo)}</b> · turno ${t.turno} · ${t.linha} · ${Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100)}% <span class="small muted">· chega para validação quando o líder fechar</span></p>`).join('') : '<span class="muted small">Nenhum.</span>'}</div>
+    <div class="card"><h2>Em revista agora <span class="dir">${andamento.length}</span></h2>${andamento.length ? andamento.map(t => `<p style="margin:0 0 6px"><b>${esc(t.prefixo)}</b> · turno ${t.turno} · ${t.linha} · ${Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100)}%${(n => n ? ` · <b style="color:var(--info)">📋 ${n} com plano especial</b>` : '')(comPlano(t).length)} <span class="small muted">· chega para validação quando o líder fechar</span></p>`).join('') : '<span class="muted small">Nenhum.</span>'}</div>
   </div>`;
 }
 function telaValidar(t) {
@@ -1102,9 +1105,16 @@ function telaValidar(t) {
     <div class="resumo"><div><b>${t.vagoes.length}</b><span>na composição</span></div><div><b>${inspecionados(t)}</b><span>inspecionados</span></div><div><b>${aps.length}</b><span>apontamentos</span></div><div><b style="color:${falta ? 'var(--warn)' : 'var(--ok)'}">${falta}</b><span>a conferir</span></div></div>
     <p class="small muted" style="margin:0">Líder ${esc(t.lider)}${t.motivoParcial ? ' · inspeção parcial: ' + esc(t.motivoParcial) : ''}${t.desvios.length ? ' · desvio ' + dur(tempoDesvio(t)) : ''}${t.obsFech ? ' · “' + esc(t.obsFech) + '”' : ''}</p>
     ${falta ? `<div class="acoes"><button class="btn sm" data-act="val-todos" data-id="${t.id}">✓ Validar todos os que faltam (${falta})</button></div>` : ''}</div>
+  ${(l => l.length ? `<div class="card"><h2>📋 Planos especiais deste trem <span class="dir">${l.length} vagão(ões) · conferir se a inspeção foi feita</span></h2>
+    ${l.map(({ p, c, pp }) => { const r = t.reg[p], d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: '–', membros: [] };
+      return `<div class="pl-item"><div style="flex:1;min-width:200px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(c)}</b> ${pp.map(x => `<span class="tag plano">📋 ${esc(x.plano)}${x.prioridade ? ' · ' + esc(x.prioridade) : ''}</span>`).join(' ')}<br>
+        ${r ? tagReg(r) + ' <span class="small">' + (r.st !== 'ok' || r.obs ? esc(txtReg(r)) : '<span class="muted">registrado OK, sem observação</span>') + '</span>' : '<span class="tag warn">Não registrado</span>'}<br>
+        <span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}${r ? ' · ' + r.h : ''}</span></div>
+        ${r && r.st !== 'pend' ? `<button class="btn sm" data-act="val-corrigir" data-id="${t.id}" data-p="${p}">✏ Corrigir</button>` : ''}</div>`; }).join('')}
+    <p class="small muted" style="margin:8px 0 0">Informativo: a baixa do plano continua pela planilha de planos especiais.</p></div>` : '')(comPlano(t))}
   <div class="vagoes">${aps.map(({ p, r }) => { const d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: r.equipe, membros: [] }, rf = restrDe(t, p);
     return `<div class="card ap ${r.val ? 'conferido' : ''}" style="margin:0"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-      <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${tagReg(r)}<br>
+      <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${tagReg(r)}${planosPend(t.vagoes[p - 1]).length ? ` <span class="tag plano" title="Plano especial pendente">📋 ${esc(txtPlanos(planosPend(t.vagoes[p - 1])))}</span>` : ''}<br>
         <span class="small">${esc(txtReg(r))}</span>${r.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 ver foto</button>` : ''}<br>
         <span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))} · ${r.h}${rf ? ' · ficha: ' + esc(rf.motivo) : ''}</span>
         ${r.val === 'corrigido' ? `<br><span class="small" style="color:var(--info)">✏ Corrigido${r.valPor ? ' por ' + esc(r.valPor) : ''}${r.antes ? ' · antes: ' + esc(r.antes) : ''}</span>` : ''}</div>
