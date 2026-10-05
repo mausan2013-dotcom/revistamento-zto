@@ -1424,8 +1424,10 @@ function progEquipes() {
 }
 
 // ---------- Aderência (report de passagens de trens) ----------
+// regra da aderência: trem não revistado por condições climáticas não entra no cálculo
+const porClima = r => !r.rev && /clim/i.test(r.motivoNao || '');
 function progAderencia() {
-  const todas = linhasHist(), rows = filtrar(todas), A = agrega(rows), ano = anoF(), [, , nomePer] = periodoDe(F.per);
+  const base = linhasHist(), clima = filtrar(base).filter(porClima).length, todas = base.filter(r => !porClima(r)), rows = filtrar(todas), A = agrega(rows), ano = anoF(), [, , nomePer] = periodoDe(F.per);
   const hoje = filtrar(todas, true).filter(r => r.dataISO === isoData(new Date())), perdasHoje = hoje.reduce((a, r) => a + r.falt, 0);
   const meses = mesesDoAno(filtrar(todas, true), ano).map(m => { const a = agrega(m.rows); return { rot: m.rot, v: a.total ? a.ader : 0, tip: `${m.rot}: ${a.total ? pct1(a.insp, a.total) + '% (' + fmt(a.insp) + ' de ' + fmt(a.total) + ')' : 'sem trens'}` }; });
   const dias = Object.entries(porChave(rows, r => r.dataISO)).sort().map(([d, x]) => ({ rot: diaRot(d), a: agrega(x) }));
@@ -1435,7 +1437,8 @@ function progAderencia() {
     .map(([t, ps]) => ({ rot: t, partes: [ps.filter(p => ['feita', 'validada'].includes(p.status)).length, ps.filter(p => ['aberta', 'reaberta'].includes(p.status)).length] }))
     .sort((a, b) => b.partes[0] + b.partes[1] - a.partes[0] - a.partes[1]).slice(0, 12);
   const ok = A.ader >= META_ADER;
-  return `${barraFiltros(todas)}
+  return `${barraFiltros(base)}
+  <p class="nota">Trens não revistados por <b>condições climáticas</b> ficam fora do cálculo desta aba${clima ? ` (${fmt(clima)} no período)` : ''}.</p>
   <div class="kpis">${kpi('Total de vagões', fmt(A.total), 'nos trens de ' + nomePer)}${kpi('Vagões revistados', fmt(A.insp))}${kpi('Perdas', fmt(A.falt), 'vagões não inspecionados')}${kpi('Trens não revistados', fmt(A.nNao), 'passaram direto')}
     ${kpi('Trens abaixo de 100%', fmt(A.abaixo), 'revistados em parte')}${kpi('Perdas do dia', fmt(perdasHoje), 'vagões hoje')}${kpi('Consumo de material', fmt(A.itens), 'itens aplicados')}</div>
   <div class="grid">
