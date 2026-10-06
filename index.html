@@ -59,6 +59,15 @@ main { padding: 14px 16px 40px; max-width: 1180px; margin: 0 auto; }
 main.estreito { max-width: 620px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; align-items: start; }
 .grid .larga { grid-column: 1 / -1; }
+/* web: grade de 6 colunas; arrumarGrid() estica os cartões de cada linha para não sobrar espaço vazio */
+@media (min-width: 1000px) { .grid { grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: stretch; } .grid > * { grid-column: span 2; } }
+@media (min-width: 720px) and (max-width: 999px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; } }
+.sup-layout { display: grid; gap: 12px; align-items: start; }
+@media (min-width: 1000px) { .sup-layout { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); } }
+.sup-layout > div { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sup-layout > div > * { margin-top: 0; margin-bottom: 0; }
+/* cartões esticados na mesma linha: o conteúdo fica centralizado na altura que sobra */
+@media (min-width: 720px) { .grid > .card:has(svg) { display: flex; flex-direction: column; } .grid > .card:has(svg) > h2 + * { margin-top: auto; } .grid > .card:has(svg) > :last-child { margin-bottom: auto; } }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; min-width: 0; }
 .grid .card { margin-bottom: 0; }
 .card h2 { font-size: 13px; margin: 0 0 10px; color: var(--title); text-transform: uppercase; letter-spacing: .6px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
@@ -551,7 +560,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.5';
+const VERSAO = '1.6';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1012,8 +1021,24 @@ function render() {
   $('main').className = S.papel === 'tec' ? 'estreito' : '';
   $('main').innerHTML = VIEWS[S.papel][aba]();
   document.querySelectorAll('.rol-x').forEach(e => e.scrollLeft = e.scrollWidth);
-  renderModal(); indicador();
+  arrumarGrid(); renderModal(); indicador();
 }
+// em telas largas, completa cada linha da grade: os cartões da linha dividem as colunas que sobrariam vazias
+function arrumarGrid() {
+  document.querySelectorAll('#main .grid, #main .kpis').forEach(g => {
+    const cols = getComputedStyle(g).gridTemplateColumns.split(' ').filter(Boolean).length, itens = [...g.children].filter(e => !e.hidden && e.offsetParent !== null);
+    itens.forEach(e => e.style.gridColumn = '');
+    if (cols < 2) return;
+    const base = cols === 6 && g.classList.contains('grid') ? 2 : 1, linhas = []; let lin = [], soma = 0;
+    itens.forEach(e => { const sp = e.classList.contains('larga') ? cols : Math.min(cols, +e.dataset.sp || base);
+      if (soma + sp > cols) { linhas.push(lin); lin = []; soma = 0; } lin.push({ e, sp }); soma += sp; });
+    if (lin.length) linhas.push(lin);
+    linhas.forEach(l => { let sobra = cols - l.reduce((a, x) => a + x.sp, 0); const el = l.filter(x => !x.e.classList.contains('larga'));
+      for (let k = el.length - 1; sobra > 0 && el.length; k = (k - 1 + el.length) % el.length) { el[k].sp++; sobra--; }
+      l.forEach(x => { if (!x.e.classList.contains('larga')) x.e.style.gridColumn = 'span ' + x.sp; }); });
+  });
+}
+let tGrid; addEventListener('resize', () => { clearTimeout(tGrid); tGrid = setTimeout(arrumarGrid, 150); });
 
 // ---------- SUPERVISOR (líder) ----------
 function cardTrem(t) {
@@ -1096,10 +1121,10 @@ function supTurno() {
   const v = validadorDe(tt);
   return `<div class="faixa-turno"><h2>Turno ${tt}${SERVICO.turno === tt ? ' · ' + HORARIO[SERVICO.h] : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(new Date())}/${new Date().getFullYear()} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
   ${!S.eqSalvo[tt] ? `<p class="nota">As equipes de hoje ainda não foram confirmadas. <button class="btn sm" data-act="aba" data-v="equipes">Montar equipes →</button></p>` : ''}
-  <div class="grid">
-    <div>${cardFila(tt)}${cardComposicoes(tt)}${meus.map(cardTrem).join('<div style="height:12px"></div>') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
+  <div class="sup-layout">
+    <div>${cardFila(tt)}${meus.map(cardTrem).join('') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
+    <div>${cardComposicoes(tt)}
     <div class="card"><h2>Ocorrências e intervenções <span class="dir">${eventos.length}</span></h2><ul class="feed">${eventos.slice(0, 20).map(e => `<li><span class="h">${e.h}</span><span class="${e.cls === 'bad' ? 'ev-bad' : ''}">${e.txt}</span></li>`).join('') || '<li><span></span><span class="muted">Nada registrado ainda.</span></li>'}</ul></div>
-    <div>
       <div class="card"><h2>Fechados no turno <span class="dir">${fechados.length}</span></h2>${fechados.length ? `<table class="tabela"><thead><tr><th>Trem</th><th class="num">Inspec.</th><th class="num">Tempo</th><th>Validação</th></tr></thead><tbody>${fechados.map(t => `<tr><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span></td><td class="num">${t.status === 'nao_revistado' ? '<span class="tag warn">Não revistado</span>' : Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100) + '%'}</td><td class="num">${t.durMin ? dur(t.durMin) : '–'}</td><td>${tagVal(t)}</td></tr>`).join('')}</tbody></table>` : '<span class="muted small">Nenhum ainda.</span>'}</div>
       <div class="card"><h2>Planos especiais <span class="dir">do validador ${esc(curtoV(v))}</span></h2><ul class="feed">${DB.planos.filter(p => p.turno === tt && p.status !== 'validada').map(p => `<li><span class="h">${p.criada}</span><span>${esc(p.titulo)}<br><span class="small muted">Equipe ${p.eq}</span> ${tagPlano(p)}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum plano aberto para este turno.</span></li>'}</ul></div>
     </div>
@@ -1855,13 +1880,13 @@ function progGeral() {
     ${kpi('Média trens / dia', dec1(A.porDia), A.dias + ' dia(s) com trem')}${kpi('Média vagões / trem', fmt(Math.round(A.vagTrem)), 'inspecionados por trem revistado')}${kpi('Revisão por vagão', A.segVag ? Math.round(A.segVag) + ' s' : '–', 'tempo médio por vagão')}</div>
   <div class="grid">
     <div class="card"><h2>Tempo médio de revisão <span class="dir">por trem</span></h2>${A.tMed ? gauge(A.tMed, { meta: META_MIN, max: Math.max(META_MIN * 2, A.tMed * 1.1), txt: dur(A.tMed), rotMeta: 'meta ' + META_MIN + ' min' }) + `<p class="centro">Desvio da meta: ${dm > 0 ? `<span class="tag bad">▲ ${dur(dm)} acima</span>` : `<span class="tag ok">✓ ${dur(-dm)} abaixo</span>`}</p>` : semDados}</div>
-    <div class="card"><h2>Trens dentro do tempo padrão <span class="dir">até ${META_MIN} min</span></h2>${comT.length ? `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande" style="color:var(--ok)">${fmt(dentro.length)}</span><span class="muted small"><b style="color:var(--ok)">${pctT(dentro.length)}%</b> dos ${fmt(comT.length)} trens revistados com horário</span></div>${barra(pctT(dentro.length))}<p class="small muted" style="margin:8px 0 0">Tempo do 1º início ao último término das equipes.</p>` : semDados}</div>
+    <div class="card"><h2>Trens dentro do tempo padrão <span class="dir">até ${META_MIN} min</span></h2>${comT.length ? `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande" style="color:var(--ok)">${fmt(dentro.length)}</span><span class="muted small"><b style="color:var(--ok)">${pctT(dentro.length)}%</b> dos ${fmt(comT.length)} trens revistados com horário</span></div>${rosca([['Até ' + META_MIN + ' min', dentro.length, 'var(--s3)'], ['Acima de ' + META_MIN + ' min', fora.length, 'var(--s2)']])}<p class="small muted centro" style="margin:6px 0 0">Tempo do 1º início ao último término das equipes.</p>` : semDados}</div>
     <div class="card"><h2>Trens acima do tempo padrão <span class="dir">mais de ${META_MIN} min</span></h2>${comT.length ? `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande" style="color:var(--bad)">${fmt(fora.length)}</span><span class="muted small"><b style="color:var(--bad)">${pctT(fora.length)}%</b> dos ${fmt(comT.length)} trens · média ${fora.length ? dur(media(fora)) : '–'}</span></div>
       ${fora.length ? `<div class="secao" style="margin-top:10px">Pareto dos motivos do atraso <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">trens · % acumulado</span></div>${hbars(lm, 'trens', (v, k) => ` <span class="muted" style="font-weight:600">· ${Math.round(acumA[k])}%</span>`).replace('class="hb"', 'class="hb quebra"')}<p class="small muted" style="margin:6px 0 0">No histórico do Forms o motivo vem do texto do desvio; nos trens do app, da lista que o líder escolhe ao fechar.</p>` : ''}` : semDados}</div>
     <div class="card"><h2>Vagões inspecionados e faltantes</h2>${rosca([['Inspecionados', A.insp, 'var(--s1)'], ['Faltantes', A.falt, 'var(--s2)']])}<p class="centro muted">Total de vagões nos trens: <b style="color:var(--title)">${fmt(A.total)}</b></p></div>
-    <div class="card"><h2>Linha de revisão <span class="dir">trens</span></h2>${pilhas(['ZTO 1', 'ZTO 2'].map(l => { const rs = rows.filter(r => r.linha === l); return { rot: l, partes: [rs.filter(r => r.rev).length, rs.filter(r => !r.rev).length] }; }), ['Revistados', 'Não revistados'])}</div>
     <div class="card"><h2>Trens revistados mês a mês <span class="dir">${ano}</span></h2>${colunas(meses.map(m => ({ rot: m.rot, v: m.rows.filter(r => r.rev).length })))}</div>
     <div class="card"><h2>Vagões inspecionados mês a mês <span class="dir">${ano}</span></h2>${colunas(meses.map(m => ({ rot: m.rot, v: m.rows.reduce((a, r) => a + r.insp, 0) })), { cor: 'var(--s2)', fmtV: milC, larg: 46 })}</div>
+    <div class="card"><h2>Linha de revisão <span class="dir">trens</span></h2>${pilhas(['ZTO 1', 'ZTO 2'].map(l => { const rs = rows.filter(r => r.linha === l); return { rot: l, partes: [rs.filter(r => r.rev).length, rs.filter(r => !r.rev).length] }; }), ['Revistados', 'Não revistados'])}</div>
     <div class="card"><h2>Vagões não inspecionados · causas <span class="dir">vagões · % acumulado</span></h2>${hbars(lc, 'vagões', (v, k) => ` <span class="muted" style="font-weight:600">· ${Math.round(acumulado[k])}%</span>`)}</div>
     <div class="card"><h2>Vagões retidos <span class="dir">${retidos.length}</span></h2>${retidos.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Vagão / avaria</th></tr></thead><tbody>${retidos.map(x => `<tr><td>${diaRot(x.r.dataISO)}</td><td><b>${esc(x.r.prefixo)}</b></td><td>${x.vagao ? `<a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a><br>` : ''}${x.obs ? '<span class="small">' + esc(x.obs) + '</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
     <div class="card"><h2>Trens não revistados <span class="dir">${naoRev.length}</span></h2>${naoRev.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Turno</th><th>Justificativa</th></tr></thead><tbody>${naoRev.map(r => `<tr><td>${diaRot(r.dataISO)}</td><td><b>${esc(r.prefixo)}</b></td><td>${r.turno}</td><td class="small">${esc(r.motivoNao || '–')}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
