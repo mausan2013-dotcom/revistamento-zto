@@ -402,7 +402,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
       <span id="logo"></span><span class="divisor"></span>
       <div><h1>Revistamento ZTO</h1><span class="sub" id="sub"></span></div>
       <div class="quem" id="quem"></div>
-      <div class="topo-acoes"><button class="sinc" id="sinc" data-act="atualizar" title="Toque para atualizar">☁</button><button class="sair" data-act="sair">Sair</button></div>
+      <div class="topo-acoes"><button class="sinc" id="sinc" data-act="nuvem" title="Conexão com a nuvem">☁</button><button class="sair" data-act="sair">Sair</button></div>
     </div>
     <nav class="tabs" id="tabs"></nav>
   </header>
@@ -561,7 +561,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.7';
+const VERSAO = '1.8';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -699,7 +699,7 @@ async function emLotes(ids, montar) {
 // planos especiais pendentes por vagão (planilha diária enviada pelo Programador)
 const PEND = Object.assign({ mapa: {}, carga: null, quando: null, em: 0 }, lsLer('rzto_pend', {}), { em: 0 });
 async function carregarPendentes(forcar) {
-  if (!forcar && Date.now() - PEND.em < 10 * 60e3) return;
+  if (OFFLINE || (!forcar && Date.now() - PEND.em < 10 * 60e3)) return;
   try {
     const { data: c, error } = await sb.from('planos_cargas').select('id,quando').order('quando', { ascending: false }).limit(1);
     if (error) return;
@@ -761,6 +761,9 @@ function usarCache() {
 
 // ---------- fila de envio (funciona sem sinal: guarda no aparelho e envia quando voltar) ----------
 let FILA = lsLer('rzto_fila', []), enviando = false, semSinal = false, erroFila = '';
+// modo offline manual: o usuário desliga a comunicação com a nuvem (sinal oscilando); tudo fica guardado no aparelho
+let OFFLINE = lsLer('rzto_offline', false);
+const precisaNuvem = () => { if (!OFFLINE) return true; toast('📴 Modo offline: toque no ☁ e religue a nuvem para isso'); return false; };
 function enviar(op) { FILA.push({ ...op, quando: Date.now() }); lsGravar('rzto_fila', FILA); processarFila(); indicador(); }
 const ehRede = e => !e?.code && /fetch|network|Failed|Load failed|NetworkError/i.test(String(e?.message || e));
 async function executar(op) {
@@ -778,6 +781,7 @@ async function executar(op) {
   return (await q).error;
 }
 async function processarFila() {
+  if (OFFLINE) { indicador(); return; }
   if (enviando || !FILA.length) return;
   enviando = true; indicador();
   while (FILA.length) {
@@ -793,8 +797,8 @@ async function processarFila() {
 }
 function indicador() {
   const el = $('sinc'); if (!el) return;
-  el.className = 'sinc' + (semSinal ? ' off' : erroFila ? ' erro' : '');
-  el.textContent = semSinal ? `sem sinal · ${FILA.length} a enviar` : enviando || FILA.length ? `↻ enviando ${FILA.length}` : erroFila ? '⚠ ver aviso' : '☁ ✓ salvo';
+  el.className = 'sinc' + (OFFLINE || semSinal ? ' off' : erroFila ? ' erro' : '');
+  el.textContent = OFFLINE ? `📴 offline${FILA.length ? ' · ' + FILA.length : ''}` : semSinal ? `sem sinal · ${FILA.length} a enviar` : enviando || FILA.length ? `↻ enviando ${FILA.length}` : erroFila ? '⚠ ver aviso' : '☁ ✓ salvo';
   el.title = erroFila || (DB.atualizadoEm ? 'Atualizado às ' + hhmm(DB.atualizadoEm.getHours() * 60 + DB.atualizadoEm.getMinutes()) : '');
 }
 addEventListener('online', processarFila);
@@ -1266,6 +1270,7 @@ function modalColab(M) {
     <button class="btn primary big" data-act="salvar-colab" ${M.ocupado ? 'disabled' : ''}>${M.ocupado ? 'Cadastrando…' : 'Cadastrar'}</button>`;
 }
 async function chamarFuncao(corpo) {
+  if (OFFLINE) throw new Error('Modo offline: toque no ☁ e religue a nuvem');
   const { data, error } = await sb.functions.invoke('gerenciar-colaborador', { body: corpo });
   if (error) {
     let msg = error.message; try { msg = (await error.context.json()).erro || msg; } catch {}
@@ -1476,7 +1481,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, comeco: modalComeco, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -1554,6 +1559,17 @@ function modalFim(M) {
     <label class="campo">Novo término<input type="time" id="fim-novo" value="${esc(M.fim || '')}"></label>
     <label class="campo">Motivo (obrigatório)<input id="fim-motivo" placeholder="Ex.: equipe esqueceu de encerrar a parte; término real 10:42"></label>
     <button class="btn primary big" data-act="salvar-fim">Salvar novo término</button>`;
+}
+function modalNuvem() {
+  const hora = DB.atualizadoEm ? hhmm(DB.atualizadoEm.getHours() * 60 + DB.atualizadoEm.getMinutes()) : '–';
+  return `<h3>Conexão com a nuvem</h3>
+    <div class="resumo" style="grid-template-columns:repeat(3,1fr)"><div><b style="color:${OFFLINE ? 'var(--warn)' : 'var(--ok)'}">${OFFLINE ? '📴' : '☁'}</b><span>${OFFLINE ? 'offline' : semSinal ? 'sem sinal' : 'ligada'}</span></div><div><b>${FILA.length}</b><span>guardada(s) no aparelho</span></div><div><b>${hora}</b><span>última atualização</span></div></div>
+    ${OFFLINE ? `<p>O app está <b>offline</b>: tudo o que você lança fica guardado neste aparelho e <b>não</b> é enviado. Ao religar, o app envia o que ficou guardado e atualiza os dados.</p>
+      <button class="btn ok big" data-act="nuvem-on">☁ Religar a nuvem${FILA.length ? ` e enviar ${FILA.length}` : ''}</button>
+      <p class="small muted" style="margin:10px 0 0">Offline não dá para: dividir pelo vagão mais próximo, passar trem de turno, ver fotos, cadastrar ou subir a planilha. Não saia do app com alterações guardadas.</p>`
+    : `<p>Use <b>Ficar offline</b> quando o sinal estiver oscilando: o app para de tentar falar com a nuvem e guarda tudo no aparelho. Os outros usuários só veem seus lançamentos depois que você religar.</p>
+      <button class="btn big" data-act="atualizar">↻ Atualizar agora</button>
+      <button class="btn primary big" style="margin-top:8px" data-act="nuvem-off">📴 Ficar offline</button>`}`;
 }
 function modalComeco(M) {
   const t = tremPorId(M.id), d = t.dist[M.i], prim = ordemFaixa(d).find(p => !t.reg[p]) || d.ini, pf = p => `${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)}`;
@@ -1666,7 +1682,7 @@ const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, ok: false, planos: 
 
 // histórico resumido: uma linha por trem, somada no servidor (03-indicadores.sql); renova a cada 5 min
 async function carregarHist() {
-  if (Date.now() - HIST.em < 5 * 60e3) return;
+  if (OFFLINE || Date.now() - HIST.em < 5 * 60e3) return;
   try {
     const [trens, mats, ret, det] = await Promise.all([
       tudo(() => sb.from('resumo_trens').select('*').order('data')),
@@ -1683,6 +1699,7 @@ async function carregarHist() {
 }
 // planilha "Planos Especiais 2026": última carga enviada (05-planos-especiais.sql)
 async function carregarPlanosExt() {
+  if (OFFLINE) return null;
   try {
     const { data: c, error } = await sb.from('planos_cargas').select('*').order('quando', { ascending: false }).limit(1);
     if (error || !c?.length) return error ? null : { carga: null, rows: [] };
@@ -1707,6 +1724,7 @@ function codVagaoPlanilha(v) {
   return String(v || '').trim().toUpperCase();
 }
 async function enviarPlanilhaPlanos(arq) {
+  if (OFFLINE) throw new Error('Modo offline: toque no ☁ e religue a nuvem');
   await carregarXlsx();
   const wb = XLSX.read(await arq.arrayBuffer(), { type: 'array', cellDates: true });
   const sem = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -2289,8 +2307,9 @@ function telaAviso(titulo, texto) {
 async function entrar() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return telaLogin();
-  let me = null, offline = false;
-  try {
+  let me = null, offline = OFFLINE;
+  if (OFFLINE) me = lsLer('rzto_me', null);
+  else try {
     const { data, error } = await sb.from('colaboradores').select('*').eq('user_id', session.user.id).maybeSingle();
     if (error) throw error;
     me = data;
@@ -2304,7 +2323,8 @@ async function entrar() {
   S.planoTurno = me.turno || SERVICO.turno;
   mostrarTela('tela-app');
   $('main').innerHTML = '<div class="card muted">Carregando…</div>';
-  try { await carregar(); } catch (e) {
+  if (OFFLINE) { if (!usarCache()) { OFFLINE = false; lsGravar('rzto_offline', false); toast('Sem dados guardados neste aparelho: a nuvem foi religada'); } }
+  if (!OFFLINE) try { await carregar(); } catch (e) {
     if (!usarCache()) { $('main').innerHTML = `<div class="card"><p>Não consegui carregar os dados${ehRede(e) ? ' (sem internet)' : ': ' + esc(e.message)}.</p><button class="btn primary" data-act="recarregar">Tentar de novo</button></div>`; return; }
     semSinal = ehRede(e); toast('Sem internet: mostrando os últimos dados guardados');
   }
@@ -2312,7 +2332,7 @@ async function entrar() {
   render(); processarFila();
 }
 async function atualizar(forcar) {
-  if (!DB.me || !DB.carregado || document.hidden) return;
+  if (!DB.me || !DB.carregado || document.hidden || OFFLINE) return;
   SERVICO = emServico();
   const ocupado = S.modal || FILA.length || enviando || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && $('main').contains(document.activeElement));
   if (ocupado && !forcar) return;
@@ -2335,11 +2355,20 @@ document.addEventListener('click', async e => {
   lerCampos();
   switch (a) {
     case 'sair': {
+      if (OFFLINE && FILA.length) { toast(`Religue a nuvem antes de sair: ${FILA.length} alteração(ões) guardada(s) no aparelho`); return; }
       if (FILA.length && !confirm(`Há ${FILA.length} alteração(ões) ainda não enviada(s). Se sair agora, elas se perdem. Sair mesmo assim?`)) return;
       await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
     }
     case 'recarregar': entrar(); return;
-    case 'atualizar': toast('Atualizando…'); HIST.em = 0; await processarFila(); await atualizar(true); return;
+    case 'nuvem': S.modal = { tipo: 'nuvem' }; renderModal(); return;
+    case 'nuvem-off': OFFLINE = true; lsGravar('rzto_offline', true); semSinal = false; S.modal = null; renderModal(); indicador(); toast('📴 Modo offline: seus lançamentos ficam guardados no aparelho'); return;
+    case 'nuvem-on': {
+      OFFLINE = false; lsGravar('rzto_offline', false); S.modal = null; renderModal(); indicador();
+      const n = FILA.length; toast(n ? `☁ Nuvem religada: enviando ${n} alteração(ões)…` : '☁ Nuvem religada');
+      await processarFila(); HIST.em = 0; await atualizar(true);
+      if (!FILA.length && n) toast('☁ Tudo enviado'); return;
+    }
+    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; await processarFila(); await atualizar(true); return;
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
     case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
@@ -2365,7 +2394,7 @@ document.addEventListener('click', async e => {
     case 'tec-voltar': S.tecPulados = S.tecPulados.filter(x => x !== el.dataset.id); lsGravar('rzto_pulados', S.tecPulados); window.scrollTo(0, 0); break;
     case 'tec-filtro': S.tecFiltro = v; break;
     case 'iniciar':                                    // pergunta por onde começa (sem internet, começa pela faixa)
-      if (navigator.onLine) { const t = tremPorId(S.tecTrem); S.modal = { tipo: 'comeco', id: t.id, i: eqDoTrem(t) }; renderModal(); return; }
+      if (navigator.onLine && !OFFLINE) { const t = tremPorId(S.tecTrem); S.modal = { tipo: 'comeco', id: t.id, i: eqDoTrem(t) }; renderModal(); return; }
       // fall through
     case 'comeco-sim': case 'encerrar': {
       const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'encerrar' ? 'termino' : 'inicio';
@@ -2383,6 +2412,7 @@ document.addEventListener('click', async e => {
       renderModal(); return;
     }
     case 'comeco-ok': {
+      if (!precisaNuvem()) return;
       const M = S.modal, t = tremPorId(M.id), d = t.dist[M.i], fx = M.plano.faixas;
       toast('Enviando a nova divisão…');
       const { error } = await sb.rpc('comecar_em', { t: t.id, eq: d.rowId, faixas: fx.map(f => ({ id: f.id, ini: f.ini, fim: f.fim, comeco: f.comeco })) });
@@ -2434,6 +2464,7 @@ document.addEventListener('click', async e => {
     case 'rem-falha': M.falhas.splice(+el.dataset.i, 1); renderModal(); return;
     case 'escolher-falha': M.falhas.push({ ...FOLHAS[+el.dataset.i] }); renderModal(); return;
     case 'ver-foto': {
+      if (!precisaNuvem()) return;
       S.modal = { tipo: 'foto', url: null }; renderModal();
       const { data, error } = await sb.storage.from('fotos').createSignedUrl(v, 3600);
       if (error) { S.modal = null; renderModal(); toast('⚠ Foto ainda não disponível'); return; }
@@ -2467,6 +2498,7 @@ document.addEventListener('click', async e => {
     case 'print-comp': printDe('rel-comp', `composicoes-turno-${T()}-${dataOp()}.png`, `*Composições do turno ${T()} · ${dataBR(deISO(dataOp()))}*\nPercentual revisado e posição dos vagões não revisados.`); return;
     case 'print-aderencia': printAderencia(); return;
     case 'passar-trem': {
+      if (!precisaNuvem()) return;
       const t = tremPorId(el.dataset.id), nt = el.dataset.turno;
       if (!confirm(`Passar o trem ${t.prefixo} para o turno ${nt} (líder ${liderDe(nt)})?\n\n• As equipes que já começaram têm a parte encerrada agora; o que registraram fica.\n• As partes que não começaram são retiradas.\n• O líder do turno ${nt} divide o restante entre as equipes dele.\n\nPrecisa de internet.`)) return;
       toast('Passando o trem…');
