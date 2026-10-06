@@ -110,6 +110,7 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 /* barras horizontais (série única) */
 .hb { display: grid; grid-template-columns: minmax(90px, 38%) minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; }
 .hb .l { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb.quebra { grid-template-columns: minmax(110px, 45%) minmax(0, 1fr) auto; } .hb.quebra .l { white-space: normal; line-height: 1.25; }
 .hb .t { height: 14px; position: relative; }
 .hb .t i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--mark); border-radius: 0 4px 4px 0; min-width: 2px; }
 .hb .n { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; }
@@ -550,7 +551,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.4';
+const VERSAO = '1.5';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -597,6 +598,25 @@ const POSICOES = ['1E','2E','3E','4E','1D','2D','3D','4D'];
 const OCORRENCIAS = ['Retenção de vagão', 'Isolado fora da ficha', 'Normalizado fora da ficha', 'Normalizado dentro da ficha', 'Isolado pela mecânica de vagões'];
 const MOTIVOS_PARCIAL = ['Falta temporária de efetivo', 'Equipe em refeição', 'Movimentação de trens', 'Condições climáticas', 'Intervenção mecânica em vagão', 'Restrição de acesso à área', 'Transposição de composição', 'Passagem de turno', 'Desvios operacionais', 'Outro'];
 const MOTIVOS_NAO_REV = ['Condições climáticas', 'Falta temporária de efetivo', 'Restrição de acesso à área', 'Equipe em refeição', 'Desvios operacionais', 'Outro'];
+// motivos de trem acima do tempo padrão: os principais do histórico do Forms (out/2026), do mais para o menos frequente
+const MOTIVOS_ATRASO = ['Troca de material (sapata, pino T, trava, chaveta)', 'Movimentação / manobra de trens nas linhas', 'Aguardando autorização para transpor linha',
+  'Avaria / normalização de vagão', 'Equipe em outro trem / trens chegando juntos', 'Inspeções adicionais (rodeiro, bandagem, friso, plano especial)',
+  'Equipe reduzida ou em intervalo', 'Chuva / condições climáticas', 'Troca de turno / DDS', 'Outro (descrever nas observações)'];
+// histórico (texto livre do Forms): classifica pelas palavras do texto, na mesma lista
+const REGRAS_ATRASO = [[2, /transp|tranp|trasp|trampor|tronp|autoriza/], [4, /finaliz|ainda (estar |estava )?atuando|atuando (em|na|no) |mesmo (tempo|horario)|chegaram|chegou junto|equipe anterior|outra composi|prioridade/],
+  [1, /moviment|manobra|partida|partir|entrada d|entrando|entrou|entrado|passagem d|chegada d|parada d|posicionar|aguardando (a )?composi|carregado|corta e entrega/],
+  [5, /rodeiro|bandagem|friso|pintur|cunha|medic|plano/], [0, /sapata|pino|trava|dual|chaveta|mandibula|daq|dack|anti ?queda|antiq|troca d|suporte/],
+  [3, /avaria|amparo|anparo|chapa|reparo|interven|engate|retentor|parafuso|torneira|vazamento|mangueira|freio|normaliz|tremonha|timoneria|manutenc|longarina|trinca|engenharia|isola/],
+  [8, /turno|dds|simulado/], [6, /interval|refei|almo|janta|equipe a menos|apenas (em )?\d|so \d equipe/], [7, /chuv|clima|tempestade|raio/]];
+function motivoAtraso(r) {
+  if (r.motAtraso) return r.motAtraso;
+  const s = (r.desvObs + ' ' + (r.obsFech || '')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if (s.replace(/[^a-z]/g, '').length < 4) return 'Sem justificativa';
+  const k = REGRAS_ATRASO.find(([, re]) => re.test(s)); return MOTIVOS_ATRASO[k ? k[0] : 9];
+}
+const OUTRO_ATRASO = MOTIVOS_ATRASO[9];
+// tempo do trem ao fechar: do 1º início ao último término das equipes (ou agora)
+const tempoFech = t => { const ini = t.dist.map(d => d.inicio).filter(Boolean).sort()[0] || agora(), fim = t.dist.map(d => d.termino).filter(Boolean).sort().pop() || agora(); return { ini, fim, min: difMin(ini, fim) }; };
 const MOTIVOS_DESVIO = ['Aguardando partida / entrada de trem', 'Sem autorização para transpor linha', 'Intervenção mecânica em vagão', 'Equipe em intervalo', 'Falha de comunicação', 'Manobra da composição', 'Outro'];
 const MOTIVOS_AFAST = ['Atestado médico', 'Férias', 'Licença', 'Afastamento INSS', 'Treinamento', 'Outro'];
 const PERFIS = { tecnico: 'Técnico', supervisor: 'Supervisor', especializado: 'Especializado', programador: 'Programador' };
@@ -640,7 +660,7 @@ function montarTrem(t, eqs, regs, dsv, pex = []) {
   const vag = t.vagoes || [], ini = hm(t.inicio), fim = hm(t.fim);
   const tr = { id: t.id, prefixo: t.prefixo, data: deISO(t.data), dataISO: t.data, turno: t.turno, liderId: t.lider_id, lider: t.lider_id ? C(t.lider_id).nome : liderDe(t.turno), linha: t.linha, chegada: hm(t.chegada) || '–',
     vagoes: vag.map(v => v.cod), posFicha: vag.length && vag.every(v => v.pos != null) ? vag.map(v => v.pos) : null, restr: t.restricoes || {}, fichaNome: t.ficha_nome,
-    status: t.status, backup: t.lider_backup || '', motivoNao: t.motivo_nao || '', motivoParcial: t.motivo_parcial || '', obsFech: t.obs_fechamento || '', inicio: ini, fim, durMin: ini && fim ? difMin(ini, fim) : 0,
+    status: t.status, backup: t.lider_backup || '', motivoNao: t.motivo_nao || '', motivoParcial: t.motivo_parcial || '', obsFech: t.obs_fechamento || '', motAtraso: t.motivo_atraso || '', inicio: ini, fim, durMin: ini && fim ? difMin(ini, fim) : 0,
     dist: eqs.sort((a, b) => a.numero - b.numero).map(e => ({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, comeco: e.comeco || null, inicio: hm(e.inicio), termino: hm(e.termino) })),
     reg: Object.fromEntries(regs.map(r => [r.posicao, regDe(r)])),
     desvios: dsv.sort((a, b) => a.ini.localeCompare(b.ini)).map(d => ({ id: d.id, ini: hm(d.ini), fim: hm(d.fim), motivo: d.motivo, obs: d.obs || '' })),
@@ -1564,13 +1584,16 @@ function modalFechar(M) {
   return `<div class="small muted">Turno ${t.turno} · ${esc(t.lider)}</div><h3>Fechar trem ${esc(t.prefixo)} · ${t.linha}</h3>
     <div class="resumo"><div><b>${total}</b><span>na composição</span></div><div><b>${ins}</b><span>inspecionados</span></div><div><b style="color:${naoIns ? 'var(--warn)' : 'var(--ok)'}">${naoIns}</b><span>não inspecionados</span></div><div><b>${dur(tempoDesvio(t))}</b><span>de desvio</span></div></div>
     ${naoIns ? `<label class="campo">Por que nem todos foram inspecionados? <span style="color:var(--bad)">*</span><select data-act="mot-parcial"><option value="">Escolha…</option>${MOTIVOS_PARCIAL.map(m => `<option ${m === M.motivoParcial ? 'selected' : ''}>${m}</option>`).join('')}</select></label>` : '<p class="small" style="color:var(--ok);font-weight:700;margin:0 0 10px">✓ 100% do trem inspecionado</p>'}
+    ${(tf => tf.min > META_MIN ? `<div class="alerta" style="margin:0 0 8px"><span>⏱ <b>Revistamento em ${dur(tf.min)}</b> (${tf.ini}–${tf.fim}): acima do tempo padrão de ${META_MIN} min.</span></div>
+    <label class="campo">Motivo do atraso <span style="color:var(--bad)">*</span><select data-act="mot-atraso"><option value="">Escolha…</option>${MOTIVOS_ATRASO.map(m => `<option ${m === M.motivoAtraso ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+    ${M.motivoAtraso === OUTRO_ATRASO ? '<p class="small" style="margin:-4px 0 10px;color:var(--bad);font-weight:700">Descreva o motivo em “Observações do líder”, abaixo.</p>' : ''}` : '')(tempoFech(t))}
     <div class="secao">Apontamentos das equipes</div>
     <p class="small" style="margin:0 0 6px">${Object.values(t.reg).filter(r => r.st !== 'ok').length} apontamento(s): ${ocs.length} ocorrência(s), intervenções e pendências.</p>
     <p class="nota" style="margin:0 0 6px">Ao fechar, os apontamentos seguem para a <b>validação técnica</b> de ${esc(validadorDe(t.turno).nome)}.</p>
     <div class="secao">Desvios</div>${t.desvios.length ? t.desvios.map(d => `<p class="small" style="margin:0 0 4px">${d.ini}–${d.fim || 'agora'} · ${esc(d.motivo)}${d.obs ? ' · ' + esc(d.obs) : ''}</p>`).join('') : '<p class="small muted">Nenhum.</p>'}
     <div class="secao">Materiais aplicados</div>${Object.keys(mats).length ? `<p class="small" style="margin:0">${Object.entries(mats).map(([n, q]) => `${q}× ${esc(n)}`).join(' · ')}</p>` : '<p class="small muted">Nenhum.</p>'}
     <label class="campo" style="margin-top:12px">Observações do líder<textarea id="obs-fech" style="font-family:inherit;font-size:15px;min-height:60px">${esc(M.obs)}</textarea></label>
-    <button class="btn primary big" data-act="confirmar-fech" ${naoIns && !M.motivoParcial ? 'disabled' : ''}>Confirmar e fechar trem</button>`;
+    <button class="btn primary big" data-act="confirmar-fech" ${(naoIns && !M.motivoParcial) || (tempoFech(t).min > META_MIN && !M.motivoAtraso) ? 'disabled' : ''}>Confirmar e fechar trem</button>`;
 }
 
 // ---------- print (imagem) e envio pelo WhatsApp ----------
@@ -1698,7 +1721,7 @@ function linhasHist() {
   const velhos = HIST.trens.filter(r => !vistos.has(r.id)).map(r => ({ id: r.id, dataISO: r.data, turno: r.turno, linha: r.linha, prefixo: r.prefixo, status: r.status,
     lider: r.lider_nome || (r.lider_id ? C(r.lider_id).nome : liderDe(r.turno)), backup: r.lider_backup || '', motivoNao: r.motivo_nao || '', motivoParcial: r.motivo_parcial || '',
     ini: hm(r.inicio) || '', fimH: hm(r.fim) || '', durMin: r.inicio && r.fim ? difMin(hm(r.inicio), hm(r.fim)) : 0, total: r.total, insp: r.insp, retidos: r.retidos, itens: r.itens,
-    nDesv: r.n_desvios, desvMin: r.desvio_min, desvObs: r.desvio_obs || '', mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms',
+    nDesv: r.n_desvios, desvMin: r.desvio_min, desvObs: r.desvio_obs || '', obsFech: r.obs_fechamento || '', motAtraso: r.motivo_atraso || '', mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms',
     apl: (HIST.det[r.id] || []).flatMap(m => (m.vagoes || []).map(x => ({ vagao: x.v, id: m.id, nome: m.nome, qtd: x.q, pos: x.p || [] }))) }));
   const novos = fechadosT().map(t => {
     const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => m[x.nome] = (m[x.nome] || 0) + x.qtd));
@@ -1707,7 +1730,7 @@ function linhasHist() {
       return r.mats.map(x => ({ vagao: t.vagoes[p - 1], id: x.id, nome: x.nome, qtd: x.qtd, pos: x.pos || [], posTrem: posF(t, +p), hora: r.h, equipe: d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : '' })); });
     return { ini: t.inicio || '', fimH: t.fim || '', id: t.id, dataISO: t.dataISO, turno: t.turno, linha: t.linha, prefixo: t.prefixo, status: t.status, lider: t.lider, backup: t.backup, motivoNao: t.motivoNao, motivoParcial: t.motivoParcial,
       durMin: t.durMin, total: t.vagoes.length, insp: inspecionados(t), retidos: rt.length, itens: Object.values(m).reduce((a, b) => a + b, 0),
-      nDesv: t.desvios.length, desvMin: t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), desvObs: t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), mats: m, ret: rt, apl };
+      nDesv: t.desvios.length, desvMin: t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), desvObs: t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), obsFech: t.obsFech, motAtraso: t.motAtraso, mats: m, ret: rt, apl };
   });
   return velhos.concat(novos).map(r => ({ ...r, rev: r.status === 'concluido', mes: r.dataISO.slice(0, 7), falt: r.status === 'concluido' ? Math.max(0, r.total - r.insp) : r.total }))
     .sort((a, b) => a.dataISO.localeCompare(b.dataISO));
@@ -1823,11 +1846,18 @@ function progGeral() {
   const acumulado = lc.map(c => (acum += c[1]) / totC * 100);
   const retidos = rows.flatMap(r => r.ret.map(x => ({ r, ...x }))).reverse(), naoRev = rows.filter(r => !r.rev).reverse();
   const dm = A.tMed - META_MIN;
+  const comT = rows.filter(r => r.rev && r.durMin > 0), dentro = comT.filter(r => r.durMin <= META_MIN), fora = comT.filter(r => r.durMin > META_MIN);
+  const motA = {}; fora.forEach(r => { const k = motivoAtraso(r); motA[k] = (motA[k] || 0) + 1; });
+  const lm = Object.entries(motA).sort((a, b) => (a[0] === 'Sem justificativa') - (b[0] === 'Sem justificativa') || b[1] - a[1]); let acA = 0; const acumA = lm.map(c => (acA += c[1]) / fora.length * 100);
+  const pctT = n => comT.length ? Math.round(n / comT.length * 100) : 0;
   return `${barraFiltros(todas)}
   <div class="kpis">${kpi('Trens registrados', fmt(A.n), 'fechados no período')}${kpi('Trens revistados', fmt(A.nRev), A.nNao + ' não revistado(s)')}${kpi('Vagões retidos', fmt(A.retidos), 'ocorrência “Retenção de vagão”')}
     ${kpi('Média trens / dia', dec1(A.porDia), A.dias + ' dia(s) com trem')}${kpi('Média vagões / trem', fmt(Math.round(A.vagTrem)), 'inspecionados por trem revistado')}${kpi('Revisão por vagão', A.segVag ? Math.round(A.segVag) + ' s' : '–', 'tempo médio por vagão')}</div>
   <div class="grid">
     <div class="card"><h2>Tempo médio de revisão <span class="dir">por trem</span></h2>${A.tMed ? gauge(A.tMed, { meta: META_MIN, max: Math.max(META_MIN * 2, A.tMed * 1.1), txt: dur(A.tMed), rotMeta: 'meta ' + META_MIN + ' min' }) + `<p class="centro">Desvio da meta: ${dm > 0 ? `<span class="tag bad">▲ ${dur(dm)} acima</span>` : `<span class="tag ok">✓ ${dur(-dm)} abaixo</span>`}</p>` : semDados}</div>
+    <div class="card"><h2>Trens dentro do tempo padrão <span class="dir">até ${META_MIN} min</span></h2>${comT.length ? `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande" style="color:var(--ok)">${fmt(dentro.length)}</span><span class="muted small"><b style="color:var(--ok)">${pctT(dentro.length)}%</b> dos ${fmt(comT.length)} trens revistados com horário</span></div>${barra(pctT(dentro.length))}<p class="small muted" style="margin:8px 0 0">Tempo do 1º início ao último término das equipes.</p>` : semDados}</div>
+    <div class="card"><h2>Trens acima do tempo padrão <span class="dir">mais de ${META_MIN} min</span></h2>${comT.length ? `<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande" style="color:var(--bad)">${fmt(fora.length)}</span><span class="muted small"><b style="color:var(--bad)">${pctT(fora.length)}%</b> dos ${fmt(comT.length)} trens · média ${fora.length ? dur(media(fora)) : '–'}</span></div>
+      ${fora.length ? `<div class="secao" style="margin-top:10px">Pareto dos motivos do atraso <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">trens · % acumulado</span></div>${hbars(lm, 'trens', (v, k) => ` <span class="muted" style="font-weight:600">· ${Math.round(acumA[k])}%</span>`).replace('class="hb"', 'class="hb quebra"')}<p class="small muted" style="margin:6px 0 0">No histórico do Forms o motivo vem do texto do desvio; nos trens do app, da lista que o líder escolhe ao fechar.</p>` : ''}` : semDados}</div>
     <div class="card"><h2>Vagões inspecionados e faltantes</h2>${rosca([['Inspecionados', A.insp, 'var(--s1)'], ['Faltantes', A.falt, 'var(--s2)']])}<p class="centro muted">Total de vagões nos trens: <b style="color:var(--title)">${fmt(A.total)}</b></p></div>
     <div class="card"><h2>Linha de revisão <span class="dir">trens</span></h2>${pilhas(['ZTO 1', 'ZTO 2'].map(l => { const rs = rows.filter(r => r.linha === l); return { rot: l, partes: [rs.filter(r => r.rev).length, rs.filter(r => !r.rev).length] }; }), ['Revistados', 'Não revistados'])}</div>
     <div class="card"><h2>Trens revistados mês a mês <span class="dir">${ano}</span></h2>${colunas(meses.map(m => ({ rot: m.rot, v: m.rows.filter(r => r.rev).length })))}</div>
@@ -2435,11 +2465,14 @@ document.addEventListener('click', async e => {
     case 'fim-desvio': { const d = tremPorId(el.dataset.id).desvios.find(x => !x.fim); d.fim = agora(); enviar({ tabela: 'desvios', acao: 'update', dados: { fim: d.fim }, filtro: [['id', 'eq', d.id]], desc: 'Fim do desvio' }); toast('Desvio encerrado: ' + dur(difMin(d.ini, d.fim))); break; }
     case 'fechar-trem': S.modal = { tipo: 'fechar', id: el.dataset.id, motivoParcial: '', obs: '' }; renderModal(); return;
     case 'confirmar-fech': {
-      const t = tremPorId(M.id);
+      const t = tremPorId(M.id), tf = tempoFech(t); lerCampos();
+      if (tf.min > META_MIN && !M.motivoAtraso) { toast('Escolha o motivo do atraso'); return; }
+      if (tf.min > META_MIN && M.motivoAtraso === OUTRO_ATRASO && !M.obs.trim()) { toast('Descreva o motivo do atraso nas observações'); $('obs-fech')?.focus(); return; }
       t.desvios.filter(d => !d.fim).forEach(d => { d.fim = agora(); enviar({ tabela: 'desvios', acao: 'update', dados: { fim: d.fim }, filtro: [['id', 'eq', d.id]], desc: 'Fim do desvio' }); });
       const ini = t.dist.map(d => d.inicio).filter(Boolean).sort()[0] || agora(), fim = t.dist.map(d => d.termino).filter(Boolean).sort().pop() || agora();
       Object.assign(t, { status: 'concluido', motivoParcial: M.motivoParcial, obsFech: M.obs.trim(), inicio: ini, fim, durMin: difMin(ini, fim), validacao: { status: 'pendente', corrigidos: 0 } });
       enviar({ tabela: 'trens', acao: 'update', dados: { status: 'concluido', motivo_parcial: M.motivoParcial || null, obs_fechamento: t.obsFech || null, inicio: ini, fim, fechado_em: new Date().toISOString() }, filtro: [['id', 'eq', t.id]], desc: 'Fechamento do trem ' + t.prefixo });
+      if (tf.min > META_MIN) { t.motAtraso = M.motivoAtraso; enviar({ tabela: 'trens', acao: 'update', dados: { motivo_atraso: M.motivoAtraso }, filtro: [['id', 'eq', t.id]], desc: 'Motivo do atraso do ' + t.prefixo }); }
       S.modal = null; toast('Trem ' + t.prefixo + ' fechado e enviado para validação'); break;
     }
     case 'ler': {
@@ -2568,6 +2601,7 @@ document.addEventListener('change', async e => {
   else if (a === 'backup') { S.backup = el.value.trim(); lsGravar('rzto_backup', S.backup); }
   else if (a === 'novo-mat') { lerCampos(); M.novoMat = el.value; M.novoQtd = 1; renderModal(); }
   else if (a === 'mot-parcial') { lerCampos(); M.motivoParcial = el.value; renderModal(); }
+  else if (a === 'mot-atraso') { lerCampos(); M.motivoAtraso = el.value; renderModal(); }
   else if (a === 'arv') { lerCampos(); const n = M.arv, k = el.dataset.k, ordem = ['sis', 'sub', 'comp', 'falha']; n[k] = el.value; ordem.slice(ordem.indexOf(k) + 1).forEach(x => n[x] = ''); renderModal(); }
   else if (a === 'foto') { lerCampos(); const f = el.files[0]; if (!f) return; try { M.foto = await reduzirFoto(f); } catch { toast('Não consegui ler a foto'); } renderModal(); }
 });
