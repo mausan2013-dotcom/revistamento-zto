@@ -73,6 +73,7 @@ main.estreito { max-width: 620px; }
 .cron-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--warn-bg); border-radius: var(--radius); padding: 10px 12px; }
 .cron { font-size: 34px; font-weight: 800; color: var(--warn); font-variant-numeric: tabular-nums; line-height: 1.1; }
 .parada-lista { margin-top: 10px; }
+.os-linha { display: flex; align-items: center; gap: 8px; margin: -2px 0 8px; flex-wrap: wrap; } .os-tag { font-size: 14px; color: var(--title); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
 .nr-trem { cursor: pointer; } .nr-trem:hover td, .nr-trem.on td { background: var(--info-bg); }
 .nr-ficha > td { background: var(--bg); padding: 8px 10px 12px !important; }
 .pilha-v { display: flex; flex-direction: column; gap: 12px; min-width: 0; } .pilha-v > .card { flex: 1 1 auto; margin: 0; }
@@ -573,7 +574,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.11';
+const VERSAO = '1.12';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -739,8 +740,8 @@ async function carregar() {
     ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve([])
   ]);
   DB.colab = colab; recalcCurto();
-  if (TEM_ORDEM === null) TEM_ORDEM = !(await sb.from('trens').select('ordem').limit(1)).error;   // 07-ordem-trens.sql
-  if (TEM_OS === null) TEM_OS = !(await sb.from('trens').select('os').limit(1)).error;            // 12-pcm-apontamentos.sql
+  if (!TEM_ORDEM) TEM_ORDEM = !(await sb.from('trens').select('ordem').limit(1)).error;           // 07-ordem-trens.sql
+  if (!TEM_OS) TEM_OS = !(await sb.from('trens').select('os').limit(1)).error;                    // 12-pcm-apontamentos.sql (confere de novo até existir)
   DB.me = colab.find(x => x.id === DB.me.id) || DB.me;
   const ids = trens.map(t => t.id);
   const [eqs, regs, dsv, pex, par] = ids.length ? await Promise.all([
@@ -879,7 +880,7 @@ const restrDe = (t, p) => t.restr ? t.restr[t.vagoes[p - 1]] : null;
 // Veículos com mais de 4 eixos (locomotivas) são ignorados.
 function lerFichaTexto(linhas) {
   const f = { prefixo: '', os: '', declarados: null, vagoes: [], ignorados: [], restr: {} };
-  let emRestr = false;
+  let emRestr = false; const restrTxt = [];
   const L = linhas.map(l0 => l0.replace(/\s+/g, ' ').trim());
   for (let i = 0; i < L.length; i++) {
     let l = L[i], m;
@@ -895,11 +896,8 @@ function lerFichaTexto(linhas) {
     if (f.declarados == null && (m = l.match(/^Vag[õo]es:\s*(\d+)/i))) f.declarados = +m[1];
     if (/Ve[íi]culos com Restri/i.test(l)) { emRestr = true; continue; }
     if (emRestr) {
-      if ((m = l.match(/^(\d+) ([A-Z]{3}) (\d{6}-\d) (.+?) (\d{2}\/\d{2})\/\d{4}/))) {
-        let mot = m[4].replace(/^[^ -]+-/, '').trim(); const w = mot.split(' '), h = w.length / 2;
-        if (w.length % 2 === 0 && w.slice(0, h).join(' ') === w.slice(h).join(' ')) mot = w.slice(0, h).join(' ');
-        f.restr[m[2] + ' ' + m[3]] = { pos: +m[1], motivo: mot, data: m[5] };
-      }
+      if (/^(Cliente Destinat|S[ée]rie do Vag|Ader[êe]ncia|Total de Vag)/i.test(l)) { emRestr = false; continue; }
+      if (!/^https?:|Impress[ãa]o - Ficha|^Posi[çc][ãa]o S[ée]rie/i.test(l)) restrTxt.push(l);   // cabeçalho/rodapé de página fora
       continue;
     }
     if ((m = l.match(/^(\d+) ([A-Z][A-Z0-9]{1,3}) (\d{4,6}-\d)\b.*?\s(\d+)\s*[lI|]?\s*-\s*(\d+)$/))) {
@@ -907,7 +905,31 @@ function lerFichaTexto(linhas) {
       (eixos > 4 ? f.ignorados : f.vagoes).push(v);
     }
   }
+  lerRestricoes(restrTxt.join(' '), f);
   return f;
+}
+// rodapé "Veículos com Restrição/Avarias": as linhas podem vir quebradas (motivo longo, número do vagão numa linha
+// própria, troca de página). Junta tudo e procura cada vagão da composição pelo número; o motivo vai até a data.
+function lerRestricoes(txt, f) {
+  // a ficha traz "Motivo" (categoria-motivo) e "Observação" lado a lado: "freio-freio isolado freio isolado" -> "freio isolado"
+  const limpa = mot => {
+    let x = mot.replace(/\s+/g, ' ').trim().replace(/\s*[SN]$/, '').replace(/\.$/, '').replace(/\s*-\s*/g, '-');
+    const cat = (x.match(/^([^ -]+)-/) || [])[1], corpo = cat ? x.slice(cat.length + 1) : x, w = corpo.split(' '), h = w.length / 2;
+    if (w.length % 2 === 0 && w.slice(0, h).join(' ') === w.slice(h).join(' ')) x = w.slice(0, h).join(' ');
+    else if (cat && corpo.endsWith(' ' + cat + '-' + corpo.slice(0, (corpo.length - cat.length - 2) / 2))) x = cat + '-' + corpo.slice(0, (corpo.length - cat.length - 2) / 2);
+    return (cat && x.startsWith(cat + '-') && x !== corpo ? cat + ' - ' + x.slice(cat.length + 1) : x).trim() || 'restrição na ficha';
+  };
+  const t = txt.replace(/\s+/g, ' ');
+  for (const v of f.vagoes.concat(f.ignorados)) {
+    const [ser, num] = v.cod.split(' '), [n6, dv] = num.split('-');
+    // "HTT 352927-4", "352927-4", "352927- ... 4" ou "352927 4"
+    const re = new RegExp(`(?:${ser}\\s*)?${n6}\\s*-?\\s*${dv}?(?!\\d)`), m = t.match(re);
+    if (!m) continue;
+    const resto = t.slice(m.index + m[0].length), d = resto.match(/(\d{2}\/\d{2})\/\d{4}/);
+    let mot = d ? resto.slice(0, d.index) : resto.slice(0, 60);
+    mot = mot.replace(/^\s*\d\b/, '').replace(new RegExp(`^\\s*${ser}\\b`), '');                // dígito ou série que ficaram para trás
+    f.restr[v.cod] = { pos: v.pos, motivo: limpa(mot), data: d ? d[1] : '' };
+  }
 }
 let pdfjsPronto = null;
 function carregarPdfJs() {
@@ -1115,7 +1137,8 @@ function cardTrem(t) {
     const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
     return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
   return `<div class="card">
-    <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)}${t.os ? ' · OS ' + esc(t.os) : ''} · chegada ${t.chegada}</span></h2>
+    <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · chegada ${t.chegada}</span></h2>
+    <div class="os-linha">${t.os ? `<span class="os-tag">OS <b>${esc(t.os)}</b></span>` : '<span class="small muted">OS não informada</span>'}<button class="btn sm" data-act="editar-os" data-id="${t.id}">✏ ${t.os ? 'Corrigir' : 'Informar'} OS</button></div>
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande">${Math.round(pct)}%</span><span class="muted small">inspecionado · ${ins} de ${t.vagoes.length} vagões${t.desvios.length ? ` · desvio ${dur(tempoDesvio(t))}` : ''}${(n => n ? ` · <b style="color:var(--info)">📋 ${n} com plano especial</b>` : '')(t.vagoes.filter(c => planosPend(c).length).length)}</span></div>
     ${barra(pct)}
     <div class="trem-info">${tempoRev}${naoInsp ? `<button class="btn sm" data-act="nao-insp" data-id="${t.id}">📋 ${naoInsp} vagão(ões) não inspecionado(s)</button>` : '<span class="tag ok">✓ Todos inspecionados</span>'}</div>
@@ -1472,8 +1495,8 @@ function espItens() {
     <label class="campo">Prefixo<select data-act="it-filtro" data-k="itPref"><option value="">Todos</option>${prefs.map(p => `<option ${p === S.itPref ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
     <label class="campo">Situação<select data-act="it-filtro" data-k="itSo"><option value="">Validados e corrigidos</option><option value="ok" ${S.itSo === 'ok' ? 'selected' : ''}>Só validados</option><option value="corr" ${S.itSo === 'corr' ? 'selected' : ''}>Só corrigidos</option></select></label></div></div>
   <div class="card"><h2>Itens validados <span class="dir">${fmt(vis.length)} vagão(ões) · ${fmt(nCorr)} corrigido(s) · últimos 15 dias</span></h2>
-  ${vis.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Vagão</th><th>Equipe</th><th>Apontamento</th><th>Validação</th></tr></thead><tbody>
-    ${vis.map(({ t, p, r }) => `<tr><td>${diaRot(t.dataISO)}<br><span class="small muted">turno ${t.turno}${r.h ? ' · ' + r.h : ''}</span></td><td><b>${esc(t.prefixo)}</b>${t.os ? `<br><span class="small muted">OS ${esc(t.os)}</span>` : ''}</td><td class="num">${posF(t, p)}</td><td><b>${esc(t.vagoes[p - 1])}</b></td>
+  ${vis.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Data</th><th>Trem</th><th>OS</th><th class="num">Pos.</th><th>Vagão</th><th>Equipe</th><th>Apontamento</th><th>Validação</th></tr></thead><tbody>
+    ${vis.map(({ t, p, r }) => `<tr><td>${diaRot(t.dataISO)}<br><span class="small muted">turno ${t.turno}${r.h ? ' · ' + r.h : ''}</span></td><td><b>${esc(t.prefixo)}</b></td><td class="small">${esc(t.os || '–')}</td><td class="num">${posF(t, p)}</td><td><b>${esc(t.vagoes[p - 1])}</b></td>
       <td class="small">${esc(eqDe(t, p, r))}${r.apontadoPor ? `<br><span class="muted">lançado por ${esc(r.apontadoPor)}</span>` : ''}</td>
       <td class="small">${esc(txtReg(r) || 'Sem intervenção')}${r.obs && !txtReg(r).includes(r.obs) ? `<div class="obs-tec">💬 ${esc(r.obs)}</div>` : ''}${r.foto ? `<br><button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 Ver foto</button>` : ''}</td>
       <td class="small">${r.val === 'corrigido' ? `<span class="tag info">✏ Corrigido</span>${r.antes ? `<br><span class="muted">antes: ${esc(r.antes)}</span>` : ''}` : '<span class="tag ok">✓ Validado</span>'}<br><span class="muted">${esc((r.valPor || '').split(' ').slice(0, 2).join(' '))}${r.valEm ? ' · ' + dataBR(new Date(r.valEm)) + ' ' + horaDe(r.valEm) : ''}</span></td></tr>`).join('')}
@@ -2766,6 +2789,14 @@ document.addEventListener('click', async e => {
       x.fim = new Date().toISOString();
       enviar({ tabela: 'paradas', acao: 'update', dados: { fim: x.fim }, filtro: [['id', 'eq', x.id]], desc: 'Parada finalizada' });
       toast('▶ Parada finalizada: ' + durMinS(minParada(x))); break;
+    }
+    case 'editar-os': {
+      const t = tremQualquer(el.dataset.id); if (!t) return;
+      if (!TEM_OS) { toast('Rode o 12-pcm-apontamentos.sql no Supabase'); return; }
+      const v2 = prompt(`OS do trem ${t.prefixo} (está na ficha, ao lado do prefixo):`, t.os || ''); if (v2 == null) return;
+      const os = v2.replace(/\D/g, ''); if (v2.trim() && !os) { toast('Digite só os números da OS'); return; }
+      t.os = os; enviar({ tabela: 'trens', acao: 'update', dados: { os: os || null }, filtro: [['id', 'eq', t.id]], desc: 'OS do trem ' + t.prefixo });
+      toast(os ? `OS ${os} gravada no ${t.prefixo}` : 'OS apagada'); break;
     }
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
