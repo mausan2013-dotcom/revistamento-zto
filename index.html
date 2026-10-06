@@ -337,6 +337,14 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .pl-linha .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
 .pl-linha .btn.nao { background: var(--bad); border-color: var(--bad); color: #fff; }
 @media (max-width: 420px) { .pl-linha { grid-template-columns: 1fr 1fr; } .pl-linha span { grid-column: 1 / -1; } }
+.fila-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 8px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.fila-item:first-of-type { border-top: 0; }
+.fila-n { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; border-radius: 999px; background: var(--primary); color: var(--primary-ink); font-weight: 800; font-size: 14px; }
+.fila-n.pequeno { min-width: 26px; height: 26px; font-size: 12px; }
+.fila-cheg { display: flex; flex-direction: column; font-size: 11px; font-weight: 700; color: var(--muted); }
+.fila-cheg input { min-height: 36px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 15px; }
+.fila-mov { display: flex; gap: 4px; }
+@media (max-width: 420px) { .fila-item { grid-template-columns: 34px minmax(0, 1fr) auto; } .fila-mov { grid-column: 2 / -1; justify-content: flex-end; } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -609,6 +617,7 @@ function montarTrem(t, eqs, regs, dsv, pex = []) {
     desvios: dsv.sort((a, b) => a.ini.localeCompare(b.ini)).map(d => ({ id: d.id, ini: hm(d.ini), fim: hm(d.fim), motivo: d.motivo, obs: d.obs || '' })),
     validacao: { status: t.validacao, por: t.validado_por ? C(t.validado_por).nome : '', em: t.validado_em, parecer: t.parecer || '', corrigidos: regs.filter(r => r.val === 'corrigido').length } };
   tr.pexec = {}; pex.forEach(x => ((tr.pexec[x.posicao] ||= {})[x.plano] = { ok: x.realizado, quando: x.quando, por: x.por ? C(x.por).nome : '' }));
+  tr.ordem = t.ordem ?? null; tr.criadoEm = t.criado_em || '';
   return tr;
 }
 const planoDe = p => ({ id: p.id, titulo: p.titulo, desc: p.descricao || '', turno: p.turno, eq: p.equipe, por: p.criado_por ? C(p.criado_por).nome : '—', criada: horaDe(p.criado_em), criadaData: p.criado_em, status: p.status, feitaEm: horaDe(p.feito_em), obs: p.obs_equipe || '', validadaEm: horaDe(p.validado_em), coment: p.comentario || '' });
@@ -658,6 +667,7 @@ async function carregar() {
     ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve([])
   ]);
   DB.colab = colab; recalcCurto();
+  if (TEM_ORDEM === null) TEM_ORDEM = !(await sb.from('trens').select('ordem').limit(1)).error;   // 07-ordem-trens.sql
   DB.me = colab.find(x => x.id === DB.me.id) || DB.me;
   const ids = trens.map(t => t.id);
   const [eqs, regs, dsv, pex] = ids.length ? await Promise.all([
@@ -742,6 +752,11 @@ const T = () => ehProg() ? S.turnoVer : DB.me.turno;                  // turno d
 const meuTurnoV = () => T();
 const uidTec = () => DB.me.perfil === 'tecnico' ? DB.me.id : S.verTec;
 const atuais = () => DB.trens.filter(t => t.status === 'andamento');
+let TEM_ORDEM = null;
+// fila do turno: ordem definida pelo líder; sem ordem, pela chegada e pela criação
+const filaTurno = tt => atuais().filter(t => t.turno === tt).sort((a, b) => (a.ordem ?? 1e9) - (b.ordem ?? 1e9) || (a.chegada || '').localeCompare(b.chegada || '') || a.criadoEm.localeCompare(b.criadoEm));
+// a equipe (pelos integrantes) ainda tem parte aberta num trem anterior da fila?
+const naFila = (t, d) => { const f = filaTurno(t.turno); return f.some(x => x !== t && x.dist.some(e => !e.termino && e.membros.some(m => d.membros.includes(m)) && (e.inicio || f.indexOf(x) < f.indexOf(t)))); };
 const fechadosT = () => DB.trens.filter(t => t.status !== 'andamento');
 const tremQualquer = id => DB.trens.find(x => x.id === id);
 const tremPorId = tremQualquer;
@@ -907,10 +922,10 @@ function cardTrem(t) {
   const ins = inspecionados(t), pct = t.vagoes.length ? ins / t.vagoes.length * 100 : 0, pronto = t.dist.length && t.dist.every(d => d.termino);
   const aberto = t.desvios.find(d => !d.fim);
   const eqs = t.dist.map((d, i) => { const p = progEq(t, i);
-    const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : '<span class="tag warn">Não iniciou</span>';
+    const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
     return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
   return `<div class="card">
-    <h2>Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · chegou ${t.chegada}</span></h2>
+    <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · chegada ${t.chegada}</span></h2>
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande">${Math.round(pct)}%</span><span class="muted small">inspecionado · ${ins} de ${t.vagoes.length} vagões${t.desvios.length ? ` · desvio ${dur(tempoDesvio(t))}` : ''}${(n => n ? ` · <b style="color:var(--info)">📋 ${n} com plano especial</b>` : '')(t.vagoes.filter(c => planosPend(c).length).length)}</span></div>
     ${barra(pct)}
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
@@ -920,8 +935,19 @@ function cardTrem(t) {
     ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
   </div>`;
 }
+function cardFila(tt) {
+  const f = filaTurno(tt);
+  if (f.length < 1) return '';
+  const st = t => t.dist.every(d => d.termino) ? '<span class="tag ok">equipes terminaram</span>' : t.dist.some(d => d.inicio) ? '<span class="tag info">em revista</span>' : '<span class="tag neu">aguardando</span>';
+  return `<div class="card fila"><h2>Fila de trens do turno <span class="dir">as equipes recebem nesta ordem</span></h2>
+    ${!TEM_ORDEM && f.length > 1 ? '<p class="nota" style="margin:0 0 8px">Para guardar a ordem, rode o <b>07-ordem-trens.sql</b> no Supabase. Até lá vale a hora de chegada.</p>' : ''}
+    ${f.map((t, k) => `<div class="fila-item"><span class="fila-n">${k + 1}º</span><div class="fila-txt"><b>${esc(t.prefixo)}</b> <span class="small muted">${esc(t.linha)} · ${t.vagoes.length} vagões</span><br>${st(t)}</div>
+      <label class="fila-cheg"><span>Chegada</span><input type="time" value="${esc(t.chegada !== '–' ? t.chegada : '')}" data-act="trem-chegada" data-id="${t.id}"></label>
+      <div class="fila-mov"><button class="btn sm" data-act="fila-mover" data-id="${t.id}" data-v="-1" ${k === 0 || !TEM_ORDEM ? 'disabled' : ''} aria-label="Subir">▲</button><button class="btn sm" data-act="fila-mover" data-id="${t.id}" data-v="1" ${k === f.length - 1 || !TEM_ORDEM ? 'disabled' : ''} aria-label="Descer">▼</button></div></div>`).join('')}
+  </div><div style="height:12px"></div>`;
+}
 function supTurno() {
-  const tt = T(), meus = atuais().filter(t => t.turno === tt), hoje = isoData(new Date());
+  const tt = T(), meus = filaTurno(tt), hoje = isoData(new Date());
   const fechados = fechadosT().filter(t => t.turno === tt && (t.dataISO === dataOp() || t.dataISO === hoje));
   const eventos = [];
   meus.forEach(t => Object.entries(t.reg).forEach(([p, r]) => {
@@ -934,7 +960,7 @@ function supTurno() {
   return `<div class="faixa-turno"><h2>Turno ${tt}${SERVICO.turno === tt ? ' · ' + HORARIO[SERVICO.h] : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(new Date())}/${new Date().getFullYear()} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
   ${!S.eqSalvo[tt] ? `<p class="nota">As equipes de hoje ainda não foram confirmadas. <button class="btn sm" data-act="aba" data-v="equipes">Montar equipes →</button></p>` : ''}
   <div class="grid">
-    <div>${meus.map(cardTrem).join('<div style="height:12px"></div>') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
+    <div>${cardFila(tt)}${meus.map(cardTrem).join('<div style="height:12px"></div>') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
     <div class="card"><h2>Ocorrências e intervenções <span class="dir">${eventos.length}</span></h2><ul class="feed">${eventos.slice(0, 20).map(e => `<li><span class="h">${e.h}</span><span class="${e.cls === 'bad' ? 'ev-bad' : ''}">${e.txt}</span></li>`).join('') || '<li><span></span><span class="muted">Nada registrado ainda.</span></li>'}</ul></div>
     <div>
       <div class="card"><h2>Fechados no turno <span class="dir">${fechados.length}</span></h2>${fechados.length ? `<table class="tabela"><thead><tr><th>Trem</th><th class="num">Inspec.</th><th class="num">Tempo</th><th>Validação</th></tr></thead><tbody>${fechados.map(t => `<tr><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span></td><td class="num">${t.status === 'nao_revistado' ? '<span class="tag warn">Não revistado</span>' : Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100) + '%'}</td><td class="num">${t.durMin ? dur(t.durMin) : '–'}</td><td>${tagVal(t)}</td></tr>`).join('')}</tbody></table>` : '<span class="muted small">Nenhum ainda.</span>'}</div>
@@ -1195,9 +1221,12 @@ function atencaoFaixa(t, d) {
 const eqDoTrem = t => t.dist.findIndex(d => d.membros.includes(uidTec()));
 function tecMeu() {
   if (!uidTec()) return '<div class="card muted">Escolha um mecânico na barra acima.</div>';
-  const meus = atuais().filter(t => eqDoTrem(t) >= 0);
+  const minhaFila = filaTurno(T()).filter(t => eqDoTrem(t) >= 0), abertos = minhaFila.filter(t => !t.dist[eqDoTrem(t)].termino);
+  // um trem por vez: continua no que a equipe já iniciou; senão, o primeiro da fila do líder
+  const atual = abertos.find(t => t.dist[eqDoTrem(t)].inicio) || abertos[0], seguintes = abertos.filter(t => t !== atual);
+  const meus = atual ? [atual] : [];
   if (!meus.length) return `<div class="card"><p style="margin:0" class="muted">Nenhum trem para a sua equipe agora. Aguarde o líder.</p><p class="small muted" style="margin:8px 0 0">${minhaEqN() ? 'Você está na Equipe ' + minhaEqN() + ' hoje.' : 'Você ainda não está em nenhuma equipe hoje.'} A tela atualiza sozinha.</p></div>${planosEquipe()}`;
-  if (!meus.some(t => t.id === S.tecTrem)) S.tecTrem = meus[meus.length - 1].id;
+  S.tecTrem = meus[0].id;
   const t = meus.find(x => x.id === S.tecTrem), di = eqDoTrem(t), d = t.dist[di], p = progEq(t, di);
   const lista = [];
   for (let pos = d.ini; pos <= d.fim; pos++) {
@@ -1213,7 +1242,7 @@ function tecMeu() {
     lista.push(`${botoesPlano ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
       ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}</span>${tagReg(r)}</button>${botoesPlano ? botoesPlano + '</div>' : ''}`);
   }
-  return `${meus.length > 1 ? `<div class="chips">${meus.map(x => `<button class="chip ${x.id === t.id ? 'on' : ''}" data-act="tec-trem" data-v="${x.id}">Trem ${esc(x.prefixo)} · ${x.linha}</button>`).join('')}</div>` : ''}
+  return `${seguintes.length ? `<p class="nota" style="margin:0 0 10px">Depois deste: ${seguintes.map((x, k) => `<b>${k + 2}º ${esc(x.prefixo)}</b> (${esc(x.linha)})`).join(' · ')}. O próximo trem aparece quando a equipe encerrar este.</p>` : ''}
   <div class="card">
     <h2>Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · Equipe ${d.n}</span></h2>
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
@@ -2022,6 +2051,13 @@ document.addEventListener('click', async e => {
       enviar({ tabela: 'planos_execucao', acao: 'upsert', onConflict: 'trem_id,posicao,plano', dados: { trem_id: t.id, posicao: pos, vagao: t.vagoes[pos - 1], plano, realizado: ok, quando: new Date().toISOString(), por: DB.me.id }, desc: 'Plano ' + plano + ' · ' + t.vagoes[pos - 1] });
       toast((ok ? 'Plano realizado: ' : 'Plano não realizado: ') + plano); break;
     }
+    case 'fila-mover': {
+      const t = tremPorId(el.dataset.id), f = filaTurno(t.turno), k = f.indexOf(t), j = k + +v;
+      if (j < 0 || j >= f.length) return;
+      [f[k], f[j]] = [f[j], f[k]];
+      f.forEach((x, n) => { if (x.ordem !== n + 1) { x.ordem = n + 1; enviar({ tabela: 'trens', acao: 'update', dados: { ordem: n + 1 }, filtro: [['id', 'eq', x.id]], desc: 'Ordem do trem ' + x.prefixo }); } });
+      break;
+    }
     case 'abrir': if (el.dataset.trem) S.tecTrem = el.dataset.trem; abrirVagao(+el.dataset.p); return;
     case 'fechar': S.modal = null; renderModal(); return;
     case 'modo': M.modo = v || null; renderModal(); return;
@@ -2086,10 +2122,11 @@ document.addEventListener('click', async e => {
       const id = uuid(), lider = DB.me.perfil === 'supervisor' ? DB.me.id : DB.colab.find(x => x.perfil === 'supervisor' && x.turno === tt && x.status === 'ativo')?.id || null;
       const row = { id, prefixo: N.prefixo.trim().toUpperCase(), data: dataOp(), turno: tt, lider_id: lider, lider_backup: S.backup || null, linha: N.linha, chegada: N.chegada || agora(), ficha_nome: N.fichaNome || null,
         vagoes: N.lidos.map((c, i) => ({ cod: c, pos: N.posFicha ? N.posFicha[i] : null })), restricoes: N.restr || {}, status: 'andamento' };
+      if (TEM_ORDEM) row.ordem = filaTurno(tt).reduce((m, x, k) => Math.max(m, x.ordem ?? k + 1), 0) + 1;
       const teq = N.dist.map(d => ({ id: uuid(), trem_id: id, numero: eqs[d.ei].n, membros: eqs[d.ei].membros.slice(), ini: d.ini, fim: d.fim }));
       enviar({ tabela: 'trens', acao: 'insert', dados: row, desc: 'Trem ' + row.prefixo });
       enviar({ tabela: 'trem_equipes', acao: 'insert', dados: teq, desc: 'Equipes do trem ' + row.prefixo });
-      DB.trens.push(montarTrem({ ...row, validacao: 'pendente' }, teq, [], []));
+      DB.trens.push(montarTrem({ ...row, validacao: 'pendente', criado_em: new Date().toISOString() }, teq, [], []));
       S.novo = novoVazio(); S.aba.sup = 'turno'; toast('Trem ' + row.prefixo + ' enviado para ' + teq.length + ' equipes'); break;
     }
     case 'nao-rev': N.naoRev = v === '1'; break;
@@ -2155,6 +2192,11 @@ document.addEventListener('change', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, N = S.novo, M = S.modal;
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
+  else if (a === 'trem-chegada') {
+    const t = tremPorId(el.dataset.id); if (!t || !el.value) return;
+    t.chegada = el.value; enviar({ tabela: 'trens', acao: 'update', dados: { chegada: el.value }, filtro: [['id', 'eq', t.id]], desc: 'Chegada do trem ' + t.prefixo });
+    toast('Chegada do ' + t.prefixo + ': ' + el.value); render();
+  }
   else if (a === 'f-dia') { F.per = el.value ? 'dia:' + el.value : 'mes:' + isoData(new Date()).slice(0, 7); render(); }
   else if (a === 'planos-xlsx') {
     const arq = el.files[0]; if (!arq) return;
