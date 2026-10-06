@@ -348,6 +348,10 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .btn.avancar { width: 100%; margin-top: 10px; color: var(--warn); border-color: var(--warn); white-space: normal; }
 .somente-leitura .btn.primary, .somente-leitura .btn.ok, .somente-leitura .btn.avancar, .somente-leitura .pl-linha .btn, .somente-leitura input { opacity: .55; }
 .card.visao-tec { border-left: 4px solid var(--accent); }
+.trem-info { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 2px; }
+.trem-info .tag { font-size: 13px; padding: 4px 10px; }
+.card.visao-tec.lancando { border-left-color: var(--warn); }
+.tabela.nao-insp { font-size: 13px; } .tabela.nao-insp td, .tabela.nao-insp th { padding: 6px 5px; } .tabela.nao-insp .tag { white-space: normal; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -747,7 +751,7 @@ addEventListener('online', processarFila);
 const S = {
   papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'geral' }, turnoVer: SERVICO.turno, verTec: null,
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
-  novo: null, busca: '', tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
+  novo: null, busca: '', supLanca: false, tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
 const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog' };
 const ehProg = () => DB.me?.perfil === 'programador';
@@ -924,6 +928,11 @@ function render() {
 function cardTrem(t) {
   const ins = inspecionados(t), pct = t.vagoes.length ? ins / t.vagoes.length * 100 : 0, pronto = t.dist.length && t.dist.every(d => d.termino);
   const aberto = t.desvios.find(d => !d.fim);
+  const inis = t.dist.map(d => d.inicio).filter(Boolean).sort(), terms = t.dist.map(d => d.termino).filter(Boolean).sort();
+  const minRev = inis.length ? difMin(inis[0], pronto ? terms[terms.length - 1] : agora()) : null, acima = minRev != null && minRev > META_MIN;
+  const tempoRev = minRev == null ? '<span class="tag neu">⏱ Aguardando início</span>'
+    : `<span class="tag ${acima ? 'bad' : 'info'}" title="Desde ${inis[0]}${acima ? ' · acima da meta de ' + META_MIN + ' min' : ''}">${acima ? '⚠' : '⏱'} ${pronto ? 'Revistado em' : 'Em revistamento há'} ${dur(minRev)}${acima ? ' · acima de ' + META_MIN + ' min' : ''}</span>`;
+  const naoInsp = t.vagoes.length - ins;
   const eqs = t.dist.map((d, i) => { const p = progEq(t, i);
     const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
     return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
@@ -931,6 +940,7 @@ function cardTrem(t) {
     <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · chegada ${t.chegada}</span></h2>
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande">${Math.round(pct)}%</span><span class="muted small">inspecionado · ${ins} de ${t.vagoes.length} vagões${t.desvios.length ? ` · desvio ${dur(tempoDesvio(t))}` : ''}${(n => n ? ` · <b style="color:var(--info)">📋 ${n} com plano especial</b>` : '')(t.vagoes.filter(c => planosPend(c).length).length)}</span></div>
     ${barra(pct)}
+    <div class="trem-info">${tempoRev}${naoInsp ? `<button class="btn sm" data-act="nao-insp" data-id="${t.id}">📋 ${naoInsp} vagão(ões) não inspecionado(s)</button>` : '<span class="tag ok">✓ Todos inspecionados</span>'}</div>
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
     ${eqs}
     <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${ehProg() ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
@@ -944,9 +954,11 @@ function supVisaoTec() {
   const tt = T(), tecs = ativos(tt), eqs = EQ(tt);
   if (!tecs.includes(S.verTec)) S.verTec = (eqs.find(e => e.membros.length)?.membros[0]) || tecs[0] || null;
   const op = id => { const e = eqs.find(x => x.membros.includes(id)); return `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}${e ? ' · Equipe ' + e.n : ' · sem equipe hoje'}</option>`; };
-  return `<div class="card visao-tec"><label class="campo" style="margin:0">Ver o app como o mecânico<select data-act="ver-tec">${tecs.map(op).join('')}</select></label>
-    <p class="small muted" style="margin:8px 0 0">Só visualização: você vê exatamente o que aparece no celular dele (trem, faixa de vagões, avisos e planos). Os registros continuam sendo feitos pelo mecânico.</p></div>
-  <div class="somente-leitura">${tecs.length ? tecMeu() : '<div class="card muted">Nenhum mecânico ativo neste turno.</div>'}</div>`;
+  return `<div class="card visao-tec ${S.supLanca ? 'lancando' : ''}"><label class="campo" style="margin:0">Ver o app como o mecânico<select data-act="ver-tec">${tecs.map(op).join('')}</select></label>
+    ${S.supLanca ? `<div class="alerta" style="margin:10px 0 0"><span>✏ <b>Lançando por ${esc(nomeTec(S.verTec) || '')}.</b> Os registros ficam com o seu nome em “apontado por”.</span><button class="btn sm" data-act="sup-lanca" data-v="0">Parar de lançar</button></div>`
+      : `<p class="small muted" style="margin:8px 0 8px">Você vê exatamente o que aparece no celular dele (trem, faixa de vagões, avisos e planos). Para registrar no lugar dele, quando for necessário:</p>
+         <button class="btn sm" data-act="sup-lanca" data-v="1">✏ Lançar por este mecânico</button>`}</div>
+  <div class="${S.supLanca ? '' : 'somente-leitura'}">${tecs.length ? tecMeu() : '<div class="card muted">Nenhum mecânico ativo neste turno.</div>'}</div>`;
 }
 function cardFila(tt) {
   const f = filaTurno(tt);
@@ -1297,7 +1309,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -1367,6 +1379,18 @@ function salvarVagao(st) {
   t.reg[M.pos] = r; S.modal = null;
   toast(M.validando ? 'Correção salva' : r.st === 'ok' ? 'Vagão registrado' : r.st === 'pend' ? 'Vagão marcado como pendente' : r.oc.length ? 'Ocorrência registrada' : 'Intervenção registrada');
   render();
+}
+function modalNaoInsp(M) {
+  const t = tremPorId(M.id), l = [];
+  t.vagoes.forEach((c, i) => { const p = i + 1, r = t.reg[p]; if (r && r.st !== 'pend') return;
+    const d = t.dist.find(x => p >= x.ini && p <= x.fim); l.push({ p, c, r, d }); });
+  const falta = l.filter(x => !x.r).length, pend = l.length - falta;
+  return `<div class="small muted">Trem ${esc(t.prefixo)} · ${esc(t.linha)}</div><h3>Vagões não inspecionados</h3>
+    <div class="resumo" style="grid-template-columns:repeat(3,1fr)"><div><b>${l.length}</b><span>não inspecionados</span></div><div><b>${falta}</b><span>sem registro</span></div><div><b style="color:var(--warn)">${pend}</b><span>pendentes</span></div></div>
+    ${l.length ? `<div class="rolagem" style="max-height:55vh"><table class="tabela nao-insp"><thead><tr><th class="num">Pos.</th><th>Vagão</th><th>Equipe</th><th>Situação</th></tr></thead><tbody>
+      ${l.map(x => `<tr><td class="num">${posF(t, x.p)}</td><td><b>${esc(x.c)}</b>${restrDe(t, x.p) ? `<br><span class="small" style="color:var(--warn)">⚠ ${esc(restrDe(t, x.p).motivo)}</span>` : ''}</td><td class="small">${x.d ? 'Equipe ' + x.d.n + '<br><span class="muted">' + esc(nomesEquipe(x.d.membros)) + '</span>' : '–'}</td>
+        <td>${x.r ? `<span class="tag warn">⏸ Pendente</span><br><span class="small">${esc(x.r.motivo)}</span>` : '<span class="tag neu">Sem registro</span>'}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="muted">Todos os vagões foram inspecionados.</p>'}`;
 }
 function modalDesvio(M) {
   const t = tremPorId(M.id);
@@ -2034,7 +2058,7 @@ document.addEventListener('click', async e => {
   $('tt').hidden = true;
   const el = e.target.closest('[data-act]');
   if (!el) { if (e.target === $('modal')) { S.modal = null; renderModal(); } return; }
-  if (visaoTecSup() && el.closest('.somente-leitura') && !['tec-filtro', 'ver-vagao'].includes(el.dataset.act)) { e.preventDefault(); toast('Só visualização: o mecânico registra pelo celular dele'); return; }
+  if (visaoTecSup() && !S.supLanca && el.closest('.somente-leitura') && !['tec-filtro', 'ver-vagao'].includes(el.dataset.act)) { e.preventDefault(); toast('Só visualização: o mecânico registra pelo celular dele'); return; }
   if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio')) return;
   const a = el.dataset.act, v = el.dataset.v, N = S.novo, M = S.modal;
   lerCampos();
@@ -2046,8 +2070,11 @@ document.addEventListener('click', async e => {
     case 'recarregar': entrar(); return;
     case 'atualizar': toast('Atualizando…'); HIST.em = 0; await processarFila(); await atualizar(true); return;
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
-    case 'aba': S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
+    case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
+    case 'sup-lanca':
+      if (v === '1' && !confirm(`Lançar registros por ${nomeTec(S.verTec)}?\n\nUse quando o mecânico não conseguir registrar (sem celular, sem bateria…). Tudo o que você lançar fica com o seu nome em “apontado por”.`)) return;
+      S.supLanca = v === '1'; break;
     case 'tec-avancar': {
       if (!confirm(`Avançar para o ${el.dataset.prox} sem encerrar o ${el.dataset.nome}?\n\nUse só em caso de imprevisto (ex.: o trem precisou sair). A parte da sua equipe no ${el.dataset.nome} continua aberta para o líder, e você pode voltar a ele.`)) return;
       S.tecPulados = S.tecPulados.concat(el.dataset.id); lsGravar('rzto_pulados', S.tecPulados); S.tecFiltro = 'faltam';
@@ -2114,6 +2141,7 @@ document.addEventListener('click', async e => {
       toast('Plano devolvido; aguardando validação técnica'); break;
     }
     // líder
+    case 'nao-insp': S.modal = { tipo: 'naoinsp', id: el.dataset.id }; renderModal(); return;
     case 'novo-desvio': S.modal = { tipo: 'desvio', id: el.dataset.id, motivo: '' }; renderModal(); return;
     case 'salvar-desvio': {
       const d = { id: uuid(), ini: agora(), fim: null, motivo: M.motivo, obs: ($('obs-desvio').value || '').trim() };
@@ -2231,7 +2259,7 @@ document.addEventListener('change', async e => {
     S.enviandoPlanos = false; render();
   }
   else if (a === 'turno-ver') { S.turnoVer = el.value; S.planoTurno = el.value; S.novo = novoVazio(); S.valTrem = null; render(); }
-  else if (a === 'ver-tec') { S.verTec = el.value; S.tecTrem = null; render(); }
+  else if (a === 'ver-tec') { S.verTec = el.value; S.tecTrem = null; S.supLanca = false; render(); }
   else if (a === 'plano-turno') { S.planoTurno = el.value; render(); }
   else if (a === 'novo-campo') { N[el.dataset.k] = el.value; if (el.dataset.k === 'texto') { N.lidos = null; N.dist = null; } render(); }
   else if (a === 'dist-fim') {
