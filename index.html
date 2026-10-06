@@ -315,6 +315,7 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .aviso-plano b { color: var(--info); }
 .tag.plano { background: var(--info-bg); color: var(--info); }
 .pl-item { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
+.btn.perigo { color: var(--bad); border-color: var(--bad); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -755,8 +756,16 @@ const restrDe = (t, p) => t.restr ? t.restr[t.vagoes[p - 1]] : null;
 function lerFichaTexto(linhas) {
   const f = { prefixo: '', declarados: null, vagoes: [], ignorados: [], restr: {} };
   let emRestr = false;
-  for (const l0 of linhas) {
-    const l = l0.replace(/\s+/g, ' ').trim(); let m;
+  const L = linhas.map(l0 => l0.replace(/\s+/g, ' ').trim());
+  for (let i = 0; i < L.length; i++) {
+    let l = L[i], m;
+    // fichas em que o número do vagão vem em fonte menor, numa linha própria acima ("350634-7" ou "031923-")
+    // e o dígito final (com o "P") na linha de baixo ("6 8"): junta tudo na linha do vagão
+    if ((m = l.match(/^(\d+) ([A-Z]{3}) (?!\d{4,6}-)(.*\s\d+\s*[lI|]?\s*-\s*\d+)$/)) && i > 0 && /^\d{6}-\d?$/.test(L[i - 1])) {
+      let cod = L[i - 1];
+      if (cod.endsWith('-')) { const dv = (L[i + 1] || '').match(/^(\d)\b/); cod += dv ? dv[1] : ''; }
+      if (/^\d{6}-\d$/.test(cod)) l = `${m[1]} ${m[2]} ${cod} ${m[3]}`;
+    }
     if (!f.prefixo && (m = l.match(/Prefixo:\s*([A-Z0-9]+)/i))) f.prefixo = m[1].toUpperCase();
     if (f.declarados == null && (m = l.match(/^Vag[õo]es:\s*(\d+)/i))) f.declarados = +m[1];
     if (/Ve[íi]culos com Restri/i.test(l)) { emRestr = true; continue; }
@@ -882,7 +891,7 @@ function cardTrem(t) {
     ${barra(pct)}
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
     ${eqs}
-    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}
+    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${ehProg() ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
     ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
   </div>`;
@@ -1149,6 +1158,11 @@ function espValidados() {
 }
 
 // ---------- TÉCNICO ----------
+function atencaoFaixa(t, d) {
+  const out = [];
+  for (let pos = d.ini; pos <= d.fim; pos++) { const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]); if (rf || pp.length) out.push({ pos, cod: t.vagoes[pos - 1], rf, pp, r: t.reg[pos] }); }
+  return out;
+}
 const eqDoTrem = t => t.dist.findIndex(d => d.membros.includes(uidTec()));
 function tecMeu() {
   if (!uidTec()) return '<div class="card muted">Escolha um mecânico na barra acima.</div>';
@@ -1160,6 +1174,7 @@ function tecMeu() {
   for (let pos = d.ini; pos <= d.fim; pos++) {
     const r = t.reg[pos];
     if (S.tecFiltro === 'faltam' && r) continue;
+    if (S.tecFiltro === 'atencao' && !restrDe(t, pos) && !planosPend(t.vagoes[pos - 1]).length) continue;
     if (S.tecFiltro === 'feitos' && !r) continue;
     const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), det = [rf ? '⚠ Na ficha: ' + rf.motivo : '', pp.length ? '📋 Plano: ' + txtPlanos(pp) : '', r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : ''].filter(Boolean).join(' · ');
     lista.push(`<button class="vg ${r ? 'feito' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>${det ? `<span class="det">${esc(det)}</span>` : ''}</span>${tagReg(r)}</button>`);
@@ -1170,20 +1185,31 @@ function tecMeu() {
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
     <div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
     ${barra(p.n / p.total * 100)}
+    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length; return a.length ? `<p class="small" style="margin:8px 0 0">${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''} <span class="muted">na sua faixa · veja em Planos especiais</span></p>` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
       : p.n === p.total ? '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>'
       : `<span class="small muted">Revista iniciada às ${d.inicio}</span>`}</div>
   </div>
-  ${d.inicio ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos']].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
+  ${d.inicio ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos'], ...(atencaoFaixa(t, d).length ? [['atencao', '⚠ Atenção ' + atencaoFaixa(t, d).length]] : [])].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
   <div class="vagoes">${lista.join('') || '<div class="card muted">Nada nesta lista.</div>'}</div>` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
+}
+function avisosTrem() {
+  return atuais().filter(t => eqDoTrem(t) >= 0).map(t => {
+    const d = t.dist[eqDoTrem(t)], a = atencaoFaixa(t, d);
+    return `<div class="card"><h2>Atenção no trem ${esc(t.prefixo)} <span class="dir">sua faixa · ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</span></h2>
+      ${a.length ? a.map(x => `<button class="vg ${x.r ? 'feito' : ''}" data-act="abrir" data-p="${x.pos}" data-trem="${t.id}"><span class="pos">${posF(t, x.pos)}</span><span><span class="cod">${esc(x.cod)}</span>
+        ${x.rf ? `<span class="det" style="color:var(--warn);white-space:normal">⚠ Na ficha: ${esc(x.rf.motivo)}${x.rf.data ? ' (desde ' + esc(x.rf.data) + ')' : ''}</span>` : ''}
+        ${x.pp.length ? `<span class="det" style="color:var(--info);white-space:normal">📋 Plano: ${esc(txtPlanos(x.pp))}</span>` : ''}</span>${tagReg(x.r)}</button>`).join('')
+        : '<p class="small muted" style="margin:0">Nenhum vagão isolado na ficha nem com plano especial pendente na sua faixa.</p>'}</div>`;
+  }).join('');
 }
 function tecTarefas() {
   const n = minhaEqN(), minhas = DB.planos.filter(p => p.turno === T() && (n == null || p.eq === n) && p.status !== 'validada');
-  return minhas.length ? minhas.map(p => `<div class="card"><h2>${esc(p.titulo)} <span class="dir">Equipe ${p.eq} · ${p.criada}</span></h2><p style="margin:0 0 6px">${esc(p.desc)}</p><p class="small muted" style="margin:0 0 10px">Enviado por ${esc(p.por)} (validador técnico)</p>
+  return avisosTrem() + (minhas.length ? minhas.map(p => `<div class="card"><h2>${esc(p.titulo)} <span class="dir">Equipe ${p.eq} · ${p.criada}</span></h2><p style="margin:0 0 6px">${esc(p.desc)}</p><p class="small muted" style="margin:0 0 10px">Enviado por ${esc(p.por)} (validador técnico)</p>
     ${p.status === 'reaberta' ? `<div class="alerta" style="margin:0 0 10px"><span>↩ <b>Reaberto pelo validador:</b> ${esc(p.coment || '')}</span></div>` : ''}
     ${['aberta', 'reaberta'].includes(p.status) ? `<label class="campo">Observação (opcional)<input id="obs-${p.id}"></label><button class="btn ok big" data-act="tarefa-feita" data-id="${p.id}">✓ Marcar como feito</button>` : tagPlano(p)}</div>`).join('')
-    : '<div class="card muted">Nenhum plano especial para a sua equipe.</div>';
+    : '<div class="card muted">Nenhum plano especial do validador para a sua equipe.</div>');
 }
 
 // ---------- modais ----------
@@ -1666,8 +1692,8 @@ function progTabela() {
   const todas = linhasHist(), rows = filtrar(todas).slice().reverse(), lim = 300;
   return `${barraFiltros(todas, `<span class="filtro-acoes"><button class="btn sm" data-act="exportar" data-v="tabela">⬇ Esta tabela</button><button class="btn sm" data-act="exportar" data-v="trens">⬇ Detalhe por trem</button><button class="btn sm" data-act="exportar" data-v="vagoes">⬇ Detalhe por vagão</button></span>`)}
   <div class="card"><h2>Tabela de dados <span class="dir">${fmt(rows.length)} trens${rows.length > lim ? ' · mostrando ' + lim + ' (baixe a planilha para ver tudo)' : ''}</span></h2>
-  ${rows.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Mês/ano</th><th>Data</th><th>Líder responsável</th><th>Líder backup</th><th>Turno</th><th>Prefixo</th><th class="num">Total vagões</th><th class="num">Inspec.</th><th class="num">Faltantes</th><th>Justificativa faltantes</th><th>Linha</th><th>Revistado?</th><th>Justificativa</th><th class="num">Retidos</th><th>Vagão retido / avaria</th><th class="num">Tempo</th><th class="num">Desvio</th></tr></thead><tbody>
-    ${rows.slice(0, lim).map(r => `<tr><td>${MESES[+r.mes.slice(5) - 1]}/${r.mes.slice(2, 4)}</td><td>${diaRot(r.dataISO)}</td><td class="small">${esc(r.lider)}</td><td class="small">${esc(r.backup)}</td><td>${r.turno}</td><td><b>${esc(r.prefixo)}</b></td><td class="num">${fmt(r.total)}</td><td class="num">${fmt(r.insp)}</td><td class="num">${fmt(r.falt)}</td><td class="small">${r.rev ? esc(r.motivoParcial) : ''}</td><td>${r.linha}</td><td>${r.rev ? 'Sim' : '<span class="tag warn">Não</span>'}</td><td class="small">${esc(r.motivoNao)}</td><td class="num">${r.retidos || ''}</td><td class="small">${r.ret.map(x => esc([x.vagao, x.obs].filter(Boolean).join(' – '))).join('<br>') || 'N/A'}</td><td class="num">${r.durMin ? dur(r.durMin) : '–'}</td><td class="num">${r.desvMin ? dur(r.desvMin) : '–'}</td></tr>`).join('')}
+  ${rows.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Mês/ano</th><th>Data</th><th>Líder responsável</th><th>Líder backup</th><th>Turno</th><th>Prefixo</th><th class="num">Total vagões</th><th class="num">Inspec.</th><th class="num">Faltantes</th><th>Justificativa faltantes</th><th>Linha</th><th>Revistado?</th><th>Justificativa</th><th class="num">Retidos</th><th>Vagão retido / avaria</th><th class="num">Tempo</th><th class="num">Desvio</th><th></th></tr></thead><tbody>
+    ${rows.slice(0, lim).map(r => `<tr><td>${MESES[+r.mes.slice(5) - 1]}/${r.mes.slice(2, 4)}</td><td>${diaRot(r.dataISO)}</td><td class="small">${esc(r.lider)}</td><td class="small">${esc(r.backup)}</td><td>${r.turno}</td><td><b>${esc(r.prefixo)}</b></td><td class="num">${fmt(r.total)}</td><td class="num">${fmt(r.insp)}</td><td class="num">${fmt(r.falt)}</td><td class="small">${r.rev ? esc(r.motivoParcial) : ''}</td><td>${r.linha}</td><td>${r.rev ? 'Sim' : '<span class="tag warn">Não</span>'}</td><td class="small">${esc(r.motivoNao)}</td><td class="num">${r.retidos || ''}</td><td class="small">${r.ret.map(x => esc([x.vagao, x.obs].filter(Boolean).join(' – '))).join('<br>') || 'N/A'}</td><td class="num">${r.durMin ? dur(r.durMin) : '–'}</td><td class="num">${r.desvMin ? dur(r.desvMin) : '–'}</td><td>${r.forms ? '<span class="small muted">Forms</span>' : `<button class="btn sm perigo" data-act="apagar-trem" data-id="${r.id}" data-nome="${esc(r.prefixo)} de ${diaRot(r.dataISO)}" title="Apagar trem">🗑</button>`}</td></tr>`).join('')}
   </tbody></table></div>` : semDados}</div>`;
 }
 
@@ -1897,7 +1923,16 @@ document.addEventListener('click', async e => {
       d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: a === 'iniciar' ? 'Início da revista' : 'Fim da revista' });
       toast(a === 'iniciar' ? 'Revista iniciada às ' + d.inicio : 'Parte da equipe concluída; o líder foi avisado'); break;
     }
-    case 'abrir': abrirVagao(+el.dataset.p); return;
+    case 'apagar-trem': {
+      if (!ehProg()) return;
+      const id = el.dataset.id, nome = el.dataset.nome || 'selecionado';
+      if (!confirm(`Apagar o trem ${nome}?\n\nSaem junto a divisão das equipes, os registros dos vagões e os desvios. Não dá para desfazer.`)) return;
+      enviar({ tabela: 'trens', acao: 'delete', filtro: [['id', 'eq', id]], desc: 'Apagar trem ' + nome });
+      DB.trens = DB.trens.filter(x => x.id !== id); HIST.trens = HIST.trens.filter(x => x.id !== id);
+      if (S.valTrem === id) S.valTrem = null;
+      registrarLog('Apagou o trem ' + nome); toast('Trem ' + nome + ' apagado'); break;
+    }
+    case 'abrir': if (el.dataset.trem) S.tecTrem = el.dataset.trem; abrirVagao(+el.dataset.p); return;
     case 'fechar': S.modal = null; renderModal(); return;
     case 'modo': M.modo = v || null; renderModal(); return;
     case 'salvar-ok': salvarVagao('ok'); return;
