@@ -550,7 +550,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.3';
+const VERSAO = '1.4';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -641,7 +641,7 @@ function montarTrem(t, eqs, regs, dsv, pex = []) {
   const tr = { id: t.id, prefixo: t.prefixo, data: deISO(t.data), dataISO: t.data, turno: t.turno, liderId: t.lider_id, lider: t.lider_id ? C(t.lider_id).nome : liderDe(t.turno), linha: t.linha, chegada: hm(t.chegada) || '–',
     vagoes: vag.map(v => v.cod), posFicha: vag.length && vag.every(v => v.pos != null) ? vag.map(v => v.pos) : null, restr: t.restricoes || {}, fichaNome: t.ficha_nome,
     status: t.status, backup: t.lider_backup || '', motivoNao: t.motivo_nao || '', motivoParcial: t.motivo_parcial || '', obsFech: t.obs_fechamento || '', inicio: ini, fim, durMin: ini && fim ? difMin(ini, fim) : 0,
-    dist: eqs.sort((a, b) => a.numero - b.numero).map(e => ({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, inicio: hm(e.inicio), termino: hm(e.termino) })),
+    dist: eqs.sort((a, b) => a.numero - b.numero).map(e => ({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, comeco: e.comeco || null, inicio: hm(e.inicio), termino: hm(e.termino) })),
     reg: Object.fromEntries(regs.map(r => [r.posicao, regDe(r)])),
     desvios: dsv.sort((a, b) => a.ini.localeCompare(b.ini)).map(d => ({ id: d.id, ini: hm(d.ini), fim: hm(d.fim), motivo: d.motivo, obs: d.obs || '' })),
     validacao: { status: t.validacao, por: t.validado_por ? C(t.validado_por).nome : '', em: t.validado_em, parecer: t.parecer || '', corrigidos: regs.filter(r => r.val === 'corrigido').length } };
@@ -893,6 +893,48 @@ function aplicarFicha(f, nome) {
 
 // ---------- métricas ----------
 const inspecionados = t => Object.values(t.reg).filter(r => r.st !== 'pend').length;
+// ordem em que a equipe percorre a faixa: do vagão de começo até o fim, depois o trecho antes dele
+const ordemFaixa = d => { const l = []; for (let p = d.ini; p <= d.fim; p++) l.push(p); const c = d.comeco > d.ini && d.comeco <= d.fim ? d.comeco - d.ini : 0; return l.slice(c).concat(l.slice(0, c)); };
+// acha a posição do vagão pelo texto digitado: "pos. 40", posição curta (até 3 dígitos) ou número do vagão (com ou sem dígito)
+function acharVagao(t, v) {
+  v = (v || '').trim(); const m = v.match(/pos\.\s*(\d+)/i);
+  const daPos = n => t.posFicha ? t.posFicha.findIndex(x => String(x) === String(n)) + 1 : (n >= 1 && n <= t.vagoes.length ? n : 0);
+  if (m) return daPos(+m[1]);
+  const dig = v.replace(/\D/g, ''); if (!dig) return 0;
+  if (dig.length <= 3 && /^\d+$/.test(v)) return daPos(+dig);
+  const c = t.vagoes.map((x, i) => [x.replace(/\D/g, ''), i + 1]).filter(([x]) => x === dig || x.slice(0, -1) === dig || x.endsWith(dig) || x.slice(0, -1).endsWith(dig));
+  return c.length === 1 ? c[0][1] : c.length > 1 ? -c.length : 0;
+}
+// "começar de onde parou": a equipe i começa no vagão s (andando para o fim) e as equipes do turno que não começaram são redivididas.
+// Quem já começou e os vagões já registrados não mudam.
+function redividirDe(t, i, s) {
+  const N = t.vagoes.length, d = t.dist[i], doTurno = x => x.membros.some(m => C(m).turno === t.turno);
+  const fixos = t.dist.filter((x, j) => j !== i && doTurno(x) && (x.inicio || x.termino));
+  const livres = t.dist.filter((x, j) => j !== i && doTurno(x) && !x.inicio && !x.termino).sort((a, b) => a.ini - b.ini);
+  const dono = p => fixos.find(x => p >= x.ini && p <= x.fim);
+  if (dono(s)) return { erro: `Esse vagão está na faixa da Equipe ${dono(s).n}, que já começou. Escolha outro ou fale com o líder.` };
+  const pos = []; for (let p = 1; p <= N; p++) if (!dono(p)) pos.push(p);
+  const tam = Math.ceil(pos.length / (livres.length + 1));
+  let ini = s, fim = s; while (fim < N && !dono(fim + 1) && fim - s + 1 < tam) fim++;
+  const seg = []; let cur = null;                                  // trechos que sobram (sem equipe que já começou)
+  for (const p of pos) { if (p >= s && p <= fim) { cur = null; continue; } if (cur && p === cur[1] + 1) cur[1] = p; else seg.push(cur = [p, p]); }
+  const len = j => seg[j][1] - seg[j][0] + 1, feito = j => { for (let p = seg[j][0]; p <= seg[j][1]; p++) if (!t.reg[p]) return false; return true; };
+  const cont = seg.map(() => 0), ord = seg.map((x, j) => j).filter(j => !feito(j)).sort((a, b) => len(b) - len(a));
+  let sobra = livres.length;
+  for (const j of ord) if (sobra) { cont[j] = 1; sobra--; }
+  while (sobra) { const ok = ord.filter(j => cont[j] && cont[j] < len(j)); if (!ok.length) break;
+    const j = ok.reduce((m, j) => len(j) / cont[j] > len(m) / cont[m] ? j : m); cont[j]++; sobra--; }
+  for (const j of ord) if (!cont[j]) {                              // trecho sem equipe: fica com quem começa, se encostar na faixa dela
+    if (seg[j][1] === ini - 1) ini = seg[j][0]; else if (seg[j][0] === fim + 1) fim = seg[j][1];
+    else return { erro: 'Começando nesse vagão, um trecho da composição ficaria sem equipe. Fale com o líder.' };
+  }
+  const faixas = [{ id: d.rowId, n: d.n, ini, fim, comeco: s }];
+  let k = 0; const fila = livres.slice();
+  seg.forEach((x, j) => distribuir(len(j), cont[j]).forEach(([a, b]) => { const e = fila.shift(); faixas.push({ id: e.rowId, n: e.n, ini: x[0] + a - 1, fim: x[0] + b - 1, comeco: null }); }));
+  fila.forEach(e => faixas.push({ id: e.rowId, n: e.n, ini: e.ini, fim: e.ini - 1, comeco: null, sem: true }));
+  if (fila.length) return { erro: 'Há mais equipes do que vagões livres. Fale com o líder.' };
+  return { faixas, fixos };
+}
 function progEq(t, i) { const d = t.dist[i]; let n = 0, int = 0, oc = 0; for (let p = d.ini; p <= d.fim; p++) { const r = t.reg[p]; if (r) { n++; if (r.st === 'int') int++; oc += r.oc.length; } } return { n, total: d.fim - d.ini + 1, int, oc }; }
 const tempoDesvio = t => t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : difMin(d.ini, agora())), 0);
 const barra = pct => `<div class="prog" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`;
@@ -964,7 +1006,7 @@ function cardTrem(t) {
   const naoInsp = t.vagoes.length - ins;
   const eqs = t.dist.map((d, i) => { const p = progEq(t, i);
     const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
-    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
+    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
   return `<div class="card">
     <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · chegada ${t.chegada}</span></h2>
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande">${Math.round(pct)}%</span><span class="muted small">inspecionado · ${ins} de ${t.vagoes.length} vagões${t.desvios.length ? ` · desvio ${dur(tempoDesvio(t))}` : ''}${(n => n ? ` · <b style="color:var(--info)">📋 ${n} com plano especial</b>` : '')(t.vagoes.filter(c => planosPend(c).length).length)}</span></div>
@@ -1333,7 +1375,7 @@ function tecMeu() {
   S.tecTrem = meus[0].id;
   const t = meus.find(x => x.id === S.tecTrem), di = eqDoTrem(t), d = t.dist[di], p = progEq(t, di);
   const lista = [];
-  for (let pos = d.ini; pos <= d.fim; pos++) {
+  for (const pos of ordemFaixa(d)) {
     const r = t.reg[pos];
     if (S.tecFiltro === 'faltam' && r) continue;
     if (S.tecFiltro === 'atencao' && !restrDe(t, pos) && !planosPend(t.vagoes[pos - 1]).length) continue;
@@ -1351,7 +1393,7 @@ function tecMeu() {
   <div class="card">
     <h2>Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · Equipe ${d.n}</span></h2>
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
-    <div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
+    ${d.comeco > d.ini ? `<div class="small" style="color:var(--info);font-weight:700">↪ Começando no ${esc(t.vagoes[d.comeco - 1])} (${t.posFicha ? 'pos.' : 'nº'} ${posF(t, d.comeco)}); no fim, os vagões antes dele</div>` : ''}<div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
     ${barra(p.n / p.total * 100)}
     ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length; return a.length ? `<p class="small" style="margin:8px 0 0">${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''} <span class="muted">na sua faixa · use o filtro ⚠ Atenção</span></p>` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
@@ -1387,7 +1429,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, comeco: modalComeco, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -1465,6 +1507,26 @@ function modalFim(M) {
     <label class="campo">Novo término<input type="time" id="fim-novo" value="${esc(M.fim || '')}"></label>
     <label class="campo">Motivo (obrigatório)<input id="fim-motivo" placeholder="Ex.: equipe esqueceu de encerrar a parte; término real 10:42"></label>
     <button class="btn primary big" data-act="salvar-fim">Salvar novo término</button>`;
+}
+function modalComeco(M) {
+  const t = tremPorId(M.id), d = t.dist[M.i], prim = ordemFaixa(d).find(p => !t.reg[p]) || d.ini, pf = p => `${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)}`;
+  const topo = `<div class="small muted">Trem ${esc(t.prefixo)} · ${esc(t.linha)} · Equipe ${d.n}</div><h3>Por onde você vai começar?</h3>`;
+  if (!M.outro) return `${topo}<p>O vagão mais perto de você é o <b>${esc(t.vagoes[prim - 1])}</b> (${pf(prim)}), o primeiro da sua faixa?</p>
+    <button class="btn ok big" data-act="comeco-sim">✓ Sim, começar por ele</button>
+    <button class="btn big" style="margin-top:8px" data-act="comeco-nao">✗ Não, estou em outro vagão</button>`;
+  const doTurno = x => x.membros.some(m => C(m).turno === t.turno);
+  const opc = t.vagoes.map((c, k) => k + 1).filter(p => !t.dist.some((x, j) => j !== M.i && doTurno(x) && (x.inicio || x.termino) && p >= x.ini && p <= x.fim));
+  const pl = M.plano;
+  return `${topo}<label class="campo">Número do vagão mais perto de você<input id="comeco-v" list="comeco-l" inputmode="search" autocomplete="off" placeholder="Ex.: 034741 ou pos. 40" value="${esc(M.txt || '')}"></label>
+    <datalist id="comeco-l">${opc.map(p => `<option value="${esc(t.vagoes[p - 1])} · ${pf(p)}">`).join('')}</datalist>
+    <button class="btn big" data-act="comeco-ver">Ver nova divisão</button>
+    ${M.msg ? `<p class="small" style="color:var(--bad);font-weight:700">${esc(M.msg)}</p>` : ''}
+    ${pl && !pl.erro ? `<div class="secao" style="margin-top:14px">Nova divisão</div>
+      <p class="small muted" style="margin:0 0 6px">Você anda do <b>${esc(t.vagoes[M.s - 1])}</b> para o fim da composição. Equipes que já começaram não mudam.</p>
+      <table class="tabela compacta"><thead><tr><th>Equipe</th><th>Faixa</th><th class="num">Vagões</th></tr></thead><tbody>
+      ${[...pl.faixas.map(f => ({ ...f, novo: true })), ...pl.fixos].sort((a, b) => a.ini - b.ini).map(f => `<tr${f.id === d.rowId ? ' style="font-weight:700"' : ''}><td>Equipe ${f.n}${f.id === d.rowId ? ' (você)' : f.novo ? '' : ' <span class="small muted">já começou</span>'}</td><td>${posF(t, f.ini)} a ${posF(t, f.fim)}${f.comeco > f.ini ? ` <span class="small muted">(começa na ${posF(t, f.comeco)})</span>` : ''}</td><td class="num">${f.fim - f.ini + 1}</td></tr>`).join('')}</tbody></table>
+      <p class="small muted">As outras equipes veem a faixa nova no celular delas e o líder é avisado. Precisa de internet.</p>
+      <button class="btn ok big" data-act="comeco-ok">✓ Confirmar e iniciar</button>` : ''}`;
 }
 function modalDividir(M) {
   const t = tremPorId(M.id), eqs = EQ(t.turno), sel = eqs.filter((e, i) => M.sel[i] !== false && e.membros.length);
@@ -2243,10 +2305,32 @@ document.addEventListener('click', async e => {
     }
     case 'tec-voltar': S.tecPulados = S.tecPulados.filter(x => x !== el.dataset.id); lsGravar('rzto_pulados', S.tecPulados); window.scrollTo(0, 0); break;
     case 'tec-filtro': S.tecFiltro = v; break;
-    case 'iniciar': case 'encerrar': {
-      const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'iniciar' ? 'inicio' : 'termino';
-      d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: a === 'iniciar' ? 'Início da revista' : 'Fim da revista' });
-      toast(a === 'iniciar' ? 'Revista iniciada às ' + d.inicio : 'Parte da equipe concluída; o líder foi avisado'); break;
+    case 'iniciar':                                    // pergunta por onde começa (sem internet, começa pela faixa)
+      if (navigator.onLine) { const t = tremPorId(S.tecTrem); S.modal = { tipo: 'comeco', id: t.id, i: eqDoTrem(t) }; renderModal(); return; }
+      // fall through
+    case 'comeco-sim': case 'encerrar': {
+      const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'encerrar' ? 'termino' : 'inicio';
+      if (a === 'comeco-sim') S.modal = null;
+      d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: campo === 'inicio' ? 'Início da revista' : 'Fim da revista' });
+      toast(campo === 'inicio' ? 'Revista iniciada às ' + d.inicio : 'Parte da equipe concluída; o líder foi avisado'); break;
+    }
+    case 'comeco-nao': S.modal.outro = true; renderModal(); setTimeout(() => $('comeco-v')?.focus(), 50); return;
+    case 'comeco-ver': {
+      const M = S.modal, t = tremPorId(M.id); M.txt = $('comeco-v').value; M.msg = ''; M.plano = null;
+      const s = acharVagao(t, M.txt);
+      if (s < 0) M.msg = `Encontrei ${-s} vagões com esse número. Digite mais dígitos ou escolha na lista.`;
+      else if (!s) M.msg = 'Não achei esse vagão neste trem. Confira o número ou escolha na lista.';
+      else { M.s = s; M.plano = redividirDe(t, M.i, s); if (M.plano.erro) M.msg = M.plano.erro; }
+      renderModal(); return;
+    }
+    case 'comeco-ok': {
+      const M = S.modal, t = tremPorId(M.id), d = t.dist[M.i], fx = M.plano.faixas;
+      toast('Enviando a nova divisão…');
+      const { error } = await sb.rpc('comecar_em', { t: t.id, eq: d.rowId, faixas: fx.map(f => ({ id: f.id, ini: f.ini, fim: f.fim, comeco: f.comeco })) });
+      if (error) { M.msg = /function|schema cache/i.test(error.message) ? 'Função ainda não instalada (10-comecar-em.sql). Comece pela sua faixa: toque em “Sim”.' : error.message; M.plano = null; renderModal(); toast('⚠ Divisão não enviada'); return; }
+      fx.forEach(f => { const x = t.dist.find(y => y.rowId === f.id); if (x) Object.assign(x, { ini: f.ini, fim: f.fim, comeco: f.comeco }); });
+      d.inicio = agora(); S.modal = null; S.tecFiltro = 'faltam';
+      toast(`Revista iniciada às ${d.inicio}, começando no ${t.vagoes[M.s - 1]}`); carregar().catch(() => {}); break;
     }
     case 'apagar-trem': {
       if (!ehProg()) return;
