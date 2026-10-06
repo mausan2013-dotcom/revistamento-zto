@@ -568,7 +568,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.9';
+const VERSAO = '1.10';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1012,11 +1012,11 @@ const ABAS = {
 const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
 function barraProg() {
   if (!ehProg()) return '';
-  const papeis = [['prog', 'Programador'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico']];
+  const papeis = [['prog', 'Programador'], ['pcm', 'PCM'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico']];
   const tecs = ativos(S.turnoVer);
   if (S.papel === 'tec' && !tecs.includes(S.verTec)) S.verTec = tecs[0] || null;
   return `<b>Acesso total</b><span>ver como:</span><span class="seg">${papeis.map(([k, l]) => `<button data-act="papel" data-v="${k}" class="${S.papel === k ? 'on' : ''}">${l}</button>`).join('')}</span>
-    ${S.papel !== 'prog' ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
+    ${!['prog', 'pcm'].includes(S.papel) ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
     ${S.papel === 'tec' ? `<span>mecânico <select data-act="ver-tec">${tecs.map(id => `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select></span>` : ''}`;
 }
 function render() {
