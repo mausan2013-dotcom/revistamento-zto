@@ -346,6 +346,8 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .fila-mov { display: flex; gap: 4px; }
 @media (max-width: 420px) { .fila-item { grid-template-columns: 34px minmax(0, 1fr) auto; } .fila-mov { grid-column: 2 / -1; justify-content: flex-end; } }
 .btn.avancar { width: 100%; margin-top: 10px; color: var(--warn); border-color: var(--warn); white-space: normal; }
+.somente-leitura .btn.primary, .somente-leitura .btn.ok, .somente-leitura .btn.avancar, .somente-leitura .pl-linha .btn, .somente-leitura input { opacity: .55; }
+.card.visao-tec { border-left: 4px solid var(--accent); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -881,7 +883,7 @@ function txtReg(r) {
 // ---------- render geral ----------
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
-  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['gestao', 'Gestão da equipe']],
+  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe']],
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['validados', 'Validados']],
   tec: [['meu', 'Meu turno']],
   prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['cadastros', 'Cadastros']]
@@ -935,6 +937,16 @@ function cardTrem(t) {
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
     ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
   </div>`;
+}
+// líder vê o app como um mecânico do próprio turno (só visualização: quem registra é o mecânico, no celular dele)
+const visaoTecSup = () => S.papel === 'sup' && S.aba.sup === 'tecvisao';
+function supVisaoTec() {
+  const tt = T(), tecs = ativos(tt), eqs = EQ(tt);
+  if (!tecs.includes(S.verTec)) S.verTec = (eqs.find(e => e.membros.length)?.membros[0]) || tecs[0] || null;
+  const op = id => { const e = eqs.find(x => x.membros.includes(id)); return `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}${e ? ' · Equipe ' + e.n : ' · sem equipe hoje'}</option>`; };
+  return `<div class="card visao-tec"><label class="campo" style="margin:0">Ver o app como o mecânico<select data-act="ver-tec">${tecs.map(op).join('')}</select></label>
+    <p class="small muted" style="margin:8px 0 0">Só visualização: você vê exatamente o que aparece no celular dele (trem, faixa de vagões, avisos e planos). Os registros continuam sendo feitos pelo mecânico.</p></div>
+  <div class="somente-leitura">${tecs.length ? tecMeu() : '<div class="card muted">Nenhum mecânico ativo neste turno.</div>'}</div>`;
 }
 function cardFila(tt) {
   const f = filaTurno(tt);
@@ -1926,7 +1938,7 @@ function exportar(tipo) {
 }
 
 const VIEWS = {
-  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, gestao: supGestao },
+  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao },
   tec: { meu: tecMeu },
   esp: { validacao: espValidacao, planos: espPlanos, validados: espValidados },
   prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, materiais: progMateriais, vagao: progVagao, cadastros: progCadastros }
@@ -2022,6 +2034,7 @@ document.addEventListener('click', async e => {
   $('tt').hidden = true;
   const el = e.target.closest('[data-act]');
   if (!el) { if (e.target === $('modal')) { S.modal = null; renderModal(); } return; }
+  if (visaoTecSup() && el.closest('.somente-leitura') && !['tec-filtro', 'ver-vagao'].includes(el.dataset.act)) { e.preventDefault(); toast('Só visualização: o mecânico registra pelo celular dele'); return; }
   if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio')) return;
   const a = el.dataset.act, v = el.dataset.v, N = S.novo, M = S.modal;
   lerCampos();
