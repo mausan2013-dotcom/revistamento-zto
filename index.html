@@ -227,6 +227,7 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s1: #5b7fe8; --s2: #14a8ad; --s3: #239a74; --meta: #ff7272; } }
 .filtros-bar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; margin-bottom: 12px; }
 .filtro { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; min-width: 0; }
+.filtro input[type=date] { min-height: 38px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 14px; font-weight: 600; text-transform: none; letter-spacing: 0; }
 .filtro select { min-height: 38px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 14px; font-weight: 600; text-transform: none; letter-spacing: 0; max-width: 200px; }
 .filtro-acoes { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
 @media (max-width: 560px) { .filtro { flex: 1 1 calc(50% - 10px); } .filtro select { max-width: none; width: 100%; } .filtro-acoes { margin-left: 0; } }
@@ -320,6 +321,9 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .vg .det.av { white-space: normal; font-weight: 700; }
 .vg .det.isolado { color: var(--warn); } .vg .det.plano { color: var(--info); }
 .card.plano-eq { border-left: 4px solid var(--info); }
+.mat-tab tr.sel td { background: var(--info-bg); }
+.mat-barra { height: 12px; background: var(--track); border-radius: 999px; overflow: hidden; }
+.mat-barra i { display: block; height: 100%; background: var(--s1); border-radius: 0 4px 4px 0; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -1410,7 +1414,8 @@ function linhasHist() {
   const novos = fechadosT().map(t => {
     const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => m[x.nome] = (m[x.nome] || 0) + x.qtd));
     const rt = Object.entries(t.reg).filter(([, r]) => r.oc.includes('Retenção de vagão')).map(([p, r]) => ({ vagao: t.vagoes[p - 1], obs: r.obs }));
-    const apl = Object.entries(t.reg).flatMap(([p, r]) => r.mats.map(x => ({ vagao: t.vagoes[p - 1], id: x.id, nome: x.nome, qtd: x.qtd, pos: x.pos || [] })));
+    const apl = Object.entries(t.reg).flatMap(([p, r]) => { const d = t.dist.find(x => p >= x.ini && p <= x.fim);
+      return r.mats.map(x => ({ vagao: t.vagoes[p - 1], id: x.id, nome: x.nome, qtd: x.qtd, pos: x.pos || [], posTrem: posF(t, +p), hora: r.h, equipe: d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : '' })); });
     return { id: t.id, dataISO: t.dataISO, turno: t.turno, linha: t.linha, prefixo: t.prefixo, status: t.status, lider: t.lider, backup: t.backup, motivoNao: t.motivoNao, motivoParcial: t.motivoParcial,
       durMin: t.durMin, total: t.vagoes.length, insp: inspecionados(t), retidos: rt.length, itens: Object.values(m).reduce((a, b) => a + b, 0),
       nDesv: t.desvios.length, desvMin: t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), desvObs: t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), mats: m, ret: rt, apl };
@@ -1420,6 +1425,7 @@ function linhasHist() {
 }
 function periodoDe(per) {                                 // -> [início, fim, nome]
   const hoje = new Date();
+  if (per.startsWith('dia:')) { const d = per.slice(4); return [d, d, 'dia ' + d.split('-').reverse().join('/')]; }
   if (per[0] === 'd') { const d = new Date(); d.setDate(d.getDate() - (+per.slice(1) - 1)); return [isoData(d), isoData(hoje), 'últimos ' + per.slice(1) + ' dias']; }
   if (per.startsWith('ano:')) { const y = per.slice(4); return [y + '-01-01', y + '-12-31', 'ano ' + y]; }
   const [y, m] = per.slice(4).split('-').map(Number);
@@ -1430,7 +1436,7 @@ function filtrar(rows, semPeriodo) {
   return rows.filter(r => (semPeriodo || (r.dataISO >= a && r.dataISO <= b)) && (F.turno === 'todos' || r.turno === F.turno) && (F.linha === 'todas' || r.linha === F.linha)
     && (F.prefixo === 'todos' || r.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === r.rev));
 }
-const anoF = () => F.per[0] === 'd' ? String(new Date().getFullYear()) : F.per.slice(4, 8);
+const anoF = () => F.per.startsWith('dia:') ? F.per.slice(4, 8) : F.per[0] === 'd' ? String(new Date().getFullYear()) : F.per.slice(4, 8);
 function agrega(rows) {
   const soma = (a, f) => a.reduce((s, r) => s + f(r), 0), rev = rows.filter(r => r.rev), cronom = rev.filter(r => r.durMin > 0);
   const total = soma(rows, r => r.total), insp = soma(rows, r => r.insp), dias = new Set(rows.map(r => r.dataISO)).size;
@@ -1451,7 +1457,9 @@ function barraFiltros(todas, extra = '') {
   const meses = [...new Set(todas.map(r => r.mes).concat(isoData(new Date()).slice(0, 7)))].sort().reverse();
   const anos = [...new Set(meses.map(m => m.slice(0, 4)))], prefs = [...new Set(todas.map(r => r.prefixo))].sort();
   const sel = (k, rot, ops) => `<label class="filtro"><span>${rot}</span><select data-act="f" data-k="${k}">${ops.map(([v, l]) => `<option value="${esc(v)}" ${F[k] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
-  return `<div class="filtros-bar">${sel('per', 'Mês / período', [['d7', 'Últimos 7 dias'], ['d30', 'Últimos 30 dias'], ...anos.flatMap(y => [['ano:' + y, 'Ano ' + y + ' inteiro'], ...meses.filter(m => m.startsWith(y)).map(m => ['mes:' + m, MESES_L[+m.slice(5) - 1] + '/' + y])])])}
+  const dia = F.per.startsWith('dia:') ? F.per.slice(4) : '';
+  return `<div class="filtros-bar">${sel('per', 'Mês / período', [...(dia ? [['dia:' + dia, 'Dia ' + dia.split('-').reverse().join('/')]] : []), ['d7', 'Últimos 7 dias'], ['d30', 'Últimos 30 dias'], ...anos.flatMap(y => [['ano:' + y, 'Ano ' + y + ' inteiro'], ...meses.filter(m => m.startsWith(y)).map(m => ['mes:' + m, MESES_L[+m.slice(5) - 1] + '/' + y])])])}
+    <label class="filtro"><span>Dia</span><input type="date" data-act="f-dia" value="${dia}" max="${isoData(new Date())}"></label>
     ${sel('rev', 'Trem revistado', [['todos', 'Todos'], ['sim', 'Sim'], ['nao', 'Não']])}${sel('linha', 'Linha', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
     ${sel('prefixo', 'Prefixo', [['todos', 'Todos'], ...prefs.map(p => [p, p])])}${sel('turno', 'Equipe (turno)', [['todos', 'Todas'], ...'ABCD'.split('').map(t => [t, 'Turno ' + t])])}${extra}</div>
     ${HIST.ok ? '' : '<p class="nota">Mostrando só os últimos 35 dias. Para o histórico completo, rode o <b>03-indicadores.sql</b> e o <b>04-historico.sql</b> no Supabase.</p>'}`;
@@ -1700,6 +1708,37 @@ function trensFiltrados() {
   return fechadosT().filter(t => t.dataISO >= a && t.dataISO <= b && (F.turno === 'todos' || t.turno === F.turno) && (F.linha === 'todas' || t.linha === F.linha)
     && (F.prefixo === 'todos' || t.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === (t.status === 'concluido')));
 }
+// materiais consumidos (todos) com clique: mostra os vagões que receberam o material escolhido
+function usosMaterial(rows, nome) {
+  return rows.flatMap(r => r.apl.filter(x => x.nome === nome).map(x => ({ r, x }))).sort((a, b) => b.r.dataISO.localeCompare(a.r.dataISO) || (b.x.hora || '').localeCompare(a.x.hora || ''));
+}
+function tabelaMateriais(rows, mat) {
+  const lista = Object.entries(mat).sort((a, b) => b[1] - a[1]), max = Math.max(1, ...lista.map(x => x[1]));
+  if (S.matSel && !mat[S.matSel]) S.matSel = null;
+  const vag = n => new Set(rows.flatMap(r => r.apl.filter(x => x.nome === n).map(x => x.vagao))).size;
+  const sel = S.matSel, us = sel ? usosMaterial(rows, sel) : [], semVagao = sel ? mat[sel] - us.reduce((a, u) => a + u.x.qtd, 0) : 0, lim = 500;
+  return `<div class="card larga"><h2>Materiais consumidos <span class="dir">${lista.length} materiais · toque para ver os vagões</span></h2>${lista.length ? `<div class="rolagem"><table class="tabela mat-tab"><thead><tr><th>Material</th><th style="width:40%"></th><th class="num">Unidades</th><th class="num">Vagões</th></tr></thead><tbody>
+    ${lista.map(([n, q]) => `<tr class="click ${n === sel ? 'sel' : ''}" data-act="mat-sel" data-v="${esc(n)}"><td><b>${esc(n)}</b></td><td><div class="mat-barra"><i style="width:${q / max * 100}%"></i></div></td><td class="num"><b>${fmt(q)}</b></td><td class="num">${fmt(vag(n))}</td></tr>`).join('')}
+  </tbody></table></div>` : semDados}</div>
+  ${sel ? `<div class="card larga" id="mat-vagoes"><h2>Vagões que receberam: ${esc(sel)} <span class="dir">${fmt(us.length)} aplicação(ões) · ${fmt(new Set(us.map(u => u.x.vagao)).size)} vagões</span></h2>
+    <div class="acoes" style="margin:0 0 10px"><button class="btn sm primary" data-act="exportar-mat">⬇ Exportar Excel</button><button class="btn sm" data-act="mat-sel" data-v="${esc(sel)}">Fechar</button></div>
+    ${semVagao > 0 ? `<p class="small muted" style="margin:0 0 8px">${fmt(semVagao)} unidade(s) sem vagão identificado (texto do Forms sem código do vagão).</p>` : ''}
+    ${us.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Vagão</th><th class="num">Qtd</th><th>Posições</th><th>Equipe</th><th>Origem</th></tr></thead><tbody>
+      ${us.slice(0, lim).map(({ r, x }) => `<tr><td>${r.dataISO.split('-').reverse().join('/')}${x.hora ? ' ' + x.hora : ''}</td><td>${r.turno || '–'}</td><td><b>${esc(r.prefixo)}</b>${x.posTrem ? ` <span class="small muted">pos. ${x.posTrem}</span>` : ''}</td><td>${esc(r.linha || '')}</td><td><a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a></td><td class="num">${fmt(x.qtd)}</td><td>${esc((x.pos || []).join(', '))}</td><td class="small">${esc(x.equipe || '')}</td><td class="small muted">${r.forms ? 'Forms' : 'App'}</td></tr>`).join('')}
+    </tbody></table></div>${us.length > lim ? `<p class="small muted" style="margin:8px 0 0">Mostrando ${lim} de ${fmt(us.length)}. A planilha traz todos.</p>` : ''}` : '<span class="muted small">Nenhum vagão identificado para este material no período.</span>'}</div>` : ''}`;
+}
+async function exportarMaterial() {
+  const sel = S.matSel; if (!sel) return;
+  const us = usosMaterial(filtrar(linhasHist()), sel), [, , nomePer] = periodoDe(F.per);
+  try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
+  const aoa = [['Data', 'Hora', 'Turno', 'Trem', 'Posição no trem', 'Linha', 'Vagão', 'Material', 'Quantidade', 'Posições (sapata)', 'Equipe', 'Origem']]
+    .concat(us.map(({ r, x }) => [r.dataISO.split('-').reverse().join('/'), x.hora || '', r.turno || '', r.prefixo, x.posTrem || '', r.linha || '', x.vagao, sel, x.qtd, (x.pos || []).join(' '), x.equipe || '', r.forms ? 'Forms' : 'App']));
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [10, 6, 6, 8, 8, 7, 15, 28, 10, 14, 34, 7].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:L1' };
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Vagões');
+  const slug = sem => sem.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+  XLSX.writeFile(wb, `revistamento-zto-${slug(sel)}-${slug(nomePer)}.xlsx`);
+  toast('Planilha gerada (' + fmt(us.length) + ' linhas)');
+}
 function progMateriais() {
   const todas = linhasHist(), rows = filtrar(todas), ano = anoF(), sapNome = MAT.sapata.nome;
   const mat = {}, porVagao = {}, posSap = Object.fromEntries(POSICOES.map(p => [p, 0]));
@@ -1729,7 +1768,7 @@ function progMateriais() {
   return `${barraFiltros(todas)}
   <div class="kpis">${kpi('Sapatas trocadas', fmt(sap), nRev ? dec1(sap / nRev) + ' por trem revistado' : '')}${kpi('Itens aplicados', fmt(Object.values(mat).reduce((a, b) => a + b, 0)), 'todos os materiais')}${kpi('Vagões que receberam material', fmt(Object.keys(porVagao).length), 'vagões diferentes')}</div>
   <div class="grid">
-    <div class="card"><h2>Materiais mais consumidos <span class="dir">unidades</span></h2>${hbars(Object.entries(mat).sort((a, b) => b[1] - a[1]).slice(0, 12), 'un.')}</div>
+    ${tabelaMateriais(rows, mat)}
     <div class="card"><h2>Sapatas trocadas mês a mês <span class="dir">${ano}</span></h2>${colunas(meses, { fmtV: milC, larg: 46 })}</div>
     <div class="card"><h2>Sapatas trocadas por posição</h2>
       <div class="grade-sap leitura"><span></span><b>1</b><b>2</b><b>3</b><b>4</b>${['E', 'D'].map(l => `<b>${l}</b>${[1, 2, 3, 4].map(n => { const v = posSap[n + l]; return `<span class="cel" style="--a:${(0.12 + 0.88 * v / maxPos).toFixed(2)}" data-tip="Rodeiro ${n}, lado ${l === 'E' ? 'esquerdo' : 'direito'}: ${fmt(v)} sapatas">${fmt(v)}</span>`; }).join('')}`).join('')}</div>
@@ -2050,6 +2089,8 @@ document.addEventListener('click', async e => {
       S.valTrem = null; toast('Trem ' + t.prefixo + ' validado'); break;
     }
     case 'exportar': exportar(v); return;
+    case 'mat-sel': S.matSel = S.matSel === v ? null : v; render(); if (S.matSel) setTimeout(() => $('mat-vagoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return;
+    case 'exportar-mat': exportarMaterial(); return;
     case 'ver-vagao': e.preventDefault(); S.busca = v; S.papel = 'prog'; S.aba.prog = 'vagao'; break;
     case 'buscar': S.busca = $('busca').value; break;
     default: return;
@@ -2060,6 +2101,7 @@ document.addEventListener('change', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, N = S.novo, M = S.modal;
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
+  else if (a === 'f-dia') { F.per = el.value ? 'dia:' + el.value : 'mes:' + isoData(new Date()).slice(0, 7); render(); }
   else if (a === 'planos-xlsx') {
     const arq = el.files[0]; if (!arq) return;
     S.enviandoPlanos = true; render();
