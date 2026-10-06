@@ -324,6 +324,11 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .mat-tab tr.sel td { background: var(--info-bg); }
 .mat-barra { height: 12px; background: var(--track); border-radius: 999px; overflow: hidden; }
 .mat-barra i { display: block; height: 100%; background: var(--s1); border-radius: 0 4px 4px 0; }
+div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.foto-opcoes + * { margin-top: 0; }
+.foto-opcoes { display: grid; margin-bottom: 10px; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+.foto-opcoes .btn { position: relative; font-size: 15px; }
+.foto-opcoes input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -1260,8 +1265,10 @@ function modalVagao(M) {
     ${OCORRENCIAS.map(o => `<label class="radio ${M.oc.includes(o) ? 'marcado' : ''}"><input type="checkbox" data-act="oc" value="${esc(o)}" ${M.oc.includes(o) ? 'checked' : ''}> ${esc(o)}</label>`).join('')}
     ${blocoArvore(M)}
     <label class="campo" style="margin-top:12px">Observação<textarea id="obs-reg" style="font-family:inherit;font-size:16px;min-height:70px" placeholder="Ex.: rolamento com retentor estourado">${esc(M.obs)}</textarea></label>
-    <label class="campo">Foto<input type="file" accept="image/*" capture="environment" data-act="foto"></label>
-    ${M.foto ? '<p class="small" style="margin:-4px 0 10px"><span class="tag ok">📷 Foto pronta para enviar</span></p>' : M.temFoto ? '<p class="small" style="margin:-4px 0 10px"><span class="tag ok">📷 Já tem foto</span></p>' : ''}
+    <div class="campo">Foto
+      <div class="foto-opcoes"><label class="btn"><input type="file" accept="image/*" capture="environment" data-act="foto">📷 Tirar foto</label>
+        <label class="btn"><input type="file" accept="image/*" data-act="foto">🖼 Galeria</label></div></div>
+    ${M.foto ? '<p class="small" style="margin:0 0 10px"><span class="tag ok">📷 Foto pronta para enviar</span></p>' : M.temFoto ? '<p class="small" style="margin:0 0 10px"><span class="tag ok">📷 Já tem foto</span></p>' : ''}
     <button class="btn primary big" data-act="salvar-int">${M.validando ? 'Salvar correção' : 'Salvar vagão'}</button>
     ${M.validando ? '' : '<button class="btn" style="width:100%;margin-top:8px" data-act="modo" data-v="">Voltar</button>'}`;
 }
