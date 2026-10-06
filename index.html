@@ -314,7 +314,7 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .upload.plan-up .ic { font-size: 22px; }
 .aviso-plano { display: flex; gap: 8px; align-items: flex-start; background: var(--info-bg); color: var(--info); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 2px; font-size: 14px; }
 .aviso-plano b { color: var(--info); }
-.tag.plano { background: var(--info-bg); color: var(--info); }
+.tag.plano { background: var(--info-bg); color: var(--info); white-space: normal; }
 .pl-item { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
 .btn.perigo { color: var(--bad); border-color: var(--bad); }
 .vg.atencao { border-left: 4px solid var(--warn); }
@@ -329,6 +329,14 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .foto-opcoes { display: grid; margin-bottom: 10px; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
 .foto-opcoes .btn { position: relative; font-size: 15px; }
 .foto-opcoes input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.vg-bloco { display: flex; flex-direction: column; }
+.vg-bloco .vg { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.pl-acoes { background: var(--info-bg); border: 1px solid var(--line); border-top: 0; border-left: 4px solid var(--warn); border-radius: 0 0 var(--radius) var(--radius); padding: 8px 10px; }
+.pl-linha { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; font-size: 13px; font-weight: 700; color: var(--info); }
+.pl-linha + .pl-linha { margin-top: 6px; }
+.pl-linha .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+.pl-linha .btn.nao { background: var(--bad); border-color: var(--bad); color: #fff; }
+@media (max-width: 420px) { .pl-linha { grid-template-columns: 1fr 1fr; } .pl-linha span { grid-column: 1 / -1; } }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -591,7 +599,7 @@ function recalcCurto() {
   });
 }
 const regDe = r => ({ st: r.resultado, h: hm(r.hora), mats: r.materiais || [], oc: r.ocorrencias || [], obs: r.obs || '', foto: !!r.foto_url, fotoUrl: r.foto_url, motivo: r.motivo || '', falhas: r.falhas || [], val: r.val, valPor: r.val_por ? C(r.val_por).nome : '', antes: r.antes || '', equipe: r.equipe });
-function montarTrem(t, eqs, regs, dsv) {
+function montarTrem(t, eqs, regs, dsv, pex = []) {
   const vag = t.vagoes || [], ini = hm(t.inicio), fim = hm(t.fim);
   const tr = { id: t.id, prefixo: t.prefixo, data: deISO(t.data), dataISO: t.data, turno: t.turno, liderId: t.lider_id, lider: t.lider_id ? C(t.lider_id).nome : liderDe(t.turno), linha: t.linha, chegada: hm(t.chegada) || '–',
     vagoes: vag.map(v => v.cod), posFicha: vag.length && vag.every(v => v.pos != null) ? vag.map(v => v.pos) : null, restr: t.restricoes || {}, fichaNome: t.ficha_nome,
@@ -600,6 +608,7 @@ function montarTrem(t, eqs, regs, dsv) {
     reg: Object.fromEntries(regs.map(r => [r.posicao, regDe(r)])),
     desvios: dsv.sort((a, b) => a.ini.localeCompare(b.ini)).map(d => ({ id: d.id, ini: hm(d.ini), fim: hm(d.fim), motivo: d.motivo, obs: d.obs || '' })),
     validacao: { status: t.validacao, por: t.validado_por ? C(t.validado_por).nome : '', em: t.validado_em, parecer: t.parecer || '', corrigidos: regs.filter(r => r.val === 'corrigido').length } };
+  tr.pexec = {}; pex.forEach(x => ((tr.pexec[x.posicao] ||= {})[x.plano] = { ok: x.realizado, quando: x.quando, por: x.por ? C(x.por).nome : '' }));
   return tr;
 }
 const planoDe = p => ({ id: p.id, titulo: p.titulo, desc: p.descricao || '', turno: p.turno, eq: p.equipe, por: p.criado_por ? C(p.criado_por).nome : '—', criada: horaDe(p.criado_em), criadaData: p.criado_em, status: p.status, feitaEm: horaDe(p.feito_em), obs: p.obs_equipe || '', validadaEm: horaDe(p.validado_em), coment: p.comentario || '' });
@@ -651,14 +660,15 @@ async function carregar() {
   DB.colab = colab; recalcCurto();
   DB.me = colab.find(x => x.id === DB.me.id) || DB.me;
   const ids = trens.map(t => t.id);
-  const [eqs, regs, dsv] = ids.length ? await Promise.all([
+  const [eqs, regs, dsv, pex] = ids.length ? await Promise.all([
     emLotes(ids, l => sb.from('trem_equipes').select('*').in('trem_id', l)),
     emLotes(ids, l => sb.from('registros').select('*').in('trem_id', l).order('posicao')),
-    emLotes(ids, l => sb.from('desvios').select('*').in('trem_id', l))
-  ]) : [[], [], []];
+    emLotes(ids, l => sb.from('desvios').select('*').in('trem_id', l)),
+    emLotes(ids, l => sb.from('planos_execucao').select('trem_id,posicao,plano,realizado,quando,por').in('trem_id', l)).catch(() => [])   // 06-planos-execucao.sql
+  ]) : [[], [], [], []];
   const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
-  const pe = por(eqs, 'trem_id'), pr = por(regs, 'trem_id'), pd = por(dsv, 'trem_id');
-  DB.trens = trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || []));
+  const pe = por(eqs, 'trem_id'), pr = por(regs, 'trem_id'), pd = por(dsv, 'trem_id'), px = por(pex, 'trem_id');
+  DB.trens = trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || [], px[t.id] || []));
   DB.planos = planos.filter(p => ['aberta', 'feita', 'reaberta'].includes(p.status) || new Date(p.criado_em) > desde).map(planoDe);
   DB.equipesDia = eqd;
   if (prog) { DB.planosTodos = planos.map(planoDe); await carregarHist(); }
@@ -666,15 +676,15 @@ async function carregar() {
   DB.log = log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
   sincronizarEquipes();
   DB.carregado = true; DB.atualizadoEm = new Date();
-  if (DB.me.perfil !== 'programador') lsGravar('rzto_cache', { me: DB.me.id, colab, trens, planos, eqd, eqs, regs, dsv, em: Date.now() });
+  if (DB.me.perfil !== 'programador') lsGravar('rzto_cache', { me: DB.me.id, colab, trens, planos, eqd, eqs, regs, dsv, pex, em: Date.now() });
 }
 function usarCache() {
   const c = lsLer('rzto_cache', null);
   if (!c || c.me !== DB.me.id) return false;
   DB.colab = c.colab; recalcCurto();
   const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
-  const pe = por(c.eqs, 'trem_id'), pr = por(c.regs, 'trem_id'), pd = por(c.dsv, 'trem_id');
-  DB.trens = c.trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || []));
+  const pe = por(c.eqs, 'trem_id'), pr = por(c.regs, 'trem_id'), pd = por(c.dsv, 'trem_id'), px = por(c.pex || [], 'trem_id');
+  DB.trens = c.trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || [], px[t.id] || []));
   DB.planos = c.planos.map(planoDe); DB.equipesDia = c.eqd; DB.carregado = true; DB.atualizadoEm = new Date(c.em);
   sincronizarEquipes();
   return true;
@@ -1103,7 +1113,10 @@ function tagPlano(p) {
   return '<span class="tag neu">Aberto</span>';
 }
 const apontamentos = t => Object.entries(t.reg).filter(([, r]) => r.st !== 'ok' || r.val === 'corrigido').map(([p, r]) => ({ p: +p, r })).sort((a, b) => a.p - b.p);
-const comPlano = t => t.vagoes.map((c, i) => ({ p: i + 1, c, pp: planosPend(c) })).filter(x => x.pp.length);
+const comPlano = t => t.vagoes.map((c, i) => { const ex = (t.pexec || {})[i + 1] || {}, pp = planosPend(c).slice();
+  Object.keys(ex).forEach(n => { if (!pp.some(x => x.plano === n)) pp.push({ plano: n, prioridade: '' }); });
+  return { p: i + 1, c, pp, ex }; }).filter(x => x.pp.length);
+const tagExec = e => !e ? '<span class="tag neu">Sem resposta</span>' : e.ok ? '<span class="tag ok">✓ Realizado</span>' : '<span class="tag bad">✗ Não realizado</span>';
 const filaValidacao = () => DB.trens.filter(t => t.status === 'concluido' && t.validacao?.status === 'pendente' && (S.espFiltro === 'todos' || t.turno === meuTurnoV()));
 const filtroTurnoV = () => `<div class="chips"><button class="chip ${S.espFiltro === 'turno' ? 'on' : ''}" data-act="esp-filtro" data-v="turno">Meu turno (${meuTurnoV()})</button><button class="chip ${S.espFiltro === 'todos' ? 'on' : ''}" data-act="esp-filtro" data-v="todos">Todos os turnos</button></div>`;
 function espValidacao() {
@@ -1114,7 +1127,8 @@ function espValidacao() {
   <div class="grid">
     <div class="larga">${fila.length ? fila.map(t => { const aps = apontamentos(t), oc = aps.reduce((a, x) => a + x.r.oc.length, 0), feitos = aps.filter(x => x.r.val).length;
       return `<div class="card"><h2>Trem ${esc(t.prefixo)} <span class="dir">${dataBR(t.data)} · turno ${t.turno} · ${t.linha} · líder ${esc(t.lider)}</span></h2>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="tag info">${aps.length} apontamento(s)</span>${oc ? `<span class="tag bad">${oc} ocorrência(s)</span>` : ''}${(n => n ? `<span class="tag plano">📋 ${n} com plano especial</span>` : '')(comPlano(t).length)}<span class="small muted">${inspecionados(t)} de ${t.vagoes.length} vagões inspecionados${t.motivoParcial ? ' · ' + esc(t.motivoParcial) : ''}</span>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="tag info">${aps.length} apontamento(s)</span>${oc ? `<span class="tag bad">${oc} ocorrência(s)</span>` : ''}${(l => { if (!l.length) return ''; const tot = l.reduce((a, x) => a + x.pp.length, 0), sim = l.reduce((a, x) => a + Object.values(x.ex).filter(e => e.ok).length, 0), nao = l.reduce((a, x) => a + Object.values(x.ex).filter(e => !e.ok).length, 0);
+      return `<span class="tag plano">📋 ${l.length} com plano especial · ${sim} realizado(s)${nao ? ` · ${nao} não` : ''}${tot - sim - nao ? ` · ${tot - sim - nao} sem resposta` : ''}</span>`; })(comPlano(t))}<span class="small muted">${inspecionados(t)} de ${t.vagoes.length} vagões inspecionados${t.motivoParcial ? ' · ' + esc(t.motivoParcial) : ''}</span>
         ${feitos ? `<span class="small muted">· ${feitos} já conferido(s)</span>` : ''}<button class="btn sm primary" style="margin-left:auto" data-act="validar-trem" data-id="${t.id}">Validar →</button></div></div>`; }).join('')
       : '<div class="card"><p style="margin:0" class="muted">✓ Nenhum trem aguardando validação.</p></div>'}</div>
     <div class="card"><h2>Em revista agora <span class="dir">${andamento.length}</span></h2>${andamento.length ? andamento.map(t => `<p style="margin:0 0 6px"><b>${esc(t.prefixo)}</b> · turno ${t.turno} · ${t.linha} · ${Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100)}%${(n => n ? ` · <b style="color:var(--info)">📋 ${n} com plano especial</b>` : '')(comPlano(t).length)} <span class="small muted">· chega para validação quando o líder fechar</span></p>`).join('') : '<span class="muted small">Nenhum.</span>'}</div>
@@ -1129,8 +1143,9 @@ function telaValidar(t) {
     <p class="small muted" style="margin:0">Líder ${esc(t.lider)}${t.motivoParcial ? ' · inspeção parcial: ' + esc(t.motivoParcial) : ''}${t.desvios.length ? ' · desvio ' + dur(tempoDesvio(t)) : ''}${t.obsFech ? ' · “' + esc(t.obsFech) + '”' : ''}</p>
     ${falta ? `<div class="acoes"><button class="btn sm" data-act="val-todos" data-id="${t.id}">✓ Validar todos os que faltam (${falta})</button></div>` : ''}</div>
   ${(l => l.length ? `<div class="card"><h2>📋 Planos especiais deste trem <span class="dir">${l.length} vagão(ões) · conferir se a inspeção foi feita</span></h2>
-    ${l.map(({ p, c, pp }) => { const r = t.reg[p], d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: '–', membros: [] };
-      return `<div class="pl-item"><div style="flex:1;min-width:200px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(c)}</b> ${pp.map(x => `<span class="tag plano">📋 ${esc(x.plano)}${x.prioridade ? ' · ' + esc(x.prioridade) : ''}</span>`).join(' ')}<br>
+    ${l.map(({ p, c, pp, ex }) => { const r = t.reg[p], d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: '–', membros: [] };
+      return `<div class="pl-item"><div style="flex:1;min-width:200px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(c)}</b><br>
+        ${pp.map(x => `<span class="tag plano">📋 ${esc(x.plano)}${x.prioridade ? ' · ' + esc(x.prioridade) : ''}</span> ${tagExec(ex[x.plano])}${ex[x.plano] ? ` <span class="small muted">${esc(ex[x.plano].por || '')} · ${horaDe(ex[x.plano].quando)}</span>` : ''}`).join('<br>')}<br>
         ${r ? tagReg(r) + ' <span class="small">' + (r.st !== 'ok' || r.obs ? esc(txtReg(r)) : '<span class="muted">registrado OK, sem observação</span>') + '</span>' : '<span class="tag warn">Não registrado</span>'}<br>
         <span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}${r ? ' · ' + r.h : ''}</span></div>
         ${r && r.st !== 'pend' ? `<button class="btn sm" data-act="val-corrigir" data-id="${t.id}" data-p="${p}">✏ Corrigir</button>` : ''}</div>`; }).join('')}
@@ -1191,8 +1206,12 @@ function tecMeu() {
     if (S.tecFiltro === 'atencao' && !restrDe(t, pos) && !planosPend(t.vagoes[pos - 1]).length) continue;
     if (S.tecFiltro === 'feitos' && !r) continue;
     const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), reg = r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : '';
-    lista.push(`<button class="vg ${r ? 'feito' : ''} ${rf || pp.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
-      ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}</span>${tagReg(r)}</button>`);
+    const pex = (t.pexec || {})[pos] || {};
+    const botoesPlano = pp.length && !d.termino ? `<div class="pl-acoes">${pp.map(x => { const e = pex[x.plano]; return `<div class="pl-linha"><span>📋 ${esc(x.plano)}</span>
+      <button class="btn sm ${e?.ok === true ? 'ok' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="1">✓ Realizado</button>
+      <button class="btn sm ${e?.ok === false ? 'nao' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="0">✗ Não realizado</button></div>`; }).join('')}</div>` : '';
+    lista.push(`${botoesPlano ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
+      ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}</span>${tagReg(r)}</button>${botoesPlano ? botoesPlano + '</div>' : ''}`);
   }
   return `${meus.length > 1 ? `<div class="chips">${meus.map(x => `<button class="chip ${x.id === t.id ? 'on' : ''}" data-act="tec-trem" data-v="${x.id}">Trem ${esc(x.prefixo)} · ${x.linha}</button>`).join('')}</div>` : ''}
   <div class="card">
@@ -1995,6 +2014,13 @@ document.addEventListener('click', async e => {
       DB.trens = DB.trens.filter(x => x.id !== id); HIST.trens = HIST.trens.filter(x => x.id !== id);
       if (S.valTrem === id) S.valTrem = null;
       registrarLog('Apagou o trem ' + nome); toast('Trem ' + nome + ' apagado'); break;
+    }
+    case 'plano-exec': {
+      const t = tremPorId(S.tecTrem), pos = +el.dataset.p, plano = el.dataset.plano, ok = v === '1';
+      if (!t) return;
+      ((t.pexec ||= {})[pos] ||= {})[plano] = { ok, quando: new Date().toISOString(), por: DB.me.nome };
+      enviar({ tabela: 'planos_execucao', acao: 'upsert', onConflict: 'trem_id,posicao,plano', dados: { trem_id: t.id, posicao: pos, vagao: t.vagoes[pos - 1], plano, realizado: ok, quando: new Date().toISOString(), por: DB.me.id }, desc: 'Plano ' + plano + ' · ' + t.vagoes[pos - 1] });
+      toast((ok ? 'Plano realizado: ' : 'Plano não realizado: ') + plano); break;
     }
     case 'abrir': if (el.dataset.trem) S.tecTrem = el.dataset.trem; abrirVagao(+el.dataset.p); return;
     case 'fechar': S.modal = null; renderModal(); return;
