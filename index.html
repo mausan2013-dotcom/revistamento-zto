@@ -354,6 +354,25 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .tabela.nao-insp { font-size: 13px; } .tabela.nao-insp td, .tabela.nao-insp th { padding: 6px 5px; } .tabela.nao-insp .tag { white-space: normal; }
 .btn.finalizar { margin-top: 12px; flex-direction: column; gap: 2px; line-height: 1.25; }
 .btn.finalizar .small { font-weight: 600; opacity: .9; }
+.tabela.rel td, .tabela.rel th { white-space: normal; }
+.para-print, .relatorio-print { --bg: #ebf0f2; --card: #ffffff; --ink: #2b3a48; --title: #043865; --muted: #5f7180; --line: #d3dde3; --mark: #043865; --track: #e3eaee;
+  --ok: #138a6c; --ok-bg: #e1f4ee; --bad: #c62828; --bad-bg: #fdeaea; --warn: #c45a12; --warn-bg: #fff0e5; --info: #0b6fa8; --info-bg: #e3f2fb; --s1: #1b5fa8; --s2: #2ea3e3; --s3: #1f8a6a; --meta: #c62828; }
+.para-print { position: absolute; left: -10000px; top: 0; width: 1500px; padding: 24px; background: var(--bg); color: var(--ink); }
+.para-print .rep-main { grid-template-columns: repeat(12, minmax(0, 1fr)) !important; }
+.para-print .rep { grid-template-columns: minmax(0, 1fr) 270px !important; }
+.para-print .rol-x { overflow: visible; }
+.para-print .rol-x.denso .plot .c .v { display: none; }
+.para-print .rol-x.denso .plot { gap: 1px; }
+.para-print .rol-x.denso .plot .c i { width: 100%; border-radius: 1px 1px 0 0; }
+.para-print .rol-x.denso .xs span { overflow: visible; }
+.para-print .rol-x.denso .xs b { display: none; }
+.xs-pontas { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+.para-print .rep-main .c1, .para-print .rep-main .c2 { grid-column: span 2 !important; } .para-print .rep-main .c3 { grid-column: span 5 !important; } .para-print .rep-main .c4 { grid-column: span 3 !important; }
+.para-print .rep-main .c5, .para-print .rep-main .c6, .para-print .rep-main .c7, .para-print .rep-main .c8 { grid-column: span 3 !important; }
+.para-print .rep-main .c9, .para-print .rep-main .c10, .para-print .rep-main .c11, .para-print .rep-main .c12 { grid-column: span 6 !important; }
+.para-print .rep-main .c13, .para-print .rep-main .c14 { grid-column: 1 / -1 !important; }
+.para-print .rep-planos { display: flex !important; flex-direction: column; }
+.para-print .rcard .rv { font-size: 30px; } .para-print .rcard { padding: 12px 16px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -753,7 +772,7 @@ addEventListener('online', processarFila);
 const S = {
   papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'geral' }, turnoVer: SERVICO.turno, verTec: null,
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
-  novo: null, busca: '', supLanca: false, supData: null, supTrem: null, tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
+  novo: null, busca: '', relData: null, relPref: 'todos', supLanca: false, supData: null, supTrem: null, tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
 const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog' };
 const ehProg = () => DB.me?.perfil === 'programador';
@@ -890,7 +909,7 @@ function txtReg(r) {
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe']],
-  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['validados', 'Validados']],
+  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados']],
   tec: [['meu', 'Meu turno']],
   prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['cadastros', 'Cadastros']]
 };
@@ -971,6 +990,17 @@ function supVisaoTec() {
          <button class="btn sm" data-act="sup-lanca" data-v="1">✏ Lançar por este mecânico</button>`}</div>
   <div class="${S.supLanca ? '' : 'somente-leitura'}">${tecs.length ? tecMeu() : '<div class="card muted">Nenhum mecânico ativo neste turno.</div>'}</div>`;
 }
+function cardComposicoes(tt) {
+  const dia = dataOp(), ts = DB.trens.filter(t => t.turno === tt && t.dataISO === dia).sort((a, b) => (a.ordem ?? 1e9) - (b.ordem ?? 1e9) || a.criadoEm.localeCompare(b.criadoEm));
+  if (!ts.length) return '';
+  const linha = t => { const nao = []; t.vagoes.forEach((c, i) => { const r = t.reg[i + 1]; if (!r || r.st === 'pend') nao.push(+posF(t, i + 1)); });
+    const pct = t.vagoes.length ? (t.vagoes.length - nao.length) / t.vagoes.length * 100 : 0, st = t.status === 'andamento' ? 'em revista' : t.status === 'nao_revistado' ? 'não revistado' : 'fechado';
+    return `<tr><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${esc(t.linha)} · ${st}</span></td><td class="num"><b style="color:${pct >= 100 ? 'var(--ok)' : pct >= META_ADER ? 'var(--ink)' : 'var(--bad)'}">${t.status === 'nao_revistado' ? '0' : pct1(t.vagoes.length - nao.length, t.vagoes.length)}%</b><br><span class="small muted">${t.vagoes.length - nao.length}/${t.vagoes.length}</span></td><td class="small">${t.status === 'nao_revistado' ? 'trem não revistado' : nao.length ? `<b>${nao.length}</b> · pos. ${faixasPos(nao.sort((a, b) => a - b))}` : '<span style="color:var(--ok);font-weight:700">todos revisados</span>'}</td></tr>`; };
+  return `<div class="card relatorio-print" id="rel-comp"><h2>Composições do turno <span class="dir">${dataBR(deISO(dia))} · turno ${tt} · ${esc(liderDe(tt))}</span></h2>
+    <table class="tabela compacta rel"><thead><tr><th>Trem</th><th class="num">Revisados</th><th>Não revisados (posição na ficha)</th></tr></thead><tbody>${ts.map(linha).join('')}</tbody></table>
+    <p class="small muted" style="margin:8px 0 0">Revistamento ZTO · ${dataBR(new Date())} ${agora()}</p>
+    <div class="acoes" data-sem-print><button class="btn sm primary" data-act="print-comp">📸 Print e enviar pelo WhatsApp</button></div></div><div style="height:12px"></div>`;
+}
 function cardFila(tt) {
   const f = filaTurno(tt);
   if (f.length < 1) return '';
@@ -996,7 +1026,7 @@ function supTurno() {
   return `<div class="faixa-turno"><h2>Turno ${tt}${SERVICO.turno === tt ? ' · ' + HORARIO[SERVICO.h] : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(new Date())}/${new Date().getFullYear()} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
   ${!S.eqSalvo[tt] ? `<p class="nota">As equipes de hoje ainda não foram confirmadas. <button class="btn sm" data-act="aba" data-v="equipes">Montar equipes →</button></p>` : ''}
   <div class="grid">
-    <div>${cardFila(tt)}${meus.map(cardTrem).join('<div style="height:12px"></div>') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
+    <div>${cardFila(tt)}${cardComposicoes(tt)}${meus.map(cardTrem).join('<div style="height:12px"></div>') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
     <div class="card"><h2>Ocorrências e intervenções <span class="dir">${eventos.length}</span></h2><ul class="feed">${eventos.slice(0, 20).map(e => `<li><span class="h">${e.h}</span><span class="${e.cls === 'bad' ? 'ev-bad' : ''}">${e.txt}</span></li>`).join('') || '<li><span></span><span class="muted">Nada registrado ainda.</span></li>'}</ul></div>
     <div>
       <div class="card"><h2>Fechados no turno <span class="dir">${fechados.length}</span></h2>${fechados.length ? `<table class="tabela"><thead><tr><th>Trem</th><th class="num">Inspec.</th><th class="num">Tempo</th><th>Validação</th></tr></thead><tbody>${fechados.map(t => `<tr><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span></td><td class="num">${t.status === 'nao_revistado' ? '<span class="tag warn">Não revistado</span>' : Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100) + '%'}</td><td class="num">${t.durMin ? dur(t.durMin) : '–'}</td><td>${tagVal(t)}</td></tr>`).join('')}</tbody></table>` : '<span class="muted small">Nenhum ainda.</span>'}</div>
@@ -1238,6 +1268,34 @@ function espPlanos() {
     ${grupo('Validados', lista.filter(p => p.status === 'validada').slice(0, 15), false)}
   </div>`;
 }
+function linhasRelPlanos() {
+  const mt = S.espFiltro === 'todos' ? null : meuTurnoV(); if (!S.relData) S.relData = isoData(new Date());
+  const doDia = DB.trens.filter(t => t.dataISO === S.relData && (!mt || t.turno === mt));
+  const prefs = [...new Set(doDia.map(t => t.prefixo))].sort(); if (S.relPref !== 'todos' && !prefs.includes(S.relPref)) S.relPref = 'todos';
+  const linhas = [];
+  doDia.filter(t => S.relPref === 'todos' || t.prefixo === S.relPref).forEach(t => t.vagoes.forEach((c, i) => {
+    const p = i + 1, ex = (t.pexec || {})[p] || {}, nomes = new Set([...planosPend(c).map(x => x.plano), ...Object.keys(ex)]);
+    nomes.forEach(n => linhas.push({ t, p, c, plano: n, e: ex[n] }));
+  }));
+  return { linhas, prefs, mt };
+}
+function espRelPlanos() {
+  const { linhas, prefs, mt } = linhasRelPlanos(), grupos = Object.entries(porChave(linhas, x => x.plano)).sort((a, b) => a[0].localeCompare(b[0]));
+  const cont = l => ({ sim: l.filter(x => x.e?.ok === true).length, nao: l.filter(x => x.e?.ok === false).length, sem: l.filter(x => !x.e).length });
+  const tot = cont(linhas), resultado = e => !e ? '<span class="tag neu">Sem resposta</span>' : e.ok ? '<span class="tag ok">✓ Realizado</span>' : '<span class="tag bad">✗ Não realizado</span>';
+  return `${filtroTurnoV()}
+  <div class="card" data-sem-print><div class="linha-campos"><label class="campo">Data<input type="date" data-act="rel-data" value="${S.relData}" max="${isoData(new Date())}"></label>
+    <label class="campo">Prefixo<select data-act="rel-pref"><option value="todos">Todos</option>${prefs.map(p => `<option ${p === S.relPref ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label></div>
+    <button class="btn primary" data-act="print-planos" ${linhas.length ? '' : 'disabled'}>📸 Print e enviar pelo WhatsApp</button></div>
+  <div class="card relatorio-print" id="rel-planos">
+    <h2>Planos especiais por tipo <span class="dir">${S.relData.split('-').reverse().join('/')} · ${S.relPref === 'todos' ? 'todos os trens' : 'trem ' + esc(S.relPref)} · ${mt ? 'turno ' + mt : 'todos os turnos'}</span></h2>
+    ${linhas.length ? `<p class="small" style="margin:0 0 10px"><b>${linhas.length}</b> vagão(ões) com plano · <span style="color:var(--ok);font-weight:700">${tot.sim} realizado(s)</span> · <span style="color:var(--bad);font-weight:700">${tot.nao} não realizado(s)</span> · <span class="muted">${tot.sem} sem resposta</span></p>
+    ${grupos.map(([n, l]) => { const c = cont(l); return `<div class="secao">📋 ${esc(n)} <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">${l.length} vagão(ões) · ${c.sim} realizado · ${c.nao} não · ${c.sem} sem resposta</span></div>
+      <table class="tabela compacta rel"><thead><tr><th>Vagão</th><th>Trem</th><th class="num">Pos.</th><th>Resultado</th></tr></thead><tbody>
+      ${l.sort((a, b) => a.t.prefixo.localeCompare(b.t.prefixo) || a.p - b.p).map(x => `<tr><td><b>${esc(x.c)}</b></td><td>${esc(x.t.prefixo)}</td><td class="num">${posF(x.t, x.p)}</td><td>${resultado(x.e)}${x.e ? `<br><span class="small muted">${esc((x.e.por || '').split(' ').slice(0, 2).join(' '))} · ${horaDe(x.e.quando)}</span>` : ''}</td></tr>`).join('')}
+      </tbody></table>`; }).join('')}` : '<p class="muted small" style="margin:0">Nenhum vagão com plano especial nos trens deste filtro.</p>'}
+    <p class="small muted" style="margin:10px 0 0">Revistamento ZTO · gerado em ${dataBR(new Date())} ${agora()} por ${esc(DB.me.nome)}</p></div>`;
+}
 function espValidados() {
   const lst = DB.trens.filter(t => t.validacao?.status === 'validado' && (S.espFiltro === 'todos' || t.turno === meuTurnoV())).slice().reverse().slice(0, 30);
   return `${filtroTurnoV()}<div class="card"><h2>Trens validados <span class="dir">últimos ${lst.length}</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Apontamentos</th><th class="num">Corrigidos</th><th>Validado por</th><th>Parecer</th></tr></thead><tbody>
@@ -1432,6 +1490,40 @@ function modalFechar(M) {
     <div class="secao">Materiais aplicados</div>${Object.keys(mats).length ? `<p class="small" style="margin:0">${Object.entries(mats).map(([n, q]) => `${q}× ${esc(n)}`).join(' · ')}</p>` : '<p class="small muted">Nenhum.</p>'}
     <label class="campo" style="margin-top:12px">Observações do líder<textarea id="obs-fech" style="font-family:inherit;font-size:15px;min-height:60px">${esc(M.obs)}</textarea></label>
     <button class="btn primary big" data-act="confirmar-fech" ${naoIns && !M.motivoParcial ? 'disabled' : ''}>Confirmar e fechar trem</button>`;
+}
+
+// ---------- print (imagem) e envio pelo WhatsApp ----------
+const scriptsCarregados = {};
+function carregarScript(url) {
+  return scriptsCarregados[url] ||= new Promise((ok, erro) => { const sc = document.createElement('script'); sc.src = url; sc.onload = ok;
+    sc.onerror = () => { delete scriptsCarregados[url]; erro(new Error('Sem internet para gerar a imagem')); }; document.head.appendChild(sc); });
+}
+async function gerarImagem(el) {
+  await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  const c = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', ignoreElements: e => e.hasAttribute && e.hasAttribute('data-sem-print') });
+  return new Promise(ok => c.toBlob(ok, 'image/png'));
+}
+// celular: abre o menu de compartilhar (escolha o WhatsApp) já com a imagem; computador: baixa a imagem e abre o WhatsApp com o texto
+async function compartilharImagem(blob, nome, texto, whats = true) {
+  const arq = new File([blob], nome, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [arq] })) {
+    try { await navigator.share({ files: [arq], text: texto }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; a.click();
+  if (whats) window.open('https://wa.me/?text=' + encodeURIComponent(texto + '\n\n(anexe a imagem ' + nome + ', que foi baixada)'), '_blank');
+  else toast('Imagem baixada: ' + nome);
+}
+async function printDe(id, nome, texto, whats = true) {
+  const el = $(id); if (!el) return;
+  toast('Gerando imagem…');
+  try { await compartilharImagem(await gerarImagem(el), nome, texto, whats); } catch (e) { toast('⚠ ' + e.message); }
+}
+// posições -> faixas: [3,4,5,9] -> "3–5, 9"
+function faixasPos(ns) {
+  const out = []; let a = null, b = null;
+  ns.forEach(n => { if (a == null) { a = b = n; } else if (n === b + 1) b = n; else { out.push(a === b ? a : a + '–' + b); a = b = n; } });
+  if (a != null) out.push(a === b ? a : a + '–' + b);
+  return out.join(', ');
 }
 
 // ---------- PROGRAMADOR ----------
@@ -1765,6 +1857,25 @@ function tabelaPlanos(planos) {
     ${chegando.map(r => `<tr><td>${r.previsao ? dataBR(new Date(r.previsao)) + ' ' + horaDe(r.previsao) : '–'}</td><td><b>${esc(r.trem)}</b>${r.os ? `<br><span class="small muted">OS ${esc(r.os)}</span>` : ''}</td><td class="num">${r.posicao ?? '–'}</td><td><b>${esc(r.vagao)}</b></td><td>${esc(r.plano)}</td><td>${esc(r.prioridade || '')}</td><td>${esc(r.local || '')}</td></tr>`).join('')}
   </tbody></table></div>` : '<span class="muted small">Nenhum vagão com plano pendente em trem para ZTO.</span>'}</div>`;
 }
+async function printAderencia() {
+  const [, , nomePer] = periodoDe(F.per), box = document.createElement('div');
+  box.className = 'para-print relatorio-aderencia'; box.innerHTML = progAderencia();
+  box.querySelectorAll('.filtros-bar, .nota, .plan-up, .leg-planos, [data-sem-print]').forEach(e => e.remove());
+  const c14 = box.querySelectorAll('.c14'); if (c14.length > 1) c14[c14.length - 1].remove();       // lista longa de vagões chegando fica fora do report
+  // gráficos dia a dia com muitos dias: cabem na largura, sem os números em cima das colunas e com datas espaçadas
+  box.querySelectorAll('.rol-x').forEach(r => { const inner = r.firstElementChild, n = r.querySelectorAll('.plot .c, .hits span').length;
+    if (inner) inner.style.minWidth = '0';
+    if (n > 35) { r.classList.add('denso'); const xs = r.querySelector('.xs'), sp = [...(xs?.children || [])].map(x => x.textContent.trim()).filter(Boolean);
+      if (xs && sp.length) xs.outerHTML = `<div class="xs-pontas"><span>${esc(sp[0])}</span><span>${esc(sp[sp.length - 1])}</span></div>`; } });
+  // datas das pontas: primeira e última do período (dias com trem)
+  box.querySelectorAll('.xs-pontas').forEach(x => { const d = Object.keys(porChave(filtrar(linhasHist().filter(r => !porClima(r))), r => r.dataISO)).sort(); if (d.length) x.innerHTML = `<span>${diaRot(d[0])}</span><span>${diaRot(d[d.length - 1])}</span>`; });
+  const topo = box.querySelector('.rep-topo'); if (topo) topo.innerHTML = `<div><h2>Revistamento ZTO · Report de passagens de trens</h2><span>Período: ${esc(nomePer)}${F.turno !== 'todos' ? ' · turno ' + F.turno : ''}${F.linha !== 'todas' ? ' · ' + F.linha : ''} · trens não revistados por condições climáticas fora do cálculo</span></div><b>Gerado em ${dataBR(new Date())}/${new Date().getFullYear()} ${agora()}</b>`;
+  document.body.appendChild(box);
+  toast('Gerando o report…');
+  try { await new Promise(r => setTimeout(r, 150)); const blob = await gerarImagem(box); await compartilharImagem(blob, `report-revistamento-zto-${nomePer.replace(/[^\w]+/g, '-')}.png`, 'Report de passagens de trens · Revistamento ZTO · ' + nomePer, false); }
+  catch (e) { toast('⚠ ' + e.message); }
+  box.remove();
+}
 // regra da aderência: trem não revistado por condições climáticas não entra no cálculo
 const porClima = r => !r.rev && /clim/i.test(r.motivoNao || '');
 function progAderencia() {
@@ -1779,6 +1890,7 @@ function progAderencia() {
   const planos = planosAderencia(), ok = A.ader >= META_ADER;
   const card = (rot, v, extra = '', cls = '') => `<div class="rcard ${cls}"><div class="rr">${rot}</div><div class="rv">${v}</div>${extra}</div>`;
   return `${barraFiltros(base)}
+  <div class="acoes" style="margin:0 0 10px" data-sem-print><button class="btn sm primary" data-act="print-aderencia">📸 Print do report (para e-mail)</button></div>
   <div class="rep-topo"><div><h2>Report · Passagens de trens em ZTO</h2><span>Baseado nos trens lançados pelos líderes do revistamento · ${esc(nomePer)}</span></div><b>${dataBR(new Date())}/${new Date().getFullYear()}</b></div>
   ${clima ? `<p class="nota">Trens não revistados por <b>condições climáticas</b> ficam fora do cálculo desta aba (${fmt(clima)} no período).</p>` : ''}
   <div class="rep">
@@ -1983,7 +2095,7 @@ function exportar(tipo) {
 const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao },
   tec: { meu: tecMeu },
-  esp: { validacao: espValidacao, planos: espPlanos, validados: espValidados },
+  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados },
   prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, materiais: progMateriais, vagao: progVagao, cadastros: progCadastros }
 };
 
@@ -2186,6 +2298,12 @@ document.addEventListener('click', async e => {
       registrarLog(`Editou o término do trem ${M.prefixo} (${diaRot(M.data)}) de ${M.fim || '–'} para ${novo}. Motivo: ${motivo}`);
       S.modal = null; toast('Término do ' + M.prefixo + ' alterado para ' + novo); break;
     }
+    case 'print-planos': {
+      const { linhas } = linhasRelPlanos(), sim = linhas.filter(x => x.e?.ok === true).length, nao = linhas.filter(x => x.e?.ok === false).length;
+      printDe('rel-planos', `planos-especiais-${S.relData}${S.relPref !== 'todos' ? '-' + S.relPref : ''}.png`, `*Planos especiais · ${S.relData.split('-').reverse().join('/')}${S.relPref !== 'todos' ? ' · trem ' + S.relPref : ''}*\n${linhas.length} vagões com plano: ${sim} realizados, ${nao} não realizados, ${linhas.length - sim - nao} sem resposta.`); return;
+    }
+    case 'print-comp': printDe('rel-comp', `composicoes-turno-${T()}-${dataOp()}.png`, `*Composições do turno ${T()} · ${dataBR(deISO(dataOp()))}*\nPercentual revisado e posição dos vagões não revisados.`); return;
+    case 'print-aderencia': printAderencia(); return;
     case 'nao-insp': S.modal = { tipo: 'naoinsp', id: el.dataset.id }; renderModal(); return;
     case 'novo-desvio': S.modal = { tipo: 'desvio', id: el.dataset.id, motivo: '' }; renderModal(); return;
     case 'salvar-desvio': {
@@ -2295,6 +2413,8 @@ document.addEventListener('change', async e => {
     t.chegada = el.value; enviar({ tabela: 'trens', acao: 'update', dados: { chegada: el.value }, filtro: [['id', 'eq', t.id]], desc: 'Chegada do trem ' + t.prefixo });
     toast('Chegada do ' + t.prefixo + ': ' + el.value); render();
   }
+  else if (a === 'rel-data') { S.relData = el.value || isoData(new Date()); render(); }
+  else if (a === 'rel-pref') { S.relPref = el.value; render(); }
   else if (a === 'f-dia') { F.per = el.value ? 'dia:' + el.value : 'mes:' + isoData(new Date()).slice(0, 7); render(); }
   else if (a === 'planos-xlsx') {
     const arq = el.files[0]; if (!arq) return;
