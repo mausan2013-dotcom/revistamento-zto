@@ -352,6 +352,8 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .trem-info .tag { font-size: 13px; padding: 4px 10px; }
 .card.visao-tec.lancando { border-left-color: var(--warn); }
 .tabela.nao-insp { font-size: 13px; } .tabela.nao-insp td, .tabela.nao-insp th { padding: 6px 5px; } .tabela.nao-insp .tag { white-space: normal; }
+.btn.finalizar { margin-top: 12px; flex-direction: column; gap: 2px; line-height: 1.25; }
+.btn.finalizar .small { font-weight: 600; opacity: .9; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -664,7 +666,7 @@ const planosPend = cod => PEND.mapa[cod] || [];
 const txtPlanos = l => l.map(x => x.plano).join(', ');
 
 async function carregar() {
-  const prog = DB.me.perfil === 'programador', dias = prog ? 35 : 3;
+  const prog = DB.me.perfil === 'programador', dias = prog ? 35 : DB.me.perfil === 'supervisor' ? 7 : 3;
   const desde = new Date(); desde.setDate(desde.getDate() - dias);
   const [colab, trens, planos, eqd, log] = await Promise.all([
     tudo(() => sb.from('colaboradores').select('*').order('nome')),
@@ -751,7 +753,7 @@ addEventListener('online', processarFila);
 const S = {
   papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'geral' }, turnoVer: SERVICO.turno, verTec: null,
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
-  novo: null, busca: '', supLanca: false, tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
+  novo: null, busca: '', supLanca: false, supData: null, supTrem: null, tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
 const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog' };
 const ehProg = () => DB.me?.perfil === 'programador';
@@ -951,10 +953,19 @@ function cardTrem(t) {
 // líder vê o app como um mecânico do próprio turno (só visualização: quem registra é o mecânico, no celular dele)
 const visaoTecSup = () => S.papel === 'sup' && S.aba.sup === 'tecvisao';
 function supVisaoTec() {
-  const tt = T(), tecs = ativos(tt), eqs = EQ(tt);
+  const tt = T(), hoje = isoData(new Date()); if (!S.supData) S.supData = dataOp();
+  const doDia = DB.trens.filter(t => t.turno === tt && t.dataISO === S.supData).sort((a, b) => (a.ordem ?? 1e9) - (b.ordem ?? 1e9) || a.criadoEm.localeCompare(b.criadoEm));
+  if (S.supTrem && !doDia.some(t => t.id === S.supTrem)) S.supTrem = null;
+  if (!S.supTrem && S.supData !== dataOp() && doDia.length) S.supTrem = doDia[0].id;
+  const trem = S.supTrem ? tremQualquer(S.supTrem) : null;
+  // com um trem escolhido, os mecânicos são os das equipes daquele trem
+  const tecs = trem ? [...new Set(trem.dist.flatMap(x => x.membros))] : ativos(tt), eqs = trem ? trem.dist : EQ(tt);
   if (!tecs.includes(S.verTec)) S.verTec = (eqs.find(e => e.membros.length)?.membros[0]) || tecs[0] || null;
+  const stTrem = t => t.status === 'andamento' ? 'em revista' : t.status === 'nao_revistado' ? 'não revistado' : t.validacao?.status === 'validado' ? 'validado' : 'fechado';
+  const filtros = `<div class="linha-campos" style="margin-bottom:6px"><label class="campo">Data<input type="date" data-act="sup-data" value="${S.supData}" max="${hoje}" min="${isoData(new Date(Date.now() - 6 * 864e5))}"></label>
+    <label class="campo">Composição<select data-act="sup-trem">${S.supData === dataOp() ? `<option value="" ${!S.supTrem ? 'selected' : ''}>Fila atual do turno</option>` : ''}${doDia.map(t => `<option value="${t.id}" ${t.id === S.supTrem ? 'selected' : ''}>${esc(t.prefixo)} · ${esc(t.linha)} · ${stTrem(t)}</option>`).join('')}${!doDia.length && S.supData !== dataOp() ? '<option value="">Nenhum trem neste dia</option>' : ''}</select></label></div>`;
   const op = id => { const e = eqs.find(x => x.membros.includes(id)); return `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}${e ? ' · Equipe ' + e.n : ' · sem equipe hoje'}</option>`; };
-  return `<div class="card visao-tec ${S.supLanca ? 'lancando' : ''}"><label class="campo" style="margin:0">Ver o app como o mecânico<select data-act="ver-tec">${tecs.map(op).join('')}</select></label>
+  return `<div class="card visao-tec ${S.supLanca ? 'lancando' : ''}">${filtros}<label class="campo" style="margin:0">Ver o app como o mecânico<select data-act="ver-tec">${tecs.map(op).join('')}</select></label>
     ${S.supLanca ? `<div class="alerta" style="margin:10px 0 0"><span>✏ <b>Lançando por ${esc(nomeTec(S.verTec) || '')}.</b> Os registros ficam com o seu nome em “apontado por”.</span><button class="btn sm" data-act="sup-lanca" data-v="0">Parar de lançar</button></div>`
       : `<p class="small muted" style="margin:8px 0 8px">Você vê exatamente o que aparece no celular dele (trem, faixa de vagões, avisos e planos). Para registrar no lugar dele, quando for necessário:</p>
          <button class="btn sm" data-act="sup-lanca" data-v="1">✏ Lançar por este mecânico</button>`}</div>
@@ -1246,7 +1257,8 @@ function atencaoFaixa(t, d) {
 const eqDoTrem = t => t.dist.findIndex(d => d.membros.includes(uidTec()));
 function tecMeu() {
   if (!uidTec()) return '<div class="card muted">Escolha um mecânico na barra acima.</div>';
-  const minhaFila = filaTurno(T()).filter(t => eqDoTrem(t) >= 0), abertos = minhaFila.filter(t => !t.dist[eqDoTrem(t)].termino);
+  const escolhido = visaoTecSup() && S.supTrem ? tremQualquer(S.supTrem) : null;      // líder escolheu um trem do dia
+  const minhaFila = escolhido ? [escolhido].filter(t => eqDoTrem(t) >= 0) : filaTurno(T()).filter(t => eqDoTrem(t) >= 0), abertos = escolhido ? minhaFila : minhaFila.filter(t => !t.dist[eqDoTrem(t)].termino);
   // um trem por vez: continua no que a equipe já iniciou; senão, o primeiro da fila do líder.
   // "Avançar" (imprevisto) deixa o trem aberto e passa para o próximo; dá para voltar.
   S.tecPulados = S.tecPulados.filter(id => abertos.some(t => t.id === id));
@@ -1264,7 +1276,7 @@ function tecMeu() {
     if (S.tecFiltro === 'feitos' && !r) continue;
     const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), reg = r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : '';
     const pex = (t.pexec || {})[pos] || {};
-    const botoesPlano = pp.length && !d.termino ? `<div class="pl-acoes">${pp.map(x => { const e = pex[x.plano]; return `<div class="pl-linha"><span>📋 ${esc(x.plano)}</span>
+    const botoesPlano = pp.length && (!d.termino || escolhido) ? `<div class="pl-acoes">${pp.map(x => { const e = pex[x.plano]; return `<div class="pl-linha"><span>📋 ${esc(x.plano)}</span>
       <button class="btn sm ${e?.ok === true ? 'ok' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="1">✓ Realizado</button>
       <button class="btn sm ${e?.ok === false ? 'nao' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="0">✗ Não realizado</button></div>`; }).join('')}</div>` : '';
     lista.push(`${botoesPlano ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
@@ -1285,8 +1297,10 @@ function tecMeu() {
     ${seguintes.length && !d.termino ? `<button class="btn sm avancar" data-act="tec-avancar" data-id="${t.id}" data-nome="${esc(t.prefixo)}" data-prox="${esc(seguintes[0].prefixo)}">⏭ Avançar para o próximo trem (${esc(seguintes[0].prefixo)}) sem encerrar este</button>` : ''}
   </div>
   ${planosEquipe()}
-  ${d.inicio ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos'], ...(atencaoFaixa(t, d).length ? [['atencao', '⚠ Atenção ' + atencaoFaixa(t, d).length]] : [])].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
-  <div class="vagoes">${lista.join('') || '<div class="card muted">Nada nesta lista.</div>'}</div>` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
+  ${t.status !== 'andamento' ? `<p class="nota" style="margin:0 0 10px">Trem <b>${t.status === 'nao_revistado' ? 'não revistado' : 'fechado'}</b> em ${dataBR(t.data)}. ${S.supLanca ? 'Os lançamentos entram neste trem (e na validação, se ainda não validado).' : ''}</p>` : ''}
+  ${d.inicio || escolhido ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos'], ...(atencaoFaixa(t, d).length ? [['atencao', '⚠ Atenção ' + atencaoFaixa(t, d).length]] : [])].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
+  <div class="vagoes">${lista.join('') || '<div class="card muted">Nada nesta lista.</div>'}</div>
+  ${(n => n && (!d.termino || escolhido) ? `<button class="btn ok big finalizar" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">${n} vagão(ões) sem apontamento serão registrados como OK</span></button>` : '')(p.total - p.n)}` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
 }
 // planos especiais enviados pelo validador para a equipe (ficam no próprio Meu turno)
 function planosEquipe() {
@@ -2072,6 +2086,17 @@ document.addEventListener('click', async e => {
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
     case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
+    case 'finalizar-bloco': {
+      const t = tremQualquer(el.dataset.id), d = t && t.dist[eqDoTrem(t)]; if (!d) return;
+      const livres = []; for (let p = d.ini; p <= d.fim; p++) if (!t.reg[p]) livres.push(p);
+      if (!livres.length) return;
+      const semResp = livres.filter(p => planosPend(t.vagoes[p - 1]).some(x => !((t.pexec || {})[p] || {})[x.plano]));
+      if (!confirm(`Registrar ${livres.length} vagão(ões) sem apontamento como OK (revistado, sem intervenção)?` + (semResp.length ? `\n\nAtenção: ${semResp.length} deles têm plano especial sem resposta (Realizado / Não realizado).` : '') + `\n\nOs vagões com defeito ou informação devem ser registrados antes.`)) return;
+      const h = agora(), linhas = livres.map(p => ({ trem_id: t.id, posicao: p, vagao: t.vagoes[p - 1], equipe: d.n, hora: h, resultado: 'ok', materiais: [], ocorrencias: [], obs: null, motivo: null, falhas: [] }));
+      enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', dados: linhas, desc: `Bloco de ${livres.length} vagões (${t.prefixo})` });
+      livres.forEach(p => t.reg[p] = { st: 'ok', h, mats: [], oc: [], obs: '', motivo: '', falhas: [], equipe: d.n });
+      toast(`${livres.length} vagões registrados como OK`); window.scrollTo(0, 0); break;
+    }
     case 'sup-lanca':
       if (v === '1' && !confirm(`Lançar registros por ${nomeTec(S.verTec)}?\n\nUse quando o mecânico não conseguir registrar (sem celular, sem bateria…). Tudo o que você lançar fica com o seu nome em “apontado por”.`)) return;
       S.supLanca = v === '1'; break;
@@ -2260,6 +2285,8 @@ document.addEventListener('change', async e => {
   }
   else if (a === 'turno-ver') { S.turnoVer = el.value; S.planoTurno = el.value; S.novo = novoVazio(); S.valTrem = null; render(); }
   else if (a === 'ver-tec') { S.verTec = el.value; S.tecTrem = null; S.supLanca = false; render(); }
+  else if (a === 'sup-data') { S.supData = el.value || dataOp(); S.supTrem = null; S.supLanca = false; render(); }
+  else if (a === 'sup-trem') { S.supTrem = el.value || null; S.supLanca = false; render(); }
   else if (a === 'plano-turno') { S.planoTurno = el.value; render(); }
   else if (a === 'novo-campo') { N[el.dataset.k] = el.value; if (el.dataset.k === 'texto') { N.lidos = null; N.dist = null; } render(); }
   else if (a === 'dist-fim') {
