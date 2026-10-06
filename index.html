@@ -1708,6 +1708,25 @@ function trensFiltrados() {
   return fechadosT().filter(t => t.dataISO >= a && t.dataISO <= b && (F.turno === 'todos' || t.turno === F.turno) && (F.linha === 'todas' || t.linha === F.linha)
     && (F.prefixo === 'todos' || t.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === (t.status === 'concluido')));
 }
+// empresa de cada vagão (arquivo vagoes-empresa.json, gerado da planilha "EMPRESA DOS VAGÕES"); baixa só quando precisa
+const EMP = { mapa: null, semDv: null, num: null, carregando: false };
+async function carregarEmpresas() {
+  if (EMP.mapa || EMP.carregando) return; EMP.carregando = true;
+  try {
+    const m = await (await fetch('vagoes-empresa.json', { cache: 'no-cache' })).json(), semDv = {}, num = {};
+    Object.entries(m).forEach(([k, v]) => { const a = k.slice(0, 10), b = k.slice(4, 10); semDv[a] = semDv[a] === undefined || semDv[a] === v ? v : null; num[b] = num[b] === undefined || num[b] === v ? v : null; });
+    Object.assign(EMP, { mapa: m, semDv, num }); render();
+  } catch { EMP.carregando = false; }
+}
+// código exato; senão ignora o dígito final; senão só o número (só quando não há dúvida) -> marcado como aproximado
+function empresaDe(cod) {
+  if (!EMP.mapa || !cod) return null;
+  if (EMP.mapa[cod]) return { e: EMP.mapa[cod], aprox: false };
+  const sd = /^[A-Z]{3} \d{6}/.test(cod) ? EMP.semDv[cod.slice(0, 10)] : null; if (sd) return { e: sd, aprox: true };
+  const n = (cod.match(/(\d{6})-?\d?$/) || [])[1], e = n && EMP.num[n]; return e ? { e, aprox: true } : null;
+}
+const txtEmpresa = c => { const x = empresaDe(c); return x ? x.e + (x.aprox ? ' (aprox.)' : '') : ''; };
+
 // materiais consumidos (todos) com clique: mostra os vagões que receberam o material escolhido
 function usosMaterial(rows, nome) {
   return rows.flatMap(r => r.apl.filter(x => x.nome === nome).map(x => ({ r, x }))).sort((a, b) => b.r.dataISO.localeCompare(a.r.dataISO) || (b.x.hora || '').localeCompare(a.x.hora || ''));
@@ -1716,6 +1735,7 @@ function tabelaMateriais(rows, mat) {
   const lista = Object.entries(mat).sort((a, b) => b[1] - a[1]), max = Math.max(1, ...lista.map(x => x[1]));
   if (S.matSel && !mat[S.matSel]) S.matSel = null;
   const vag = n => new Set(rows.flatMap(r => r.apl.filter(x => x.nome === n).map(x => x.vagao))).size;
+  if (!EMP.mapa) carregarEmpresas();
   const sel = S.matSel, us = sel ? usosMaterial(rows, sel) : [], semVagao = sel ? mat[sel] - us.reduce((a, u) => a + u.x.qtd, 0) : 0, lim = 500;
   return `<div class="card larga"><h2>Materiais consumidos <span class="dir">${lista.length} materiais · toque para ver os vagões</span></h2>${lista.length ? `<div class="rolagem"><table class="tabela mat-tab"><thead><tr><th>Material</th><th style="width:40%"></th><th class="num">Unidades</th><th class="num">Vagões</th></tr></thead><tbody>
     ${lista.map(([n, q]) => `<tr class="click ${n === sel ? 'sel' : ''}" data-act="mat-sel" data-v="${esc(n)}"><td><b>${esc(n)}</b></td><td><div class="mat-barra"><i style="width:${q / max * 100}%"></i></div></td><td class="num"><b>${fmt(q)}</b></td><td class="num">${fmt(vag(n))}</td></tr>`).join('')}
@@ -1723,17 +1743,18 @@ function tabelaMateriais(rows, mat) {
   ${sel ? `<div class="card larga" id="mat-vagoes"><h2>Vagões que receberam: ${esc(sel)} <span class="dir">${fmt(us.length)} aplicação(ões) · ${fmt(new Set(us.map(u => u.x.vagao)).size)} vagões</span></h2>
     <div class="acoes" style="margin:0 0 10px"><button class="btn sm primary" data-act="exportar-mat">⬇ Exportar Excel</button><button class="btn sm" data-act="mat-sel" data-v="${esc(sel)}">Fechar</button></div>
     ${semVagao > 0 ? `<p class="small muted" style="margin:0 0 8px">${fmt(semVagao)} unidade(s) sem vagão identificado (texto do Forms sem código do vagão).</p>` : ''}
-    ${us.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Vagão</th><th class="num">Qtd</th><th>Posições</th><th>Equipe</th><th>Origem</th></tr></thead><tbody>
-      ${us.slice(0, lim).map(({ r, x }) => `<tr><td>${r.dataISO.split('-').reverse().join('/')}${x.hora ? ' ' + x.hora : ''}</td><td>${r.turno || '–'}</td><td><b>${esc(r.prefixo)}</b>${x.posTrem ? ` <span class="small muted">pos. ${x.posTrem}</span>` : ''}</td><td>${esc(r.linha || '')}</td><td><a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a></td><td class="num">${fmt(x.qtd)}</td><td>${esc((x.pos || []).join(', '))}</td><td class="small">${esc(x.equipe || '')}</td><td class="small muted">${r.forms ? 'Forms' : 'App'}</td></tr>`).join('')}
+    ${us.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Vagão</th><th>Empresa</th><th class="num">Qtd</th><th>Posições</th><th>Equipe</th><th>Origem</th></tr></thead><tbody>
+      ${us.slice(0, lim).map(({ r, x }) => `<tr><td>${r.dataISO.split('-').reverse().join('/')}${x.hora ? ' ' + x.hora : ''}</td><td>${r.turno || '–'}</td><td><b>${esc(r.prefixo)}</b>${x.posTrem ? ` <span class="small muted">pos. ${x.posTrem}</span>` : ''}</td><td>${esc(r.linha || '')}</td><td><a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a></td><td>${(em => em ? `<b>${esc(em.e)}</b>${em.aprox ? ' <span class="small muted" title="Identificada pelo número do vagão: o código registrado difere do cadastro">aprox.</span>' : ''}` : EMP.mapa ? '<span class="muted">–</span>' : '<span class="muted small">…</span>')(empresaDe(x.vagao))}</td><td class="num">${fmt(x.qtd)}</td><td>${esc((x.pos || []).join(', '))}</td><td class="small">${esc(x.equipe || '')}</td><td class="small muted">${r.forms ? 'Forms' : 'App'}</td></tr>`).join('')}
     </tbody></table></div>${us.length > lim ? `<p class="small muted" style="margin:8px 0 0">Mostrando ${lim} de ${fmt(us.length)}. A planilha traz todos.</p>` : ''}` : '<span class="muted small">Nenhum vagão identificado para este material no período.</span>'}</div>` : ''}`;
 }
 async function exportarMaterial() {
   const sel = S.matSel; if (!sel) return;
   const us = usosMaterial(filtrar(linhasHist()), sel), [, , nomePer] = periodoDe(F.per);
   try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
-  const aoa = [['Data', 'Hora', 'Turno', 'Trem', 'Posição no trem', 'Linha', 'Vagão', 'Material', 'Quantidade', 'Posições (sapata)', 'Equipe', 'Origem']]
-    .concat(us.map(({ r, x }) => [r.dataISO.split('-').reverse().join('/'), x.hora || '', r.turno || '', r.prefixo, x.posTrem || '', r.linha || '', x.vagao, sel, x.qtd, (x.pos || []).join(' '), x.equipe || '', r.forms ? 'Forms' : 'App']));
-  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [10, 6, 6, 8, 8, 7, 15, 28, 10, 14, 34, 7].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:L1' };
+  await carregarEmpresas();
+  const aoa = [['Data', 'Hora', 'Turno', 'Trem', 'Posição no trem', 'Linha', 'Vagão', 'Empresa', 'Material', 'Quantidade', 'Posições (sapata)', 'Equipe', 'Origem']]
+    .concat(us.map(({ r, x }) => [r.dataISO.split('-').reverse().join('/'), x.hora || '', r.turno || '', r.prefixo, x.posTrem || '', r.linha || '', x.vagao, txtEmpresa(x.vagao), sel, x.qtd, (x.pos || []).join(' '), x.equipe || '', r.forms ? 'Forms' : 'App']));
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [10, 6, 6, 8, 8, 7, 15, 14, 28, 10, 14, 34, 7].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:M1' };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Vagões');
   const slug = sem => sem.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
   XLSX.writeFile(wb, `revistamento-zto-${slug(sel)}-${slug(nomePer)}.xlsx`);
