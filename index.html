@@ -316,6 +316,10 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .tag.plano { background: var(--info-bg); color: var(--info); }
 .pl-item { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
 .btn.perigo { color: var(--bad); border-color: var(--bad); }
+.vg.atencao { border-left: 4px solid var(--warn); }
+.vg .det.av { white-space: normal; font-weight: 700; }
+.vg .det.isolado { color: var(--warn); } .vg .det.plano { color: var(--info); }
+.card.plano-eq { border-left: 4px solid var(--info); }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -844,7 +848,7 @@ $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['gestao', 'Gestão da equipe']],
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['validados', 'Validados']],
-  tec: [['meu', 'Meu turno'], ['tarefas', 'Planos especiais']],
+  tec: [['meu', 'Meu turno']],
   prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['cadastros', 'Cadastros']]
 };
 const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
@@ -867,6 +871,7 @@ function render() {
     prog: ['Programador · ' + DB.me.nome.split(' ')[0], 'Acesso total'] }[S.papel];
   $('quem').innerHTML = `<b>${esc(quem[0])}</b>${esc(quem[1])}`;
   $('sub').textContent = { sup: 'Liderança do turno', tec: 'Revista de vagões', esp: 'Validação técnica', prog: 'Análise de dados' }[S.papel];
+  if (!VIEWS[S.papel][S.aba[S.papel]]) S.aba[S.papel] = ABAS[S.papel][0][0];
   const aba = S.aba[S.papel];
   const pendTec = S.papel === 'tec' ? DB.planos.filter(p => p.turno === t && (n == null || p.eq === n) && ['aberta', 'reaberta'].includes(p.status)).length : 0;
   const nVal = S.papel === 'esp' ? filaValidacao().length : 0, nPlan = S.papel === 'esp' ? DB.planos.filter(p => p.status === 'feita' && (S.espFiltro === 'todos' || p.turno === t)).length : 0;
@@ -1167,7 +1172,7 @@ const eqDoTrem = t => t.dist.findIndex(d => d.membros.includes(uidTec()));
 function tecMeu() {
   if (!uidTec()) return '<div class="card muted">Escolha um mecânico na barra acima.</div>';
   const meus = atuais().filter(t => eqDoTrem(t) >= 0);
-  if (!meus.length) return `<div class="card"><p style="margin:0" class="muted">Nenhum trem para a sua equipe agora. Aguarde o líder.</p><p class="small muted" style="margin:8px 0 0">${minhaEqN() ? 'Você está na Equipe ' + minhaEqN() + ' hoje.' : 'Você ainda não está em nenhuma equipe hoje.'} A tela atualiza sozinha.</p></div>`;
+  if (!meus.length) return `<div class="card"><p style="margin:0" class="muted">Nenhum trem para a sua equipe agora. Aguarde o líder.</p><p class="small muted" style="margin:8px 0 0">${minhaEqN() ? 'Você está na Equipe ' + minhaEqN() + ' hoje.' : 'Você ainda não está em nenhuma equipe hoje.'} A tela atualiza sozinha.</p></div>${planosEquipe()}`;
   if (!meus.some(t => t.id === S.tecTrem)) S.tecTrem = meus[meus.length - 1].id;
   const t = meus.find(x => x.id === S.tecTrem), di = eqDoTrem(t), d = t.dist[di], p = progEq(t, di);
   const lista = [];
@@ -1176,8 +1181,9 @@ function tecMeu() {
     if (S.tecFiltro === 'faltam' && r) continue;
     if (S.tecFiltro === 'atencao' && !restrDe(t, pos) && !planosPend(t.vagoes[pos - 1]).length) continue;
     if (S.tecFiltro === 'feitos' && !r) continue;
-    const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), det = [rf ? '⚠ Na ficha: ' + rf.motivo : '', pp.length ? '📋 Plano: ' + txtPlanos(pp) : '', r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : ''].filter(Boolean).join(' · ');
-    lista.push(`<button class="vg ${r ? 'feito' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>${det ? `<span class="det">${esc(det)}</span>` : ''}</span>${tagReg(r)}</button>`);
+    const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), reg = r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : '';
+    lista.push(`<button class="vg ${r ? 'feito' : ''} ${rf || pp.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
+      ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}</span>${tagReg(r)}</button>`);
   }
   return `${meus.length > 1 ? `<div class="chips">${meus.map(x => `<button class="chip ${x.id === t.id ? 'on' : ''}" data-act="tec-trem" data-v="${x.id}">Trem ${esc(x.prefixo)} · ${x.linha}</button>`).join('')}</div>` : ''}
   <div class="card">
@@ -1185,31 +1191,22 @@ function tecMeu() {
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
     <div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
     ${barra(p.n / p.total * 100)}
-    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length; return a.length ? `<p class="small" style="margin:8px 0 0">${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''} <span class="muted">na sua faixa · veja em Planos especiais</span></p>` : ''; })(atencaoFaixa(t, d))}
+    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length; return a.length ? `<p class="small" style="margin:8px 0 0">${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''} <span class="muted">na sua faixa · use o filtro ⚠ Atenção</span></p>` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
       : p.n === p.total ? '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>'
       : `<span class="small muted">Revista iniciada às ${d.inicio}</span>`}</div>
   </div>
+  ${planosEquipe()}
   ${d.inicio ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos'], ...(atencaoFaixa(t, d).length ? [['atencao', '⚠ Atenção ' + atencaoFaixa(t, d).length]] : [])].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
   <div class="vagoes">${lista.join('') || '<div class="card muted">Nada nesta lista.</div>'}</div>` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
 }
-function avisosTrem() {
-  return atuais().filter(t => eqDoTrem(t) >= 0).map(t => {
-    const d = t.dist[eqDoTrem(t)], a = atencaoFaixa(t, d);
-    return `<div class="card"><h2>Atenção no trem ${esc(t.prefixo)} <span class="dir">sua faixa · ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</span></h2>
-      ${a.length ? a.map(x => `<button class="vg ${x.r ? 'feito' : ''}" data-act="abrir" data-p="${x.pos}" data-trem="${t.id}"><span class="pos">${posF(t, x.pos)}</span><span><span class="cod">${esc(x.cod)}</span>
-        ${x.rf ? `<span class="det" style="color:var(--warn);white-space:normal">⚠ Na ficha: ${esc(x.rf.motivo)}${x.rf.data ? ' (desde ' + esc(x.rf.data) + ')' : ''}</span>` : ''}
-        ${x.pp.length ? `<span class="det" style="color:var(--info);white-space:normal">📋 Plano: ${esc(txtPlanos(x.pp))}</span>` : ''}</span>${tagReg(x.r)}</button>`).join('')
-        : '<p class="small muted" style="margin:0">Nenhum vagão isolado na ficha nem com plano especial pendente na sua faixa.</p>'}</div>`;
-  }).join('');
-}
-function tecTarefas() {
+// planos especiais enviados pelo validador para a equipe (ficam no próprio Meu turno)
+function planosEquipe() {
   const n = minhaEqN(), minhas = DB.planos.filter(p => p.turno === T() && (n == null || p.eq === n) && p.status !== 'validada');
-  return avisosTrem() + (minhas.length ? minhas.map(p => `<div class="card"><h2>${esc(p.titulo)} <span class="dir">Equipe ${p.eq} · ${p.criada}</span></h2><p style="margin:0 0 6px">${esc(p.desc)}</p><p class="small muted" style="margin:0 0 10px">Enviado por ${esc(p.por)} (validador técnico)</p>
+  return minhas.map(p => `<div class="card plano-eq"><h2>📋 ${esc(p.titulo)} <span class="dir">plano do validador · ${p.criada}</span></h2><p style="margin:0 0 6px">${esc(p.desc)}</p><p class="small muted" style="margin:0 0 10px">Enviado por ${esc(p.por)} para a Equipe ${p.eq}</p>
     ${p.status === 'reaberta' ? `<div class="alerta" style="margin:0 0 10px"><span>↩ <b>Reaberto pelo validador:</b> ${esc(p.coment || '')}</span></div>` : ''}
-    ${['aberta', 'reaberta'].includes(p.status) ? `<label class="campo">Observação (opcional)<input id="obs-${p.id}"></label><button class="btn ok big" data-act="tarefa-feita" data-id="${p.id}">✓ Marcar como feito</button>` : tagPlano(p)}</div>`).join('')
-    : '<div class="card muted">Nenhum plano especial do validador para a sua equipe.</div>');
+    ${['aberta', 'reaberta'].includes(p.status) ? `<label class="campo">Observação (opcional)<input id="obs-${p.id}"></label><button class="btn ok big" data-act="tarefa-feita" data-id="${p.id}">✓ Marcar como feito</button>` : tagPlano(p)}</div>`).join('');
 }
 
 // ---------- modais ----------
@@ -1809,7 +1806,7 @@ function exportar(tipo) {
 
 const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, gestao: supGestao },
-  tec: { meu: tecMeu, tarefas: tecTarefas },
+  tec: { meu: tecMeu },
   esp: { validacao: espValidacao, planos: espPlanos, validados: espValidados },
   prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, materiais: progMateriais, vagao: progVagao, cadastros: progCadastros }
 };
