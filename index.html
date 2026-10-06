@@ -345,6 +345,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .fila-cheg input { min-height: 36px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 15px; }
 .fila-mov { display: flex; gap: 4px; }
 @media (max-width: 420px) { .fila-item { grid-template-columns: 34px minmax(0, 1fr) auto; } .fila-mov { grid-column: 2 / -1; justify-content: flex-end; } }
+.btn.avancar { width: 100%; margin-top: 10px; color: var(--warn); border-color: var(--warn); white-space: normal; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
@@ -744,7 +745,7 @@ addEventListener('online', processarFila);
 const S = {
   papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'geral' }, turnoVer: SERVICO.turno, verTec: null,
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
-  novo: null, busca: '', modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
+  novo: null, busca: '', tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
 const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog' };
 const ehProg = () => DB.me?.perfil === 'programador';
@@ -1222,8 +1223,11 @@ const eqDoTrem = t => t.dist.findIndex(d => d.membros.includes(uidTec()));
 function tecMeu() {
   if (!uidTec()) return '<div class="card muted">Escolha um mecânico na barra acima.</div>';
   const minhaFila = filaTurno(T()).filter(t => eqDoTrem(t) >= 0), abertos = minhaFila.filter(t => !t.dist[eqDoTrem(t)].termino);
-  // um trem por vez: continua no que a equipe já iniciou; senão, o primeiro da fila do líder
-  const atual = abertos.find(t => t.dist[eqDoTrem(t)].inicio) || abertos[0], seguintes = abertos.filter(t => t !== atual);
+  // um trem por vez: continua no que a equipe já iniciou; senão, o primeiro da fila do líder.
+  // "Avançar" (imprevisto) deixa o trem aberto e passa para o próximo; dá para voltar.
+  S.tecPulados = S.tecPulados.filter(id => abertos.some(t => t.id === id));
+  const livres = abertos.filter(t => !S.tecPulados.includes(t.id)), pulados = abertos.filter(t => S.tecPulados.includes(t.id));
+  const atual = livres.find(t => t.dist[eqDoTrem(t)].inicio) || livres[0] || pulados[pulados.length - 1], seguintes = livres.filter(t => t !== atual);
   const meus = atual ? [atual] : [];
   if (!meus.length) return `<div class="card"><p style="margin:0" class="muted">Nenhum trem para a sua equipe agora. Aguarde o líder.</p><p class="small muted" style="margin:8px 0 0">${minhaEqN() ? 'Você está na Equipe ' + minhaEqN() + ' hoje.' : 'Você ainda não está em nenhuma equipe hoje.'} A tela atualiza sozinha.</p></div>${planosEquipe()}`;
   S.tecTrem = meus[0].id;
@@ -1242,7 +1246,8 @@ function tecMeu() {
     lista.push(`${botoesPlano ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
       ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}</span>${tagReg(r)}</button>${botoesPlano ? botoesPlano + '</div>' : ''}`);
   }
-  return `${seguintes.length ? `<p class="nota" style="margin:0 0 10px">Depois deste: ${seguintes.map((x, k) => `<b>${k + 2}º ${esc(x.prefixo)}</b> (${esc(x.linha)})`).join(' · ')}. O próximo trem aparece quando a equipe encerrar este.</p>` : ''}
+  return `${pulados.filter(x => x !== t).map(x => `<div class="alerta" style="margin:0 0 10px"><span>⏭ Você avançou sem encerrar o <b>${esc(x.prefixo)}</b> (${esc(x.linha)}). Sua parte nele continua aberta para o líder.</span><button class="btn sm" data-act="tec-voltar" data-id="${x.id}">↩ Voltar ao ${esc(x.prefixo)}</button></div>`).join('')}
+  ${seguintes.length ? `<p class="nota" style="margin:0 0 10px">Depois deste: ${seguintes.map((x, k) => `<b>${k + 2}º ${esc(x.prefixo)}</b> (${esc(x.linha)})`).join(' · ')}. O próximo trem aparece quando a equipe encerrar este.</p>` : ''}
   <div class="card">
     <h2>Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)} · Equipe ${d.n}</span></h2>
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
@@ -1253,6 +1258,7 @@ function tecMeu() {
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
       : p.n === p.total ? '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>'
       : `<span class="small muted">Revista iniciada às ${d.inicio}</span>`}</div>
+    ${seguintes.length && !d.termino ? `<button class="btn sm avancar" data-act="tec-avancar" data-id="${t.id}" data-nome="${esc(t.prefixo)}" data-prox="${esc(seguintes[0].prefixo)}">⏭ Avançar para o próximo trem (${esc(seguintes[0].prefixo)}) sem encerrar este</button>` : ''}
   </div>
   ${planosEquipe()}
   ${d.inicio ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos'], ...(atencaoFaixa(t, d).length ? [['atencao', '⚠ Atenção ' + atencaoFaixa(t, d).length]] : [])].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
@@ -2029,6 +2035,12 @@ document.addEventListener('click', async e => {
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
     case 'aba': S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
+    case 'tec-avancar': {
+      if (!confirm(`Avançar para o ${el.dataset.prox} sem encerrar o ${el.dataset.nome}?\n\nUse só em caso de imprevisto (ex.: o trem precisou sair). A parte da sua equipe no ${el.dataset.nome} continua aberta para o líder, e você pode voltar a ele.`)) return;
+      S.tecPulados = S.tecPulados.concat(el.dataset.id); lsGravar('rzto_pulados', S.tecPulados); S.tecFiltro = 'faltam';
+      toast('Você avançou para o ' + el.dataset.prox); window.scrollTo(0, 0); break;
+    }
+    case 'tec-voltar': S.tecPulados = S.tecPulados.filter(x => x !== el.dataset.id); lsGravar('rzto_pulados', S.tecPulados); window.scrollTo(0, 0); break;
     case 'tec-filtro': S.tecFiltro = v; break;
     case 'iniciar': case 'encerrar': {
       const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'iniciar' ? 'inicio' : 'termino';
