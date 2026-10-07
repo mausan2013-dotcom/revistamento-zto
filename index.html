@@ -841,11 +841,16 @@ const atuais = () => DB.trens.filter(t => t.status === 'andamento');
 let TEM_ORDEM = null, TEM_OS = null;
 // fila do turno: ordem definida pelo líder; sem ordem, pela chegada e pela criação
 // turno que assume depois do turno de serviço atual (pela escala)
-function proximoServico() {
-  const s0 = SERVICO, d = deISO(s0.data);
-  if (s0.h === '6') return { turno: equipeNoHorario(d, '14'), h: '14' };
-  if (s0.h === '14') return { turno: equipeNoHorario(d, '22'), h: '22' };
-  const d2 = new Date(d); d2.setDate(d2.getDate() + 1); return { turno: equipeNoHorario(d2, '6'), h: '6' };
+const ORDEM_H = ['6', '14', '22'];
+const vizinhoSlot = (s, k) => { const i = ORDEM_H.indexOf(s.h) + k, d = deISO(s.data), dd = Math.floor(i / 3); d.setDate(d.getDate() + dd);
+  const h = ORDEM_H[((i % 3) + 3) % 3]; return { h, data: isoData(d), turno: equipeNoHorario(d, h) }; };
+function proximoServico() { return vizinhoSlot(SERVICO, 1); }
+// quem recebe o trem do líder que o está direcionando (turno do trem), independente do horário: a passagem acontece
+// perto ou depois do fim do turno, quando o relógio já mostra o turno seguinte. Acha o último horário desse turno na
+// escala (o atual ou um dos dois anteriores; ou o próximo, se ele chegou antes) e devolve o turno que vem depois dele.
+function proximoDe(turno) {
+  const s = [0, -1, -2, 1].map(k => vizinhoSlot(SERVICO, k)).find(x => x.turno === turno);
+  return s ? vizinhoSlot(s, 1) : proximoServico();
 }
 const filaTurno = tt => atuais().filter(t => t.turno === tt).sort((a, b) => (a.ordem ?? 1e9) - (b.ordem ?? 1e9) || (a.chegada || '').localeCompare(b.chegada || '') || a.criadoEm.localeCompare(b.criadoEm));
 // a equipe (pelos integrantes) ainda tem parte aberta num trem anterior da fila?
@@ -1164,7 +1169,7 @@ function cardTrem(t) {
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
     ${eqs}
     ${t.status === 'andamento' && !t.dist.some(d => d.membros.some(m => C(m).turno === t.turno)) ? `<div class="alerta" style="margin:10px 0 0"><span>👥 <b>Sem equipes deste turno neste trem.</b> ${t.dist.length ? 'Recebido do turno anterior: o que já foi registrado fica; divida o restante.' : ''}</span><button class="btn sm primary" data-act="dividir-trem" data-id="${t.id}">Dividir entre as equipes</button></div>` : ''}
-    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoServico())}${ehProg() ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
+    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${ehProg() ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
     ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
   </div>`;
