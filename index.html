@@ -384,6 +384,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .tabela.rel td, .tabela.rel th { white-space: normal; }
 .para-print, .relatorio-print { --bg: #ebf0f2; --card: #ffffff; --ink: #2b3a48; --title: #043865; --muted: #5f7180; --line: #d3dde3; --mark: #043865; --track: #e3eaee;
   --ok: #138a6c; --ok-bg: #e1f4ee; --bad: #c62828; --bad-bg: #fdeaea; --warn: #c45a12; --warn-bg: #fff0e5; --info: #0b6fa8; --info-bg: #e3f2fb; --s1: #1b5fa8; --s2: #2ea3e3; --s3: #1f8a6a; --s4: #e0701f; --meta: #c62828; }
+.relatorio-print { background: var(--card); color: var(--ink); }      /* fundo branco e letra escura também no modo escuro do celular */
 .para-print { position: absolute; left: -10000px; top: 0; width: 1500px; padding: 24px; background: var(--bg); color: var(--ink); }
 .para-print .rep-main { grid-template-columns: repeat(12, minmax(0, 1fr)) !important; }
 .para-print .rep { grid-template-columns: minmax(0, 1fr) 270px !important; }
