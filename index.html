@@ -354,6 +354,9 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .apoio-op { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .apoio-op > div { flex: 1; }
 .val-plano { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; } .val-plano > span { flex: 1 1 100%; }
+.retro-barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
+.retro-res { max-height: 55vh; overflow-y: auto; margin: 0; } .retro-vag { justify-content: space-between; text-align: left; min-height: 52px; font-weight: 600; padding: 6px 12px; gap: 8px; }
+.retro-nota { display: block; } .retro-nota .btn { margin-top: 8px; }
 .busca-linha { display: flex; gap: 8px; align-items: center; margin-top: 4px; } .busca-linha input { flex: 1; min-width: 0; }
 .card.plano-eq { border-left: 4px solid var(--info); }
 .mat-tab tr.sel td { background: var(--info-bg); }
@@ -593,7 +596,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.25';
+const VERSAO = '1.26';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1330,6 +1333,7 @@ function supTurno() {
   const v = validadorDe(tt);
   return `<div class="faixa-turno"><h2>Turno ${tt}${SERVICO.turno === tt ? ' · ' + HORARIO[SERVICO.h] : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(new Date())}/${new Date().getFullYear()} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
   ${!S.eqSalvo[tt] ? `<p class="nota">As equipes de hoje ainda não foram confirmadas. <button class="btn sm" data-act="aba" data-v="equipes">Montar equipes →</button></p>` : ''}
+  <div class="retro-barra"><button class="btn" data-act="retro">📝 Lançar apontamento retroativo</button><span class="small muted">Para o vagão que o mecânico não conseguiu registrar na hora.</span></div>
   <div class="sup-layout">
     <div>${cardFila(tt)}${meus.map(cardTrem).join('') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
     <div>${cardComposicoes(tt)}
@@ -1815,11 +1819,31 @@ function abrirVagao(pos, tremId = S.tecTrem, validando = false) {
     novoMat: '', novoQtd: 1, outroNome: '', arv: { sis: '', sub: '', comp: '', falha: '' } };
   renderModal();
 }
+// lançamento retroativo do líder: escolhe a composição do turno, o vagão, e registra na mesma tela do técnico
+const tremsRetro = () => { const tt = T(), hoje = isoData(new Date());
+  return [...filaTurno(tt), ...fechadosT().filter(t => t.turno === tt && (t.dataISO === dataOp() || t.dataISO === hoje))]; };
+function retroLista(M) {
+  const t = tremQualquer(M.tremId); if (!t) return '';
+  const ps = t.vagoes.map((c, i) => i + 1).filter(p => casaVag(t.vagoes[p - 1], M.q));
+  return ps.map(p => { const r = t.reg[p], d = donoPos(t, p);
+    return `<button class="btn retro-vag" data-act="retro-vag" data-p="${p}"><span><b>${esc(t.vagoes[p - 1])}</b> <span class="small muted">${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)}${d ? ' · Equipe ' + d.n : ''}</span>${r ? `<br><span class="small">${r.h} · ${r.st === 'ok' ? 'sem intervenção' : esc(txtReg(r))}</span>` : ''}</span>${r ? `<span class="tag ${r.st === 'pend' ? 'warn' : r.st === 'int' ? 'info' : 'ok'}">${r.st === 'pend' ? 'pendente' : 'registrado'}</span>` : '<span class="tag">sem registro</span>'}</button>`; }).join('')
+    || '<p class="small muted">Nenhum vagão com esse número nesta composição.</p>';
+}
+function modalRetro(M) {
+  const ts = tremsRetro();
+  if (!ts.length) return '<h3>Lançar apontamento retroativo</h3><p class="muted">Nenhuma composição no seu turno hoje.</p>';
+  if (!ts.some(t => t.id === M.tremId)) M.tremId = ts[0].id;
+  return `<h3>Lançar apontamento retroativo</h3>
+    <p class="small muted" style="margin:0 0 10px">Escolha a composição e o vagão. O registro entra na equipe dona do vagão, com o seu nome em “apontado por”, e vai para a validação.</p>
+    <label class="campo">Composição<select data-act="retro-trem">${ts.map(t => `<option value="${t.id}" ${t.id === M.tremId ? 'selected' : ''}>${esc(t.prefixo)} · ${esc(t.linha || '')}${t.status !== 'andamento' ? ' · fechado' : ''}</option>`).join('')}</select></label>
+    <label class="campo">Vagão<input id="retro-busca" inputmode="search" autocomplete="off" placeholder="Digite o número do vagão" value="${esc(M.q || '')}"></label>
+    <div id="retro-res" class="escolhas retro-res">${retroLista(M)}</div>`;
+}
 function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -1832,7 +1856,7 @@ function blocoArvore(M) {
     ${N.falha ? '<button class="btn" style="width:100%;margin-bottom:12px" data-act="add-falha">+ Adicionar falha</button>' : ''}`;
 }
 function modalVagao(M) {
-  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}`;
+  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>` : '');
   if (!M.modo) return cab + `<div class="escolhas">
     <button class="btn ok big" data-act="salvar-ok">✓ Revistado, sem intervenção</button>
     <button class="btn big" style="color:var(--title);border-color:var(--title)" data-act="modo" data-v="int">🔧 Troca de material / ocorrência</button>
@@ -1872,9 +1896,10 @@ function reduzirFoto(arquivo) {
 }
 function salvarVagao(st) {
   const M = S.modal, t = tremQualquer(M.tremId), antigo = t.reg[M.pos], eu = uidTec();
-  const apoio = !M.validando && S.apoio && S.apoio.trem === t.id && S.apoio.tec === eu && eqDoTrem(t) >= 0 && t.dist[eqDoTrem(t)].termino ? t.dist[eqDoTrem(t)] : null;     // apoio: no nome de quem ajuda
-  const d = M.validando && antigo ? { n: antigo.equipe } : apoio || t.dist.find(x => eu && x.membros.includes(eu) && !x.termino && M.pos >= x.ini && M.pos <= x.fim) || donoPos(t, M.pos);
-  const r = { st: 'ok', h: M.validando && antigo ? antigo.h : agora(), mats: [], oc: [], obs: '', motivo: '', falhas: [], foto: antigo?.foto, fotoUrl: antigo?.fotoUrl, fotos: antigo?.fotos || [], equipe: d?.n ?? null };
+  if (M.retro && (!/^\d\d:\d\d$/.test(M.hora || '') || horaFutura(M.hora))) { toast(M.hora ? '⚠ ' + M.hora + ' ainda não chegou. Confira a hora da revista.' : 'Informe a hora da revista'); return; }
+  const apoio = !M.validando && !M.retro && S.apoio && S.apoio.trem === t.id && S.apoio.tec === eu && eqDoTrem(t) >= 0 && t.dist[eqDoTrem(t)].termino ? t.dist[eqDoTrem(t)] : null;     // apoio: no nome de quem ajuda
+  const d = M.validando && antigo ? { n: antigo.equipe } : M.retro ? donoPos(t, M.pos) : apoio || t.dist.find(x => eu && x.membros.includes(eu) && !x.termino && M.pos >= x.ini && M.pos <= x.fim) || donoPos(t, M.pos);
+  const r = { st: 'ok', h: M.validando && antigo ? antigo.h : M.retro ? M.hora : agora(), mats: [], oc: [], obs: '', motivo: '', falhas: [], foto: antigo?.foto, fotoUrl: antigo?.fotoUrl, fotos: antigo?.fotos || [], equipe: d?.n ?? null };
   if (st === 'pend') Object.assign(r, { st, motivo: M.motivo });
   if (st === 'int') {
     if (M.sap.length) r.mats.push({ id: 'sapata', nome: MAT.sapata.nome, qtd: M.sap.length, pos: POSICOES.filter(p => M.sap.includes(p)) });
@@ -1885,7 +1910,7 @@ function salvarVagao(st) {
     Object.assign(r, { val: 'corrigido', valPor: DB.me.nome, antes: txtReg(antigo) || 'sem intervenção' });
     enviar({ tabela: 'registros', acao: 'update', dados: { ...dados, val: 'corrigido', antes: r.antes }, filtro: [['trem_id', 'eq', t.id], ['posicao', 'eq', M.pos]], desc: 'Correção do vagão ' + t.vagoes[M.pos - 1] });
   } else {
-    enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', dados: { trem_id: t.id, posicao: M.pos, vagao: t.vagoes[M.pos - 1], equipe: r.equipe, hora: r.h, ...dados }, desc: 'Vagão ' + t.vagoes[M.pos - 1] });
+    enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', dados: { trem_id: t.id, posicao: M.pos, vagao: t.vagoes[M.pos - 1], equipe: r.equipe, hora: r.h, ...dados, ...(M.retro && antigo?.val ? { val: null } : {}) }, desc: 'Vagão ' + t.vagoes[M.pos - 1] });
   }
   // fotos: cada nova sobe e grava a lista das fotos já enviadas; se só removeu, grava a lista que sobrou
   const novas = M.novas || [], lista = (M.antigas || antigo?.fotos || []).slice(), mudou = novas.length || lista.length !== (antigo?.fotos || []).length;
@@ -1894,7 +1919,7 @@ function salvarVagao(st) {
   if (mudou && !novas.length) enviar({ tabela: 'registros', acao: 'update', dados: { foto_url: fotoCampo(lista) }, filtro: [['trem_id', 'eq', t.id], ['posicao', 'eq', M.pos]], desc: 'Fotos do vagão ' + t.vagoes[M.pos - 1] });
   Object.assign(r, { fotos: lista, foto: lista.length > 0, fotoUrl: lista[0] || null });
   t.reg[M.pos] = r; S.modal = null;
-  toast(M.validando ? 'Correção salva' : r.st === 'ok' ? 'Vagão registrado' : r.st === 'pend' ? 'Vagão marcado como pendente' : r.oc.length ? 'Ocorrência registrada' : 'Intervenção registrada');
+  toast(M.retro ? 'Apontamento retroativo lançado' : M.validando ? 'Correção salva' : r.st === 'ok' ? 'Vagão registrado' : r.st === 'pend' ? 'Vagão marcado como pendente' : r.oc.length ? 'Ocorrência registrada' : 'Intervenção registrada');
   render();
 }
 function modalFim(M) {
@@ -2977,7 +3002,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { pr
 
 // ---------- eventos ----------
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 3000); }
-const lerCampos = () => { const M = S.modal; if (!M) return; if ($('obs-reg')) M.obs = $('obs-reg').value; if ($('outro-nome')) M.outroNome = $('outro-nome').value; if ($('obs-fech')) M.obs = $('obs-fech').value; if (M.campos) [['c-desde', 'desde'], ['c-retorno', 'retorno'], ['c-data', 'data'], ['c-nome', 'nome'], ['c-curto', 'curto'], ['c-mat', 'mat'], ['c-turno', 'turno'], ['c-perfil', 'perfil']].forEach(([i, k]) => { if ($(i)) M.campos[k] = $(i).value; }); };
+const lerCampos = () => { const M = S.modal; if (!M) return; if ($('obs-reg')) M.obs = $('obs-reg').value; if ($('outro-nome')) M.outroNome = $('outro-nome').value; if ($('obs-fech')) M.obs = $('obs-fech').value; if ($('hora-retro')) M.hora = $('hora-retro').value; if (M.campos) [['c-desde', 'desde'], ['c-retorno', 'retorno'], ['c-data', 'data'], ['c-nome', 'nome'], ['c-curto', 'curto'], ['c-mat', 'mat'], ['c-turno', 'turno'], ['c-perfil', 'perfil']].forEach(([i, k]) => { if ($(i)) M.campos[k] = $(i).value; }); };
 
 document.addEventListener('click', async e => {
   $('tt').hidden = true;
@@ -3093,6 +3118,10 @@ document.addEventListener('click', async e => {
     }
     case 'abrir': if (el.dataset.trem) S.tecTrem = el.dataset.trem; abrirVagao(+el.dataset.p); return;
     case 'fechar': S.modal = null; renderModal(); return;
+    case 'retro': S.modal = { tipo: 'retro', tremId: S.retroTrem || null, q: '' }; renderModal(); return;
+    case 'retro-voltar': S.modal = { tipo: 'retro', tremId: M.tremId, q: '' }; renderModal(); return;
+    case 'retro-vag': { const p = +el.dataset.p, id = M.tremId; S.retroTrem = id; abrirVagao(p, id);
+      Object.assign(S.modal, { retro: true, hora: tremQualquer(id).reg[p]?.h || agora() }); renderModal(); return; }
     case 'modo': M.modo = v || null; renderModal(); return;
     case 'salvar-ok': salvarVagao('ok'); return;
     case 'salvar-int': if (M.novoMat) { toast('Toque em “+ Adicionar” para incluir o material escolhido'); return; } salvarVagao('int'); return;
@@ -3374,6 +3403,7 @@ document.addEventListener('change', async e => {
   else if (a === 'turno-ver') { S.turnoVer = el.value; S.planoTurno = el.value; S.novo = novoVazio(); S.valTrem = null; render(); }
   else if (a === 'ver-tec') { S.verTec = el.value; S.tecTrem = null; S.supLanca = false; render(); }
   else if (a === 'sup-data') { S.supData = el.value || dataOp(); S.supTrem = null; S.supLanca = false; render(); }
+  else if (a === 'retro-trem' && M) { M.tremId = el.value; M.q = ''; renderModal(); }
   else if (a === 'sup-trem') { S.supTrem = el.value || null; S.supLanca = false; render(); }
   else if (a === 'plano-turno') { S.planoTurno = el.value; render(); }
   else if (a === 'novo-campo') { N[el.dataset.k] = el.value; if (el.dataset.k === 'texto') { N.lidos = null; N.dist = null; } render(); }
@@ -3404,6 +3434,7 @@ document.addEventListener('change', async e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.id === 'retro-busca' && S.modal?.tipo === 'retro') { S.modal.q = e.target.value; $('retro-res').innerHTML = retroLista(S.modal); return; }
   if (e.target.id !== 'busca-falha') return;
   const q = semAcento(e.target.value.trim());
   const res = q.length < 2 ? [] : FOLHAS.map((f, i) => [f, i]).filter(([f]) => q.split(' ').every(w => semAcento(f.comp + ' ' + f.falha + ' ' + f.sub + ' ' + f.sis).includes(w))).slice(0, 8);
