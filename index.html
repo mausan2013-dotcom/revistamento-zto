@@ -599,7 +599,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.33';
+const VERSAO = '1.34';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -683,7 +683,7 @@ const MAX_REV = 12 * 60;                                     // acima disso a ho
 const horaFutura = h => difMin(h, agora()) > MAX_REV;      // "23:50" digitado às 23:40 daria 23 h 50 de revisão
 const MOTIVOS_DESVIO = ['Aguardando partida / entrada de trem', 'Sem autorização para transpor linha', 'Intervenção mecânica em vagão', 'Equipe em intervalo', 'Falha de comunicação', 'Manobra da composição', 'Outro'];
 const MOTIVOS_AFAST = ['Atestado médico', 'Férias', 'Licença', 'Afastamento INSS', 'Treinamento', 'Outro'];
-const PERFIS = { tecnico: 'Técnico', supervisor: 'Supervisor', especializado: 'Especializado', programador: 'Programador', pcm: 'PCM' };
+const PERFIS = { tecnico: 'Técnico', supervisor: 'Supervisor', especializado: 'Especializado', programador: 'Programador', pcm: 'PCM/Eng' };
 
 // ---------- escala 8 horas (ciclo de 8 dias) ----------
 const CICLO = ['6', '6', '14', '14', '22', '22', 'R', 'F'];
@@ -1157,7 +1157,7 @@ const podeApagar = t => ehProg() || (DB.me?.perfil === 'supervisor' && t.turno =
 const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
 function barraProg() {
   if (!ehProg()) return '';
-  const papeis = [['prog', 'Programador'], ['pcm', 'PCM'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico']];
+  const papeis = [['prog', 'Programador'], ['pcm', 'PCM/Eng'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico']];
   const tecs = ativos(S.turnoVer);
   if (S.papel === 'tec' && !tecs.includes(S.verTec)) S.verTec = tecs[0] || null;
   const demo = DEMO ? '<span class="demo-tag">🎬 DEMONSTRAÇÃO · dados fictícios, nada é gravado</span><button class="btn sm" data-act="demo-sair">Sair da demonstração</button>'
@@ -1174,9 +1174,9 @@ function render() {
     tec: [(n ? 'Equipe ' + n : 'Sem equipe hoje') + ' · Turno ' + t, uidTec() ? nomeTec(uidTec()) : ''],
     esp: ['Validador técnico' + (ehProg() ? '' : ' · ' + curtoV(DB.me)), 'Turno ' + t],
     prog: ['Programador · ' + DB.me.nome.split(' ')[0], 'Acesso total'],
-    pcm: ['PCM · ' + DB.me.nome.split(' ')[0], 'Indicadores e planilhas'] }[S.papel];
+    pcm: ['PCM/Eng · ' + DB.me.nome.split(' ')[0], 'Indicadores e planilhas'] }[S.papel];
   $('quem').innerHTML = `<b>${esc(quem[0])}</b>${esc(quem[1])}`;
-  $('sub').textContent = { sup: 'Liderança do turno', tec: 'Revista de vagões', esp: 'Validação técnica', prog: 'Análise de dados', pcm: 'PCM · indicadores' }[S.papel];
+  $('sub').textContent = { sup: 'Liderança do turno', tec: 'Revista de vagões', esp: 'Validação técnica', prog: 'Análise de dados', pcm: 'PCM/Eng · indicadores' }[S.papel];
   if (!VIEWS[S.papel][S.aba[S.papel]]) S.aba[S.papel] = ABAS[S.papel][0][0];
   const aba = S.aba[S.papel];
   const pendTec = S.papel === 'tec' ? DB.planos.filter(p => p.turno === t && (n == null || p.eq === n) && ['aberta', 'reaberta'].includes(p.status)).length : 0;
