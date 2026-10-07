@@ -596,7 +596,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.27';
+const VERSAO = '1.28';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1622,7 +1622,7 @@ function espRelPlanos() {
   return `${filtroTurnoV()}
   <div class="card" data-sem-print><div class="linha-campos"><label class="campo">Data<input type="date" data-act="rel-data" value="${S.relData}" max="${isoData(new Date())}"></label>
     <label class="campo">Prefixo<select data-act="rel-pref"><option value="todos">Todos</option>${prefs.map(p => `<option ${p === S.relPref ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label></div>
-    <button class="btn primary" data-act="print-planos" ${linhas.length ? '' : 'disabled'}>📸 Print e enviar pelo WhatsApp</button></div>
+    <button class="btn primary" data-act="copiar-planos" ${linhas.length ? '' : 'disabled'}>📋 Copiar texto para o WhatsApp</button></div>
   <div class="card relatorio-print" id="rel-planos">
     <h2>Planos especiais por tipo <span class="dir">${S.relData.split('-').reverse().join('/')} · ${S.relPref === 'todos' ? 'todos os trens' : 'trem ' + esc(S.relPref)} · ${mt ? 'turno ' + mt : 'todos os turnos'}</span></h2>
     ${linhas.length ? `<p class="small" style="margin:0 0 10px"><b>${linhas.length}</b> vagão(ões) com plano · <span style="color:var(--ok);font-weight:700">${tot.sim} realizado(s)</span> · <span style="color:var(--bad);font-weight:700">${tot.nao} não realizado(s)</span> · <span class="muted">${tot.sem} sem resposta</span></p>
@@ -2108,6 +2108,26 @@ async function printDe(id, nome, texto, whats = true) {
   const el = $(id); if (!el) return;
   toast('Gerando imagem…');
   try { await compartilharImagem(await gerarImagem(el), nome, texto, whats); } catch (e) { toast('⚠ ' + e.message); }
+}
+// texto do relatório de planos para colar no WhatsApp: por prefixo/OS, depois por plano, com o resultado de cada vagão
+function textoRelPlanos() {
+  const { linhas } = linhasRelPlanos(), res = e => !e ? '⏳ Sem resposta' : e.ok ? '✅ Realizado' : '❌ Não realizado';
+  const trens = [...new Set(linhas.map(x => x.t))].sort((a, b) => a.prefixo.localeCompare(b.prefixo) || a.turno.localeCompare(b.turno));
+  return trens.map(t => {
+    const doTrem = linhas.filter(x => x.t === t), planos = [...new Set(doTrem.map(x => x.plano))].sort((a, b) => a.localeCompare(b));
+    return `*${t.prefixo}${t.os ? ' / OS ' + t.os : ''}*\n\n` + planos.map(n => `📋 *${n}*\n` + doTrem.filter(x => x.plano === n).sort((a, b) => a.p - b.p).map(x => {
+      const r = t.reg[x.p], obs = r && (r.obs || r.st !== 'ok') ? (r.obs || txtReg(r)) : '';
+      return `• ${x.c} - ${res(x.e)}${obs ? '\n   💬 ' + obs : ''}`; }).join('\n')).join('\n\n');
+  }).join('\n\n────────\n\n');
+}
+async function copiarTexto(txt, msg) {
+  try { await navigator.clipboard.writeText(txt); }
+  catch (e) {     // aparelho sem acesso à área de transferência: cópia pelo método antigo
+    const ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove();
+    if (!ok) { toast('⚠ Não foi possível copiar neste aparelho'); return; }
+  }
+  toast(msg);
 }
 // posições -> faixas: [3,4,5,9] -> "3–5, 9"
 function faixasPos(ns) {
@@ -3207,10 +3227,7 @@ document.addEventListener('click', async e => {
       registrarLog(`Editou o término do trem ${M.prefixo} (${diaRot(M.data)}) de ${M.fim || '–'} para ${novo}. Motivo: ${motivo}`);
       S.modal = null; toast('Término do ' + M.prefixo + ' alterado para ' + novo); break;
     }
-    case 'print-planos': {
-      const { linhas } = linhasRelPlanos(), sim = linhas.filter(x => x.e?.ok === true).length, nao = linhas.filter(x => x.e?.ok === false).length;
-      printDe('rel-planos', `planos-especiais-${S.relData}${S.relPref !== 'todos' ? '-' + S.relPref : ''}.png`, `*Planos especiais · ${S.relData.split('-').reverse().join('/')}${S.relPref !== 'todos' ? ' · trem ' + S.relPref : ''}*\n${linhas.length} vagões com plano: ${sim} realizados, ${nao} não realizados, ${linhas.length - sim - nao} sem resposta.`); return;
-    }
+    case 'copiar-planos': copiarTexto(textoRelPlanos(), 'Texto copiado. Cole na conversa do WhatsApp.'); return;
     case 'print-comp': printDe('rel-comp', `composicoes-turno-${T()}-${dataOp()}.png`, `*Composições do turno ${T()} · ${dataBR(deISO(dataOp()))}*\nPercentual revisado e posição dos vagões não revisados.`); return;
     case 'print-aderencia': printAderencia(); return;
     case 'passar-trem': {
