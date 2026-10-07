@@ -593,7 +593,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.24';
+const VERSAO = '1.25';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1547,7 +1547,7 @@ function espValidacao() {
   ${filtroTurnoV()}
   ${campoBuscaVal('Buscar vagão para validar')}${resultadosBuscaVal(fila)}
   <div class="grid">
-    <div class="larga">${fila.length ? fila.map(t => { const aps = apontamentos(t), oc = aps.reduce((a, x) => a + (x.r ? x.r.oc.length : 0), 0), feitos = aps.filter(x => x.r.val).length;
+    <div class="larga">${fila.length ? fila.map(t => { const aps = apontamentos(t), oc = aps.reduce((a, x) => a + (x.r ? x.r.oc.length : 0), 0), feitos = aps.filter(x => x.r && x.r.val).length;
       return `<div class="card"><h2>Trem ${esc(t.prefixo)} <span class="dir">${dataBR(t.data)} · turno ${t.turno} · ${t.linha} · líder ${esc(t.lider)}</span></h2>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span class="tag info">${aps.length} apontamento(s)</span>${oc ? `<span class="tag bad">${oc} ocorrência(s)</span>` : ''}${(l => { if (!l.length) return ''; const tot = l.reduce((a, x) => a + x.pp.length, 0), sim = l.reduce((a, x) => a + Object.values(x.ex).filter(e => e.ok).length, 0), nao = l.reduce((a, x) => a + Object.values(x.ex).filter(e => !e.ok).length, 0);
       return `<span class="tag plano">📋 ${l.length} com plano especial · ${sim} realizado(s)${nao ? ` · ${nao} não` : ''}${tot - sim - nao ? ` · ${tot - sim - nao} sem resposta` : ''}</span>`; })(comPlano(t))}<span class="small muted">${inspecionados(t)} de ${t.vagoes.length} vagões inspecionados${t.motivoParcial ? ' · ' + esc(t.motivoParcial) : ''}</span>
