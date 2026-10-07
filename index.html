@@ -1009,7 +1009,7 @@ function redividirDe(t, i, s) {
   const N = t.vagoes.length, d = t.dist[i], doTurno = x => x.membros.some(m => C(m).turno === t.turno);
   const fixos = t.dist.filter((x, j) => j !== i && doTurno(x) && (x.inicio || x.termino));
   const livres = t.dist.filter((x, j) => j !== i && doTurno(x) && !x.inicio && !x.termino).sort((a, b) => a.ini - b.ini);
-  const dono = p => fixos.find(x => p >= x.ini && p <= x.fim);
+  const dono = p => fixos.find(x => p >= x.ini && p <= x.fim && (!x.termino || t.reg[p]));
   if (dono(s)) return { erro: `Esse vagão está na faixa da Equipe ${dono(s).n}, que já começou. Escolha outro ou fale com o líder.` };
   const pos = []; for (let p = 1; p <= N; p++) if (!dono(p)) pos.push(p);
   const tam = Math.ceil(pos.length / (livres.length + 1));
@@ -1033,6 +1033,10 @@ function redividirDe(t, i, s) {
   if (fila.length) return { erro: 'Há mais equipes do que vagões livres. Fale com o líder.' };
   return { faixas, fixos };
 }
+// equipe dona do vagão p: a que o registrou; senão, entre as faixas que o cobrem, a que ainda está aberta
+// (faixas se sobrepõem quando uma equipe é retirada do trem ou o trem passa de turno)
+const donoPos = (t, p) => { p = +p; const r = t.reg[p], c = t.dist.filter(x => p >= x.ini && p <= x.fim);
+  return (r && t.dist.find(x => x.n === r.equipe)) || c.find(x => !x.termino) || c[c.length - 1]; };
 function progEq(t, i) { const d = t.dist[i]; let n = 0, int = 0, oc = 0; for (let p = d.ini; p <= d.fim; p++) { const r = t.reg[p]; if (r) { n++; if (r.st === 'int') int++; oc += r.oc.length; } } return { n, total: d.fim - d.ini + 1, int, oc }; }
 const tempoDesvio = t => t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : difMin(d.ini, agora())), 0);
 const barra = pct => `<div class="prog" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`;
@@ -1159,8 +1163,10 @@ function cardTrem(t) {
     <label><span>Entregue para revisão às</span><input type="time" value="${esc(t.inicio || '')}" data-act="trem-entrega" data-id="${t.id}"></label></div>`;
   const naoInsp = t.vagoes.length - ins;
   const eqs = t.dist.map((d, i) => { const p = progEq(t, i);
-    const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
-    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}${t.status === 'andamento' ? ` <button class="btn sm" data-act="editar-eq" data-id="${t.id}" data-i="${i}" title="Trocar integrantes só neste trem">✏ Editar</button>` : ''}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
+    const proprios = Object.entries(t.reg).filter(([q, r]) => +q >= d.ini && +q <= d.fim && r.equipe === d.n).length;
+    const st = d.termino && proprios < d.fim - d.ini + 1 && t.dist.some(x => x !== d && !x.termino && x.ini <= d.fim && x.fim >= d.ini) ? `<span class="tag neu">Retirada às ${d.termino} · ${proprios} vagão(ões) feitos</span>`
+      : d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
+    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}${t.status === 'andamento' && !d.termino ? ` <button class="btn sm" data-act="editar-eq" data-id="${t.id}" data-i="${i}" title="Trocar integrantes só neste trem">✏ Editar</button>` : ''}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
   return `<div class="card">
     <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)}</span></h2>
     <div class="os-linha">${t.os ? `<span class="os-tag">OS <b>${esc(t.os)}</b></span>` : '<span class="small muted">OS não informada</span>'}<button class="btn sm" data-act="editar-os" data-id="${t.id}">✏ ${t.os ? 'Corrigir' : 'Informar'} OS</button></div>
@@ -1229,7 +1235,7 @@ function supTurno() {
   const eventos = [];
   meus.forEach(t => Object.entries(t.reg).forEach(([p, r]) => {
     if (r.st === 'ok') return;
-    const d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: r.equipe, membros: [] };
+    const d = donoPos(t, p) || { n: r.equipe, membros: [] };
     eventos.push({ h: r.h, cls: r.oc.length ? 'bad' : '', txt: `<b>${esc(t.vagoes[p - 1])}</b> <span class="small muted">(${t.prefixo}, pos. ${posF(t, p)})</span><br>${esc(txtReg(r))}<br><span class="muted small">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}</span>` });
   }));
   eventos.sort((a, b) => b.h.localeCompare(a.h));
@@ -1451,7 +1457,7 @@ function telaValidar(t) {
     <p class="small muted" style="margin:0">Líder ${esc(t.lider)}${t.motivoParcial ? ' · inspeção parcial: ' + esc(t.motivoParcial) : ''}${t.desvios.length ? ' · desvio ' + dur(tempoDesvio(t)) : ''}${t.obsFech ? ' · “' + esc(t.obsFech) + '”' : ''}</p>
     ${falta ? `<div class="acoes"><button class="btn sm" data-act="val-todos" data-id="${t.id}">✓ Validar todos os que faltam (${falta})</button></div>` : ''}</div>
   <p class="nota" style="margin:0 0 10px">Aparecem só os vagões com <b>defeito, material ou ocorrência</b> e os com <b>plano especial respondido</b> (Realizado / Não realizado). Vagões OK e pendentes não entram.</p>
-  <div class="vagoes">${aps.map(({ p, r, ex }) => { const d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: r?.equipe ?? '–', membros: [] }, rf = restrDe(t, p);
+  <div class="vagoes">${aps.map(({ p, r, ex }) => { const d = donoPos(t, p) || { n: r?.equipe ?? '–', membros: [] }, rf = restrDe(t, p);
     const planosHtml = Object.entries(ex).map(([n, e]) => `<br><span class="tag plano">📋 ${esc(n)}</span> ${tagExec(e)} <span class="small muted">${esc(e.por || '')} · ${horaDe(e.quando)}</span>`).join('');
     if (!r) return `<div class="card ap" style="margin:0"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> <span class="tag neu">Sem registro do vagão</span>${planosHtml}<br><span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}</span></div>`;
     return `<div class="card ap ${r.val ? 'conferido' : ''}" style="margin:0"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
@@ -1517,7 +1523,7 @@ function espItens() {
   const prefs = [...new Set(lst.map(x => x.t.prefixo))].sort(), dias = [...new Set(lst.map(x => x.t.dataISO))].sort().reverse();
   const vis = lst.filter(x => (!S.itDia || x.t.dataISO === S.itDia) && (!S.itPref || x.t.prefixo === S.itPref) && (!S.itSo || (S.itSo === 'corr') === (x.r.val === 'corrigido')))
     .sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || a.t.prefixo.localeCompare(b.t.prefixo) || a.p - b.p);
-  const eqDe = (t, p, r) => { const d = t.dist.find(x => x.n === r.equipe) || t.dist.find(x => p >= x.ini && p <= x.fim); return d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : ''; };
+  const eqDe = (t, p, r) => { const d = donoPos(t, p); return d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : ''; };
   const nCorr = vis.filter(x => x.r.val === 'corrigido').length;
   return `${filtroTurnoV()}
   <div class="card"><div class="linha-campos"><label class="campo">Dia<select data-act="it-filtro" data-k="itDia"><option value="">Todos</option>${dias.map(d => `<option value="${d}" ${d === S.itDia ? 'selected' : ''}>${diaRot(d)}</option>`).join('')}</select></label>
@@ -1549,7 +1555,7 @@ function linhasApont() {
   return out.sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || (b.r?.h || '').localeCompare(a.r?.h || '') || a.t.prefixo.localeCompare(b.t.prefixo) || a.p - b.p);
 }
 // técnico vê só o que é dele e da dupla: a equipe do registro (ou a da faixa do vagão) tem ele como membro
-const minhaDupla = (t, p, r) => { const eu = uidTec(), d = (r && t.dist.find(x => x.n === r.equipe)) || t.dist.find(x => p >= x.ini && p <= x.fim); return !!eu && !!d && d.membros.includes(eu); };
+const minhaDupla = (t, p, r) => { const eu = uidTec(), d = donoPos(t, p); return !!eu && !!d && d.membros.includes(eu); };
 function vistaApont() {
   const soMeus = S.papel === 'tec', todas = linhasApont().filter(x => !soMeus || minhaDupla(x.t, x.p, x.r)), dias = [...new Set(todas.map(x => x.t.dataISO))].sort().reverse();
   if (S.apDia && !dias.includes(S.apDia)) S.apDia = '';
@@ -1559,7 +1565,7 @@ function vistaApont() {
   const base = doFiltro.filter(x => (!S.apPref || x.t.prefixo === S.apPref) && (!busca || semAcento(x.t.vagoes[x.p - 1] || '').includes(busca)));
   const vis = base.filter(x => !S.apTipo || x.tipos[S.apTipo]), LIM = 150;
   const n = k => base.filter(x => x.tipos[k]).length, itens = base.reduce((a, x) => a + (x.r ? qtdItens(x.r) : 0), 0);
-  const eqDe = (t, p, r) => { const d = (r && t.dist.find(x => x.n === r.equipe)) || t.dist.find(x => p >= x.ini && p <= x.fim); return d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : ''; };
+  const eqDe = (t, p, r) => { const d = donoPos(t, p); return d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : ''; };
   const linha = (ic, txt) => `<div class="small" style="margin-top:4px">${ic} ${txt}</div>`;
   return `<p class="nota">${soMeus ? `Os seus apontamentos e os da sua dupla${uidTec() ? '' : ' (escolha o mecânico)'}:` : 'Tudo o que as equipes lançaram nos vagões:'} <b>defeitos</b> (observações e falhas), <b>materiais</b> aplicados, <b>planos especiais</b> executados e <b>avarias</b> (retenção, isolamento, normalização). Mostra os trens carregados no aparelho (${{ tec: 'últimos 3 dias', sup: 'últimos 7 dias', esp: 'últimos 15 dias' }[PAPEL[DB.me.perfil]] || 'últimos 35 dias'}).</p>
   <div class="card"><div class="linha-campos"><label class="campo">Dia<select data-act="it-filtro" data-k="apDia"><option value="">Todos</option>${dias.map(d => `<option value="${d}" ${d === S.apDia ? 'selected' : ''}>${diaRot(d)}</option>`).join('')}</select></label>
@@ -1710,7 +1716,8 @@ function reduzirFoto(arquivo) {
   });
 }
 function salvarVagao(st) {
-  const M = S.modal, t = tremQualquer(M.tremId), antigo = t.reg[M.pos], d = t.dist.find(x => M.pos >= x.ini && M.pos <= x.fim);
+  const M = S.modal, t = tremQualquer(M.tremId), antigo = t.reg[M.pos], eu = uidTec();
+  const d = M.validando && antigo ? { n: antigo.equipe } : t.dist.find(x => eu && x.membros.includes(eu) && !x.termino && M.pos >= x.ini && M.pos <= x.fim) || donoPos(t, M.pos);
   const r = { st: 'ok', h: M.validando && antigo ? antigo.h : agora(), mats: [], oc: [], obs: '', motivo: '', falhas: [], foto: antigo?.foto, fotoUrl: antigo?.fotoUrl, equipe: d?.n ?? null };
   if (st === 'pend') Object.assign(r, { st, motivo: M.motivo });
   if (st === 'int') {
@@ -1780,7 +1787,39 @@ function modalDividir(M) {
 }
 // troca de integrantes de uma equipe só neste trem (ex.: horário de refeição); a faixa de vagões e os registros ficam
 const MOTIVOS_TROCA_EQ = ['Horário de refeição', 'Apoio em outro trem', 'Falta / saída antecipada', 'Outro'];
+// retirar a equipe i do trem: a parte dela é encerrada (o que registrou continua dela) e os vagões que faltavam na faixa
+// passam para as equipes vizinhas do turno (a de antes e/ou a de depois na composição). Faixas continuam contínuas.
+function planoRetirada(t, i, modo) {
+  const R = t.dist[i], doTurno = x => x.membros.some(m => C(m).turno === t.turno);
+  const pend = []; for (let p = R.ini; p <= R.fim; p++) if (!t.reg[p] || t.reg[p].st === 'pend') pend.push(p);
+  const outros = t.dist.filter((x, j) => j !== i && doTurno(x));
+  const esq = outros.filter(x => x.fim < R.ini).sort((a, b) => b.fim - a.fim)[0], dir = outros.filter(x => x.ini > R.fim).sort((a, b) => a.ini - b.ini)[0];
+  const modos = [...(esq && dir ? ['dividir'] : []), ...(esq ? ['esq'] : []), ...(dir ? ['dir'] : [])];
+  if (!pend.length) return { R, pend, esq, dir, modos, modo: null, mud: [] };
+  if (!modos.length) return { R, pend, erro: 'Não há outra equipe deste turno neste trem para receber os vagões. Use “Dividir entre as equipes” ou passe o trem.' };
+  if (!modos.includes(modo)) modo = modos[0];
+  const corte = modo === 'dividir' ? pend[Math.ceil(pend.length / 2) - 1] : modo === 'esq' ? R.fim : R.ini - 1;   // esq fica até o corte; dir, depois dele
+  const mud = [];
+  if (esq && corte > esq.fim) mud.push({ d: esq, ini: esq.ini, fim: corte, comeco: esq.comeco, n: pend.filter(p => p <= corte).length });
+  if (dir && corte + 1 < dir.ini) mud.push({ d: dir, ini: corte + 1, fim: dir.fim, comeco: dir.inicio && !dir.comeco ? dir.ini : dir.comeco, n: pend.filter(p => p > corte).length });
+  return { R, pend, esq, dir, modos, modo, mud };
+}
+function modalRetirarEq(M) {
+  const t = tremPorId(M.id), P = planoRetirada(t, M.i, M.modoRet), R = P.R;
+  const rot = { dividir: `Dividir entre a Equipe ${P.esq?.n} e a Equipe ${P.dir?.n}`, esq: `Tudo para a Equipe ${P.esq?.n} (${esc(nomesEquipe(P.esq?.membros || []))})`, dir: `Tudo para a Equipe ${P.dir?.n} (${esc(nomesEquipe(P.dir?.membros || []))})` };
+  return `<div class="small muted">Trem ${esc(t.prefixo)} · ${esc(t.linha)}</div><h3>Retirar a Equipe ${R.n} deste trem</h3>
+    <p class="small" style="margin:0 0 8px"><b>${esc(nomesEquipe(R.membros))}</b> · ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, R.ini)} a ${posF(t, R.fim)}</p>
+    <p class="small muted" style="margin:0 0 8px">A parte da equipe é encerrada agora e o trem sai do celular dela. Os vagões que ela já registrou continuam com ela.</p>
+    ${P.erro ? `<div class="alerta"><span>⚠ ${esc(P.erro)}</span></div>` : !P.pend.length ? '<p class="small" style="color:var(--ok);font-weight:700">✓ Todos os vagões da faixa já foram registrados: nada a redividir.</p>'
+    : `<div class="secao">${P.pend.length} vagão(ões) a revistar na faixa · quem fica com eles</div>
+      ${P.modos.map(k => `<label class="radio"><input type="radio" name="modo-ret" data-act="ret-modo" value="${k}" ${k === P.modo ? 'checked' : ''}> ${rot[k]}</label>`).join('')}
+      <ul class="small" style="margin:6px 0 10px;padding-left:18px">${P.mud.map(x => `<li><b>Equipe ${x.d.n}</b> passa a ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, x.ini)} a ${posF(t, x.fim)} · +${x.n} vagão(ões)${x.d.termino ? ' · <b>reabre</b> (tinha terminado)' : ''}</li>`).join('')}</ul>`}
+    <label class="campo">Motivo<select data-act="eq-motivo">${MOTIVOS_TROCA_EQ.map(m => `<option ${m === M.motivo ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+    <button class="btn primary big" data-act="confirmar-retirada" ${P.erro ? 'disabled' : ''}>Retirar a Equipe ${R.n}${P.mud.length ? ' e redividir' : ''}</button>
+    <button class="btn" style="width:100%;margin-top:8px" data-act="ret-voltar">Voltar</button>`;
+}
 function modalEditarEq(M) {
+  if (M.retirar) return modalRetirarEq(M);
   const t = tremPorId(M.id), d = t.dist[M.i], outra = id => t.dist.find((x, j) => j !== M.i && x.membros.includes(id));
   const sai = d.membros.filter(id => !M.membros.includes(id)), entra = M.membros.filter(id => !d.membros.includes(id));
   const fora = [...new Set([...ativos(t.turno), ...sai])].filter(id => !M.membros.includes(id));
@@ -1794,12 +1833,15 @@ function modalEditarEq(M) {
     ${fora.length ? fora.map(id => { const o = outra(id); return `<label class="radio"><input type="checkbox" data-act="eq-membro" value="${id}" ${o ? 'disabled' : ''}> <span>${esc(nomeTec(id))}${o ? ` <span class="small muted">· na Equipe ${o.n} deste trem</span>` : sai.includes(id) ? ' <span class="small muted">· saindo</span>' : ''}</span></label>`; }).join('') : '<p class="small muted">Nenhum outro técnico ativo no turno.</p>'}
     <label class="campo" style="margin-top:8px">Motivo<select data-act="eq-motivo">${MOTIVOS_TROCA_EQ.map(m => `<option ${m === M.motivo ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
     ${sai.length || entra.length ? `<p class="small" style="margin:0 0 10px">${sai.length ? `Sai: <b>${esc(nomes(sai))}</b>` : ''}${sai.length && entra.length ? ' · ' : ''}${entra.length ? `Entra: <b>${esc(nomes(entra))}</b>` : ''}</p>` : ''}
-    <button class="btn primary big" data-act="salvar-eq-trem" ${sai.length || entra.length ? '' : 'disabled'}>${sai.length || entra.length ? 'Salvar equipe' : 'Nada alterado'}</button>`;
+    <button class="btn primary big" data-act="salvar-eq-trem" ${sai.length || entra.length ? '' : 'disabled'}>${sai.length || entra.length ? 'Salvar equipe' : 'Nada alterado'}</button>
+    <div class="secao" style="margin-top:16px">Retirar a equipe inteira</div>
+    <p class="small muted" style="margin:0 0 6px">Sai a dupla toda deste trem e os vagões que faltam na faixa dela vão para as outras equipes.</p>
+    <button class="btn perigo" style="width:100%" data-act="ret-abrir">🚫 Retirar a Equipe ${d.n} e dividir o restante</button>`;
 }
 function modalNaoInsp(M) {
   const t = tremPorId(M.id), l = [];
   t.vagoes.forEach((c, i) => { const p = i + 1, r = t.reg[p]; if (r && r.st !== 'pend') return;
-    const d = t.dist.find(x => p >= x.ini && p <= x.fim); l.push({ p, c, r, d }); });
+    const d = donoPos(t, p); l.push({ p, c, r, d }); });
   const falta = l.filter(x => !x.r).length, pend = l.length - falta;
   return `<div class="small muted">Trem ${esc(t.prefixo)} · ${esc(t.linha)}</div><h3>Vagões não inspecionados</h3>
     <div class="resumo" style="grid-template-columns:repeat(3,1fr)"><div><b>${l.length}</b><span>não inspecionados</span></div><div><b>${falta}</b><span>sem registro</span></div><div><b style="color:var(--warn)">${pend}</b><span>pendentes</span></div></div>
@@ -2138,7 +2180,7 @@ function linhasHist() {
   const novos = fechadosT().map(t => {
     const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => m[x.nome] = (m[x.nome] || 0) + x.qtd));
     const rt = Object.entries(t.reg).filter(([, r]) => r.oc.includes('Retenção de vagão')).map(([p, r]) => ({ vagao: t.vagoes[p - 1], obs: r.obs }));
-    const apl = Object.entries(t.reg).flatMap(([p, r]) => { const d = t.dist.find(x => p >= x.ini && p <= x.fim);
+    const apl = Object.entries(t.reg).flatMap(([p, r]) => { const d = donoPos(t, p);
       return r.mats.map(x => ({ vagao: t.vagoes[p - 1], id: x.id, nome: x.nome, qtd: x.qtd, pos: x.pos || [], posTrem: posF(t, +p), hora: r.h, equipe: d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : '' })); });
     return { ini: t.inicio || '', fimH: t.fim || '', id: t.id, dataISO: t.dataISO, turno: t.turno, linha: t.linha, prefixo: t.prefixo, status: t.status, lider: t.lider, backup: t.backup, motivoNao: t.motivoNao, motivoParcial: t.motivoParcial,
       durMin: t.durMin, total: t.vagoes.length, insp: inspecionados(t), retidos: rt.length, itens: Object.values(m).reduce((a, b) => a + b, 0),
@@ -2583,7 +2625,7 @@ function progMateriais() {
   const porTec = {}, ocs = {};
   trensFiltrados().filter(t => t.status !== 'nao_revistado').forEach(t => Object.entries(t.reg).forEach(([p, r]) => {
     if (r.st === 'pend') return;
-    (t.dist.find(x => p >= x.ini && p <= x.fim)?.membros || []).forEach(id => porTec[id] = (porTec[id] || 0) + 1);
+    (donoPos(t, p)?.membros || []).forEach(id => porTec[id] = (porTec[id] || 0) + 1);
     r.oc.forEach(o => ocs[o] = (ocs[o] || 0) + 1);
   }));
   const topTec = Object.entries(porTec).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, v]) => [nomeTec(id), v]);
@@ -2605,7 +2647,7 @@ function progMateriais() {
 const normCod = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
 function historicoVagao(cod) {
   const out = [];
-  DB.trens.forEach(t => t.vagoes.forEach((c, i) => { if (c === cod) { const p = i + 1; out.push({ t, p, r: t.reg[p], d: t.dist.find(x => p >= x.ini && p <= x.fim) || { n: '–', membros: [] } }); } }));
+  DB.trens.forEach(t => t.vagoes.forEach((c, i) => { if (c === cod) { const p = i + 1; out.push({ t, p, r: t.reg[p], d: donoPos(t, p) || { n: '–', membros: [] } }); } }));
   return out.sort((a, b) => b.t.data - a.t.data);
 }
 function progVagao() {
@@ -2660,7 +2702,7 @@ function exportar(tipo) {
     return baixarCSV(L, 'revistamento-zto-trens.csv');
   }
   const L = [['Data', 'Turno', 'Líder', 'Trem', 'Linha', 'Posição na ficha', 'Vagão', 'Equipe', 'Integrantes', 'Hora', 'Resultado', 'Sapatas (posições)', 'Outros materiais', 'Ocorrências', 'Observação', 'Motivo pendência', 'Validação', ...(RECURSOS.arvoreFalhas ? ['Falhas'] : [])]];
-  trensFiltrados().forEach(t => Object.entries(t.reg).forEach(([p, r]) => { const d = t.dist.find(x => p >= x.ini && p <= x.fim) || { n: r.equipe, membros: [] }, s = r.mats.find(m => m.id === 'sapata');
+  trensFiltrados().forEach(t => Object.entries(t.reg).forEach(([p, r]) => { const d = donoPos(t, p) || { n: r.equipe, membros: [] }, s = r.mats.find(m => m.id === 'sapata');
     L.push([dt(t), t.turno, t.lider, t.prefixo, t.linha, posF(t, p), t.vagoes[p - 1], d.n, d.membros.map(nomeTec).join(', '), r.h, { ok: 'OK', int: 'Intervenção', pend: 'Pendente' }[r.st], s ? s.pos.join(' ') : '', r.mats.filter(m => m.id !== 'sapata').map(txtMat).join(' | '), r.oc.join(' | '), r.obs, r.motivo, r.val === 'corrigido' ? 'Corrigido' : r.val === 'ok' ? 'Validado' : '', ...(RECURSOS.arvoreFalhas ? [r.falhas.map(f => f.comp + ': ' + f.falha).join(' | ')] : [])]); }));
   baixarCSV(L, 'revistamento-zto-vagoes.csv');
 }
@@ -2974,6 +3016,16 @@ document.addEventListener('click', async e => {
     }
     case 'editar-eq': { const t = tremPorId(el.dataset.id), i = +el.dataset.i; S.modal = { tipo: 'editareq', id: t.id, i, membros: t.dist[i].membros.slice(), motivo: MOTIVOS_TROCA_EQ[0] }; renderModal(); return; }
     case 'eq-tirar': { const M = S.modal; if (M.membros.length > 1) M.membros = M.membros.filter(x => x !== v); renderModal(); return; }
+    case 'ret-abrir': S.modal.retirar = true; renderModal(); return;
+    case 'ret-voltar': S.modal.retirar = false; renderModal(); return;
+    case 'confirmar-retirada': {
+      const M = S.modal, t = tremPorId(M.id), P = planoRetirada(t, M.i, M.modoRet), R = P.R, h = agora(); if (P.erro) return;
+      R.termino = h; enviar({ tabela: 'trem_equipes', acao: 'update', dados: { termino: h }, filtro: [['id', 'eq', R.rowId]], desc: 'Equipe ' + R.n + ' retirada do trem ' + t.prefixo });
+      P.mud.forEach(x => { const dados = { ini: x.ini, fim: x.fim, comeco: x.comeco ?? null, termino: null };
+        Object.assign(x.d, dados); enviar({ tabela: 'trem_equipes', acao: 'update', dados, filtro: [['id', 'eq', x.d.rowId]], desc: 'Faixa da Equipe ' + x.d.n + ' do trem ' + t.prefixo }); });
+      registrarLog(`Trem ${t.prefixo} · Equipe ${R.n} (${nomesEquipe(R.membros)}) retirada (${M.motivo})` + (P.mud.length ? ': ' + P.mud.map(x => `Equipe ${x.d.n} +${x.n} vagão(ões)`).join(', ') : ''));
+      S.modal = null; toast(`Equipe ${R.n} retirada do ${t.prefixo}` + (P.mud.length ? ' · restante redividido' : '')); break;
+    }
     case 'salvar-eq-trem': {
       const M = S.modal, t = tremPorId(M.id), d = t.dist[M.i]; if (!M.membros.length) return;
       const antes = nomesEquipe(d.membros), depois = nomesEquipe(M.membros);
@@ -3111,6 +3163,7 @@ document.addEventListener('change', async e => {
   else if (a === 'div-sel') { S.modal.sel[+el.dataset.i] = el.checked; renderModal(); }
   else if (a === 'eq-membro') { M.membros = el.checked ? [...M.membros, el.value] : M.membros.filter(x => x !== el.value); renderModal(); }
   else if (a === 'eq-motivo') { M.motivo = el.value; }
+  else if (a === 'ret-modo') { M.modoRet = el.value; renderModal(); }
   else if (a === 'f-dia') { F.per = el.value ? 'dia:' + el.value : 'mes:' + isoData(new Date()).slice(0, 7); render(); }
   else if (a === 'apont-xlsx') {
     const arq = el.files[0]; if (!arq) return;
