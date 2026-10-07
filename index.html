@@ -596,7 +596,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.29';
+const VERSAO = '1.30';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -869,7 +869,7 @@ addEventListener('online', processarFila);
 const S = {
   papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'geral', pcm: 'geral' }, turnoVer: SERVICO.turno, verTec: null,
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
-  novo: null, busca: '', relData: null, relPref: 'todos', supLanca: false, supData: null, supTrem: null, apDia: '', apTurno: '', apPref: '', apBusca: '', apTipo: '', tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
+  novo: null, busca: '', relData: null, relPref: 'todos', relTurno: 'todos', supLanca: false, supData: null, supTrem: null, apDia: '', apTurno: '', apPref: '', apBusca: '', apTipo: '', tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
 const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog', pcm: 'pcm' };
 const ehProg = () => DB.me?.perfil === 'programador';
@@ -1147,7 +1147,7 @@ const ABAS = {
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['apont', 'Apontamentos']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos']],
   prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos']]
+  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos']]
 };
 // apagar trem: programador, ou o líder (supervisor) nos trens do próprio turno
 const podeApagar = t => ehProg() || (DB.me?.perfil === 'supervisor' && t.turno === DB.me.turno);
@@ -1607,7 +1607,7 @@ function espPlanos() {
   </div>`;
 }
 function linhasRelPlanos() {
-  const mt = S.espFiltro === 'todos' ? null : meuTurnoV(); if (!S.relData) S.relData = isoData(new Date());
+  const mt = S.papel === 'pcm' ? (S.relTurno === 'todos' ? null : S.relTurno) : S.espFiltro === 'todos' ? null : meuTurnoV(); if (!S.relData) S.relData = isoData(new Date());
   const doDia = DB.trens.filter(t => t.dataISO === S.relData && (!mt || t.turno === mt));
   const prefs = [...new Set(doDia.map(t => t.prefixo))].sort(); if (S.relPref !== 'todos' && !prefs.includes(S.relPref)) S.relPref = 'todos';
   const linhas = [];
@@ -1621,8 +1621,10 @@ function espRelPlanos() {
   const { linhas, prefs, mt } = linhasRelPlanos(), grupos = Object.entries(porChave(linhas, x => x.plano)).sort((a, b) => a[0].localeCompare(b[0]));
   const cont = l => ({ sim: l.filter(x => x.e?.ok === true).length, nao: l.filter(x => x.e?.ok === false).length, sem: l.filter(x => !x.e).length });
   const tot = cont(linhas), resultado = e => !e ? '<span class="tag neu">Sem resposta</span>' : e.ok ? '<span class="tag ok">✓ Realizado</span>' : '<span class="tag bad">✗ Não realizado</span>';
-  return `${filtroTurnoV()}
+  const pcm = S.papel === 'pcm';
+  return `${pcm ? '' : filtroTurnoV()}
   <div class="card" data-sem-print><div class="linha-campos"><label class="campo">Data<input type="date" data-act="rel-data" value="${S.relData}" max="${isoData(new Date())}"></label>
+    ${pcm ? `<label class="campo">Turno<select data-act="rel-turno"><option value="todos">Todos</option>${'ABCD'.split('').map(x => `<option ${x === S.relTurno ? 'selected' : ''}>${x}</option>`).join('')}</select></label>` : ''}
     <label class="campo">Prefixo<select data-act="rel-pref"><option value="todos">Todos</option>${prefs.map(p => `<option ${p === S.relPref ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label></div>
     <button class="btn primary" data-act="copiar-planos" ${linhas.length ? '' : 'disabled'}>📋 Copiar texto para o WhatsApp</button></div>
   <div class="card relatorio-print" id="rel-planos">
@@ -2931,7 +2933,7 @@ const VIEWS = {
   tec: { meu: tecMeu, apont: vistaApont },
   esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, apont: vistaApont },
   prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, cadastros: progCadastros },
-  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont }
+  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont }
 };
 
 // ---------- login, troca de senha, entrada ----------
@@ -3412,6 +3414,7 @@ document.addEventListener('change', async e => {
   }
   else if (a === 'fech-hora') { lerCampos(); M[el.dataset.k] = el.value; renderModal(); }
   else if (a === 'rel-data') { S.relData = el.value || isoData(new Date()); render(); }
+  else if (a === 'rel-turno') { S.relTurno = el.value; S.relPref = 'todos'; render(); }
   else if (a === 'rel-pref') { S.relPref = el.value; render(); }
   else if (a === 'div-sel') { S.modal.sel[+el.dataset.i] = el.checked; renderModal(); }
   else if (a === 'eq-membro') { M.membros = el.checked ? [...M.membros, el.value] : M.membros.filter(x => x !== el.value); renderModal(); }
