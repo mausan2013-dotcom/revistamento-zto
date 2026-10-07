@@ -577,7 +577,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.14';
+const VERSAO = '1.15';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -894,8 +894,14 @@ function lerFichaTexto(linhas) {
       if (cod.endsWith('-')) { const dv = (L[i + 1] || '').match(/^(\d)\b/); cod += dv ? dv[1] : ''; }
       if (/^\d{6}-\d$/.test(cod)) l = `${m[1]} ${m[2]} ${cod} ${m[3]}`;
     }
+    // fichas em que a linha do veículo vem partida em três: em cima o número e o 1º eixo ("840117-9 19 l"),
+    // no meio posição/série/dados ("4 HPT 388 PCZ ... 17,1") e embaixo o "P" e o último eixo ("1 -22", "L -58", "-12")
+    else if ((m = l.match(/^(\d+) ([A-Z][A-Z0-9]{1,3}) (.*)$/)) && !/\s\d+\s*[lI|]?\s*-\s*\d+$/.test(l) && i > 0) {
+      const cima = L[i - 1].match(/^(?:(\d{6}-\d) )?(\d+)\s*[lI|]$/), baixo = (L[i + 1] || '').match(/^(?:[0-9A-Z] )?-\s*(\d+)$/);
+      if (cima && baixo && (cima[1] || /^\d{4,6}-\d\b/.test(m[3]))) l = `${m[1]} ${m[2]} ${cima[1] ? cima[1] + ' ' : ''}${m[3]} ${cima[2]} l -${baixo[1]}`;
+    }
     if (!f.prefixo && (m = l.match(/Prefixo:\s*([A-Z0-9]+)/i))) f.prefixo = m[1].toUpperCase();
-    if (!f.os && (m = l.match(/\bOS:\s*(\d{4,})/i))) f.os = m[1];
+    if (!f.os && (m = l.match(/\b(?:OS|SO):\s*(\d{4,})/i))) f.os = m[1];                // algumas fichas trazem "SO:"
     if (f.declarados == null && (m = l.match(/^Vag[õo]es:\s*(\d+)/i))) f.declarados = +m[1];
     if (/Ve[íi]culos com Restri/i.test(l)) { emRestr = true; continue; }
     if (emRestr) {
@@ -920,19 +926,23 @@ function lerRestricoes(txt, f) {
     let x = mot.replace(/\s+/g, ' ').trim().replace(/\s*[SN]$/, '').replace(/\.$/, '').replace(/\s*-\s*/g, '-');
     const cat = (x.match(/^([^ -]+)-/) || [])[1], corpo = cat ? x.slice(cat.length + 1) : x, w = corpo.split(' '), h = w.length / 2;
     if (w.length % 2 === 0 && w.slice(0, h).join(' ') === w.slice(h).join(' ')) x = w.slice(0, h).join(' ');
+    else if (cat && corpo.startsWith(cat + ' ')) x = cat + '-' + corpo.slice(cat.length + 1);                // "freio-freio freio isolado" -> "freio - freio isolado"
     else if (cat && corpo.endsWith(' ' + cat + '-' + corpo.slice(0, (corpo.length - cat.length - 2) / 2))) x = cat + '-' + corpo.slice(0, (corpo.length - cat.length - 2) / 2);
     return (cat && x.startsWith(cat + '-') && x !== corpo ? cat + ' - ' + x.slice(cat.length + 1) : x).trim() || 'restrição na ficha';
   };
-  const t = txt.replace(/\s+/g, ' ');
+  const t = txt.replace(/\b\d{2}:\d{2}(?::\d{2})?\b/g, ' ').replace(/\s+/g, ' ');      // hora da restrição fora
+  // há fichas em que a data vem na linha de cima, antes da posição (a seção começa pela data, não pelo vagão)
+  const dataAntes = (id => id >= 0 && id < t.search(/\d{6}\s*-/))(t.search(/\d{2}\/\d{2}\/\d{4}/));
   for (const v of f.vagoes.concat(f.ignorados)) {
     const [ser, num] = v.cod.split(' '), [n6, dv] = num.split('-');
     // "HTT 352927-4", "352927-4", "352927- ... 4" ou "352927 4"
     const re = new RegExp(`(?:${ser}\\s*)?${n6}\\s*-?\\s*${dv}?(?!\\d)`), m = t.match(re);
     if (!m) continue;
     const resto = t.slice(m.index + m[0].length), d = resto.match(/(\d{2}\/\d{2})\/\d{4}/);
+    const dAntes = dataAntes && t.slice(Math.max(0, m.index - 30), m.index).match(/(\d{2}\/\d{2})\/\d{4}\s*(?:\d+\s*)?(?:[A-Z]{3}\s*)?$/);
     let mot = d ? resto.slice(0, d.index) : resto.slice(0, 60);
     mot = mot.replace(/^\s*\d\b/, '').replace(new RegExp(`^\\s*${ser}\\b`), '');                // dígito ou série que ficaram para trás
-    f.restr[v.cod] = { pos: v.pos, motivo: limpa(mot), data: d ? d[1] : '' };
+    f.restr[v.cod] = { pos: v.pos, motivo: limpa(mot), data: dAntes ? dAntes[1] : d ? d[1] : '' };
   }
 }
 let pdfjsPronto = null;
