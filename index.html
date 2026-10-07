@@ -579,7 +579,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.18';
+const VERSAO = '1.19';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1782,12 +1782,19 @@ function modalDividir(M) {
 const MOTIVOS_TROCA_EQ = ['Horário de refeição', 'Apoio em outro trem', 'Falta / saída antecipada', 'Outro'];
 function modalEditarEq(M) {
   const t = tremPorId(M.id), d = t.dist[M.i], outra = id => t.dist.find((x, j) => j !== M.i && x.membros.includes(id));
-  const ids = [...new Set([...d.membros, ...ativos(t.turno), ...M.membros])];
+  const sai = d.membros.filter(id => !M.membros.includes(id)), entra = M.membros.filter(id => !d.membros.includes(id));
+  const fora = [...new Set([...ativos(t.turno), ...sai])].filter(id => !M.membros.includes(id));
+  const nomes = l => l.map(nomeTec).join(', ');
   return `<div class="small muted">Trem ${esc(t.prefixo)} · ${esc(t.linha)} · ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div><h3>Editar a Equipe ${d.n} neste trem</h3>
     <p class="small muted" style="margin:0 0 8px">Vale só para este trem: a equipe do dia não muda. Os vagões já registrados continuam com a equipe; quem entrar passa a ver o trem no celular e quem sair deixa de ver.</p>
-    ${ids.map(id => { const o = outra(id); return `<label class="radio"><input type="checkbox" data-act="eq-membro" value="${id}" ${M.membros.includes(id) ? 'checked' : ''} ${o ? 'disabled' : ''}> <span>${esc(nomeTec(id))}${o ? ` <span class="small muted">· na Equipe ${o.n} deste trem</span>` : d.membros.includes(id) ? ' <span class="small muted">· na equipe agora</span>' : ''}</span></label>`; }).join('')}
+    <div class="secao">Na equipe</div>
+    ${M.membros.map(id => `<div class="def-item" style="background:var(--bg)"><span><b>${esc(nomeTec(id))}</b>${entra.includes(id) ? ' <span class="tag info">entra</span>' : ''}</span><button class="btn sm" data-act="eq-tirar" data-v="${id}" ${M.membros.length > 1 ? '' : 'disabled title="A equipe precisa de pelo menos 1 técnico"'}>✕ Retirar</button></div>`).join('')}
+    ${M.membros.length === 1 ? '<p class="small muted" style="margin:0 0 8px">A equipe precisa de pelo menos 1 técnico. Para tirar este, coloque outro antes.</p>' : ''}
+    <div class="secao">Adicionar (opcional)</div>
+    ${fora.length ? fora.map(id => { const o = outra(id); return `<label class="radio"><input type="checkbox" data-act="eq-membro" value="${id}" ${o ? 'disabled' : ''}> <span>${esc(nomeTec(id))}${o ? ` <span class="small muted">· na Equipe ${o.n} deste trem</span>` : sai.includes(id) ? ' <span class="small muted">· saindo</span>' : ''}</span></label>`; }).join('') : '<p class="small muted">Nenhum outro técnico ativo no turno.</p>'}
     <label class="campo" style="margin-top:8px">Motivo<select data-act="eq-motivo">${MOTIVOS_TROCA_EQ.map(m => `<option ${m === M.motivo ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
-    <button class="btn primary big" data-act="salvar-eq-trem" ${M.membros.length ? '' : 'disabled'}>${M.membros.length ? 'Salvar equipe (' + M.membros.length + ')' : 'Escolha pelo menos 1 técnico'}</button>`;
+    ${sai.length || entra.length ? `<p class="small" style="margin:0 0 10px">${sai.length ? `Sai: <b>${esc(nomes(sai))}</b>` : ''}${sai.length && entra.length ? ' · ' : ''}${entra.length ? `Entra: <b>${esc(nomes(entra))}</b>` : ''}</p>` : ''}
+    <button class="btn primary big" data-act="salvar-eq-trem" ${sai.length || entra.length ? '' : 'disabled'}>${sai.length || entra.length ? 'Salvar equipe' : 'Nada alterado'}</button>`;
 }
 function modalNaoInsp(M) {
   const t = tremPorId(M.id), l = [];
@@ -2966,6 +2973,7 @@ document.addEventListener('click', async e => {
       S.modal = null; toast('Trem ' + t.prefixo + ' dividido entre ' + teq.length + ' equipes'); break;
     }
     case 'editar-eq': { const t = tremPorId(el.dataset.id), i = +el.dataset.i; S.modal = { tipo: 'editareq', id: t.id, i, membros: t.dist[i].membros.slice(), motivo: MOTIVOS_TROCA_EQ[0] }; renderModal(); return; }
+    case 'eq-tirar': { const M = S.modal; if (M.membros.length > 1) M.membros = M.membros.filter(x => x !== v); renderModal(); return; }
     case 'salvar-eq-trem': {
       const M = S.modal, t = tremPorId(M.id), d = t.dist[M.i]; if (!M.membros.length) return;
       const antes = nomesEquipe(d.membros), depois = nomesEquipe(M.membros);
