@@ -367,8 +367,9 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .fila-item:first-of-type { border-top: 0; }
 .fila-n { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; border-radius: 999px; background: var(--primary); color: var(--primary-ink); font-weight: 800; font-size: 14px; }
 .fila-n.pequeno { min-width: 26px; height: 26px; font-size: 12px; }
-.entrega { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--title); }
-.entrega input { min-height: 36px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 15px; }
+.entrega { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--title); }
+.entrega label { display: flex; align-items: center; gap: 8px; }
+.entrega input, .entrega select { min-height: 36px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 15px; }
 .fila-mov { display: flex; gap: 4px; }
 @media (max-width: 420px) { .fila-item { grid-template-columns: 34px minmax(0, 1fr) auto; } .fila-mov { grid-column: 2 / -1; justify-content: flex-end; } }
 .btn.avancar { width: 100%; margin-top: 10px; color: var(--warn); border-color: var(--warn); white-space: normal; }
@@ -383,6 +384,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .tabela.rel td, .tabela.rel th { white-space: normal; }
 .para-print, .relatorio-print { --bg: #ebf0f2; --card: #ffffff; --ink: #2b3a48; --title: #043865; --muted: #5f7180; --line: #d3dde3; --mark: #043865; --track: #e3eaee;
   --ok: #138a6c; --ok-bg: #e1f4ee; --bad: #c62828; --bad-bg: #fdeaea; --warn: #c45a12; --warn-bg: #fff0e5; --info: #0b6fa8; --info-bg: #e3f2fb; --s1: #1b5fa8; --s2: #2ea3e3; --s3: #1f8a6a; --s4: #e0701f; --meta: #c62828; }
+.relatorio-print { background: var(--card); color: var(--ink); }      /* fundo branco e letra escura também no modo escuro do celular */
 .para-print { position: absolute; left: -10000px; top: 0; width: 1500px; padding: 24px; background: var(--bg); color: var(--ink); }
 .para-print .rep-main { grid-template-columns: repeat(12, minmax(0, 1fr)) !important; }
 .para-print .rep { grid-template-columns: minmax(0, 1fr) 270px !important; }
@@ -577,7 +579,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.17';
+const VERSAO = '1.18';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -841,11 +843,16 @@ const atuais = () => DB.trens.filter(t => t.status === 'andamento');
 let TEM_ORDEM = null, TEM_OS = null;
 // fila do turno: ordem definida pelo líder; sem ordem, pela chegada e pela criação
 // turno que assume depois do turno de serviço atual (pela escala)
-function proximoServico() {
-  const s0 = SERVICO, d = deISO(s0.data);
-  if (s0.h === '6') return { turno: equipeNoHorario(d, '14'), h: '14' };
-  if (s0.h === '14') return { turno: equipeNoHorario(d, '22'), h: '22' };
-  const d2 = new Date(d); d2.setDate(d2.getDate() + 1); return { turno: equipeNoHorario(d2, '6'), h: '6' };
+const ORDEM_H = ['6', '14', '22'];
+const vizinhoSlot = (s, k) => { const i = ORDEM_H.indexOf(s.h) + k, d = deISO(s.data), dd = Math.floor(i / 3); d.setDate(d.getDate() + dd);
+  const h = ORDEM_H[((i % 3) + 3) % 3]; return { h, data: isoData(d), turno: equipeNoHorario(d, h) }; };
+function proximoServico() { return vizinhoSlot(SERVICO, 1); }
+// quem recebe o trem do líder que o está direcionando (turno do trem), independente do horário: a passagem acontece
+// perto ou depois do fim do turno, quando o relógio já mostra o turno seguinte. Acha o último horário desse turno na
+// escala (o atual ou um dos dois anteriores; ou o próximo, se ele chegou antes) e devolve o turno que vem depois dele.
+function proximoDe(turno) {
+  const s = [0, -1, -2, 1].map(k => vizinhoSlot(SERVICO, k)).find(x => x.turno === turno);
+  return s ? vizinhoSlot(s, 1) : proximoServico();
 }
 const filaTurno = tt => atuais().filter(t => t.turno === tt).sort((a, b) => (a.ordem ?? 1e9) - (b.ordem ?? 1e9) || (a.chegada || '').localeCompare(b.chegada || '') || a.criadoEm.localeCompare(b.criadoEm));
 // a equipe (pelos integrantes) ainda tem parte aberta num trem anterior da fila?
@@ -1148,11 +1155,12 @@ function cardTrem(t) {
   const minRev = t.inicio ? difMin(t.inicio, agora()) : null, acima = minRev != null && minRev > META_MIN;
   const tempoRev = minRev == null ? '<span class="tag warn">⏱ Informe a hora de entrega</span>'
     : `<span class="tag ${acima ? 'bad' : 'info'}" title="Desde a entrega às ${t.inicio}${acima ? ' · acima da meta de ' + META_MIN + ' min' : ''}">${acima ? '⚠' : '⏱'} Em revistamento há ${dur(minRev)}${acima ? ' · acima de ' + META_MIN + ' min' : ''}</span>`;
-  const entrega = `<label class="entrega"><span>Entregue para revisão às</span><input type="time" value="${esc(t.inicio || '')}" data-act="trem-entrega" data-id="${t.id}"></label>`;
+  const entrega = `<div class="entrega"><label><span>Linha</span><select data-act="trem-linha" data-id="${t.id}">${LINHAS.map(l => `<option ${l === t.linha ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label><span>Entregue para revisão às</span><input type="time" value="${esc(t.inicio || '')}" data-act="trem-entrega" data-id="${t.id}"></label></div>`;
   const naoInsp = t.vagoes.length - ins;
   const eqs = t.dist.map((d, i) => { const p = progEq(t, i);
     const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
-    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
+    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}${t.status === 'andamento' ? ` <button class="btn sm" data-act="editar-eq" data-id="${t.id}" data-i="${i}" title="Trocar integrantes só neste trem">✏ Editar</button>` : ''}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
   return `<div class="card">
     <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)}</span></h2>
     <div class="os-linha">${t.os ? `<span class="os-tag">OS <b>${esc(t.os)}</b></span>` : '<span class="small muted">OS não informada</span>'}<button class="btn sm" data-act="editar-os" data-id="${t.id}">✏ ${t.os ? 'Corrigir' : 'Informar'} OS</button></div>
@@ -1164,7 +1172,7 @@ function cardTrem(t) {
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
     ${eqs}
     ${t.status === 'andamento' && !t.dist.some(d => d.membros.some(m => C(m).turno === t.turno)) ? `<div class="alerta" style="margin:10px 0 0"><span>👥 <b>Sem equipes deste turno neste trem.</b> ${t.dist.length ? 'Recebido do turno anterior: o que já foi registrado fica; divida o restante.' : ''}</span><button class="btn sm primary" data-act="dividir-trem" data-id="${t.id}">Dividir entre as equipes</button></div>` : ''}
-    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoServico())}${ehProg() ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
+    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${ehProg() ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
     ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
   </div>`;
@@ -1196,9 +1204,12 @@ function cardComposicoes(tt) {
   const sapatas = t => Object.values(t.reg).reduce((a, r) => a + r.mats.filter(m => m.id === 'sapata').reduce((x, m) => x + (+m.qtd || 0), 0), 0);
   const linha = t => { const nao = []; t.vagoes.forEach((c, i) => { const r = t.reg[i + 1]; if (!r || r.st === 'pend') nao.push(+posF(t, i + 1)); });
     const pct = t.vagoes.length ? (t.vagoes.length - nao.length) / t.vagoes.length * 100 : 0, st = t.status === 'andamento' ? 'em revista' : t.status === 'nao_revistado' ? 'não revistado' : 'fechado';
-    return `<tr><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${esc(t.linha)} · ${st}</span></td><td class="num"><b style="color:${pct >= 100 ? 'var(--ok)' : pct >= META_ADER ? 'var(--ink)' : 'var(--bad)'}">${t.status === 'nao_revistado' ? '0' : pct1(t.vagoes.length - nao.length, t.vagoes.length)}%</b><br><span class="small muted">${t.vagoes.length - nao.length}/${t.vagoes.length}</span></td><td class="small">${t.status === 'nao_revistado' ? 'trem não revistado' : nao.length ? `<b>${nao.length}</b> · pos. ${faixasPos(nao.sort((a, b) => a - b))}` : '<span style="color:var(--ok);font-weight:700">todos revisados</span>'}</td><td class="num"><b>${sapatas(t)}</b></td></tr>`; };
+    // tempo de revisão: entrega → término apontados pelo líder (em revista: desde a entrega até agora)
+    const tempo = t.status === 'concluido' && t.inicio && t.fim ? `<b style="color:${t.durMin > META_MIN ? 'var(--bad)' : 'var(--ok)'}">${t.durMin > META_MIN ? '⚠ ' : ''}${dur(t.durMin)}</b><br><span class="small muted">${t.inicio}–${t.fim}</span>`
+      : t.status === 'andamento' && t.inicio ? `<b>${dur(difMin(t.inicio, agora()))}</b><br><span class="small muted">desde ${t.inicio}</span>` : '<span class="muted">–</span>';
+    return `<tr><td style="white-space:nowrap"><b>${esc(t.prefixo)}</b> <span class="small muted">${esc(t.linha)}</span><br><span class="small">OS <b>${esc(t.os || '–')}</b></span><br><span class="small muted">${st}</span></td><td class="num" style="white-space:nowrap">${tempo}</td><td class="num"><b style="color:${pct >= 100 ? 'var(--ok)' : pct >= META_ADER ? 'var(--ink)' : 'var(--bad)'}">${t.status === 'nao_revistado' ? '0' : pct1(t.vagoes.length - nao.length, t.vagoes.length)}%</b><br><span class="small muted">${t.vagoes.length - nao.length}/${t.vagoes.length}</span></td><td class="small">${t.status === 'nao_revistado' ? 'trem não revistado' : nao.length ? `<b>${nao.length}</b> · pos. ${faixasPos(nao.sort((a, b) => a - b))}` : '<span style="color:var(--ok);font-weight:700">todos revisados</span>'}</td><td class="num"><b>${sapatas(t)}</b></td></tr>`; };
   return `<div class="card relatorio-print" id="rel-comp"><h2>Composições do turno <span class="dir">${dataBR(deISO(dia))} · turno ${tt} · ${esc(liderDe(tt))}</span></h2>
-    <table class="tabela compacta rel"><thead><tr><th>Trem</th><th class="num">Revisados</th><th>Não revisados (posição na ficha)</th><th class="num">Sapatas trocadas</th></tr></thead><tbody>${ts.map(linha).join('')}</tbody></table>
+    <table class="tabela compacta rel"><thead><tr><th>Trem</th><th class="num">Tempo</th><th class="num">Revisados</th><th>Não revisados (posição na ficha)</th><th class="num">Sapatas trocadas</th></tr></thead><tbody>${ts.map(linha).join('')}</tbody></table>
     <p class="small muted" style="margin:8px 0 0">Revistamento ZTO · ${dataBR(new Date())} ${agora()}</p>
     <div class="acoes" data-sem-print><button class="btn sm primary" data-act="print-comp">📸 Print e enviar pelo WhatsApp</button></div></div><div style="height:12px"></div>`;
 }
@@ -1251,8 +1262,6 @@ function supNovo() {
       <div class="linha-campos">
         <label class="campo">Prefixo<input data-act="novo-campo" data-k="prefixo" value="${esc(N.prefixo)}" placeholder="Ex.: D77"></label>
         <label class="campo">OS do trem<input data-act="novo-campo" data-k="os" value="${esc(N.os || '')}" inputmode="numeric" placeholder="lida da ficha"></label>
-        <label class="campo">Linha<select data-act="novo-campo" data-k="linha">${LINHAS.map(l => `<option ${l === N.linha ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="campo">Chegada<input type="time" data-act="novo-campo" data-k="chegada" value="${esc(N.chegada)}"></label>
       </div>
       <label class="upload ${N.lendo ? 'lendo' : ''}"><input type="file" accept="application/pdf,.pdf" data-act="ficha-pdf">
         <span class="ic">📄</span><span><b>${N.lendo ? 'Lendo a ficha…' : N.fichaNome ? 'Trocar ficha do trem' : 'Enviar ficha do trem (PDF)'}</b><br><span class="small muted">${N.fichaNome ? esc(N.fichaNome) : 'O PDF de impressão do trem. Locomotivas (mais de 4 eixos) são ignoradas.'}</span></span></label>
@@ -1268,7 +1277,7 @@ function supNovo() {
         <div class="acoes" style="margin-top:0"><button class="btn sm primary" data-act="ler">Ler lista</button></div>
       </details>
       <hr style="border:0;border-top:1px solid var(--line);margin:14px 0 10px">
-      ${N.naoRev ? `<label class="campo">Motivo de o trem não ser revistado<select data-act="novo-campo" data-k="motivoNao"><option value="">Escolha…</option>${MOTIVOS_NAO_REV.map(m => `<option ${m === N.motivoNao ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+      ${N.naoRev ? `<label class="campo">Linha<select data-act="novo-campo" data-k="linha">${LINHAS.map(l => `<option ${l === N.linha ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label class="campo">Motivo de o trem não ser revistado<select data-act="novo-campo" data-k="motivoNao"><option value="">Escolha…</option>${MOTIVOS_NAO_REV.map(m => `<option ${m === N.motivoNao ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
         <div class="acoes" style="margin-top:0"><button class="btn primary" data-act="salvar-nao-rev" ${N.prefixo.trim() && N.motivoNao ? '' : 'disabled'}>Registrar trem não revistado</button><button class="btn" data-act="nao-rev" data-v="0">Cancelar</button></div>`
         : '<button class="btn sm" data-act="nao-rev" data-v="1">Este trem não será revistado…</button>'}
     </div>
@@ -1649,7 +1658,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -1768,6 +1777,17 @@ function modalDividir(M) {
     ${eqs.map((e, i) => `<label class="radio"><input type="checkbox" data-act="div-sel" data-i="${i}" ${M.sel[i] !== false ? 'checked' : ''} ${e.membros.length ? '' : 'disabled'}> <span><b>Equipe ${e.n}</b> · ${esc(nomesEquipe(e.membros)) || '<i>sem integrantes</i>'}${(k => k >= 0 ? `<br><span class="small muted">posições ${posF(t, faixas[k][0])} a ${posF(t, faixas[k][1])}</span>` : '')(sel.indexOf(e))}</span></label>`).join('')}
     ${!S.eqSalvo[t.turno] ? '<p class="small muted">Equipes sugeridas para hoje (ajuste na aba Equipes, se precisar).</p>' : ''}
     <button class="btn primary big" data-act="salvar-divisao" ${sel.length ? '' : 'disabled'}>Enviar para ${sel.length} equipe(s)</button>`;
+}
+// troca de integrantes de uma equipe só neste trem (ex.: horário de refeição); a faixa de vagões e os registros ficam
+const MOTIVOS_TROCA_EQ = ['Horário de refeição', 'Apoio em outro trem', 'Falta / saída antecipada', 'Outro'];
+function modalEditarEq(M) {
+  const t = tremPorId(M.id), d = t.dist[M.i], outra = id => t.dist.find((x, j) => j !== M.i && x.membros.includes(id));
+  const ids = [...new Set([...d.membros, ...ativos(t.turno), ...M.membros])];
+  return `<div class="small muted">Trem ${esc(t.prefixo)} · ${esc(t.linha)} · ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div><h3>Editar a Equipe ${d.n} neste trem</h3>
+    <p class="small muted" style="margin:0 0 8px">Vale só para este trem: a equipe do dia não muda. Os vagões já registrados continuam com a equipe; quem entrar passa a ver o trem no celular e quem sair deixa de ver.</p>
+    ${ids.map(id => { const o = outra(id); return `<label class="radio"><input type="checkbox" data-act="eq-membro" value="${id}" ${M.membros.includes(id) ? 'checked' : ''} ${o ? 'disabled' : ''}> <span>${esc(nomeTec(id))}${o ? ` <span class="small muted">· na Equipe ${o.n} deste trem</span>` : d.membros.includes(id) ? ' <span class="small muted">· na equipe agora</span>' : ''}</span></label>`; }).join('')}
+    <label class="campo" style="margin-top:8px">Motivo<select data-act="eq-motivo">${MOTIVOS_TROCA_EQ.map(m => `<option ${m === M.motivo ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+    <button class="btn primary big" data-act="salvar-eq-trem" ${M.membros.length ? '' : 'disabled'}>${M.membros.length ? 'Salvar equipe (' + M.membros.length + ')' : 'Escolha pelo menos 1 técnico'}</button>`;
 }
 function modalNaoInsp(M) {
   const t = tremPorId(M.id), l = [];
@@ -2945,6 +2965,16 @@ document.addEventListener('click', async e => {
       teq.forEach(e => t.dist.push({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, inicio: null, termino: null }));
       S.modal = null; toast('Trem ' + t.prefixo + ' dividido entre ' + teq.length + ' equipes'); break;
     }
+    case 'editar-eq': { const t = tremPorId(el.dataset.id), i = +el.dataset.i; S.modal = { tipo: 'editareq', id: t.id, i, membros: t.dist[i].membros.slice(), motivo: MOTIVOS_TROCA_EQ[0] }; renderModal(); return; }
+    case 'salvar-eq-trem': {
+      const M = S.modal, t = tremPorId(M.id), d = t.dist[M.i]; if (!M.membros.length) return;
+      const antes = nomesEquipe(d.membros), depois = nomesEquipe(M.membros);
+      if (antes === depois) { S.modal = null; break; }
+      d.membros = M.membros.slice();
+      enviar({ tabela: 'trem_equipes', acao: 'update', dados: { membros: d.membros }, filtro: [['id', 'eq', d.rowId]], desc: 'Equipe ' + d.n + ' do trem ' + t.prefixo });
+      registrarLog(`Trem ${t.prefixo} · Equipe ${d.n}: ${antes} → ${depois} (${M.motivo})`);
+      S.modal = null; toast('Equipe ' + d.n + ' do ' + t.prefixo + ': ' + depois); break;
+    }
     case 'nao-insp': S.modal = { tipo: 'naoinsp', id: el.dataset.id }; renderModal(); return;
     case 'novo-desvio': S.modal = { tipo: 'desvio', id: el.dataset.id, motivo: '' }; renderModal(); return;
     case 'salvar-desvio': {
@@ -3056,6 +3086,11 @@ document.addEventListener('change', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, N = S.novo, M = S.modal;
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
+  else if (a === 'trem-linha') {
+    const t = tremPorId(el.dataset.id); if (!t || !el.value || el.value === t.linha) return;
+    t.linha = el.value; enviar({ tabela: 'trens', acao: 'update', dados: { linha: el.value }, filtro: [['id', 'eq', t.id]], desc: 'Linha do trem ' + t.prefixo });
+    toast('Trem ' + t.prefixo + ' na ' + el.value); render();
+  }
   else if (a === 'trem-entrega') {
     const t = tremPorId(el.dataset.id); if (!t || !el.value) return;
     if (horaFutura(el.value)) { toast('⚠ ' + el.value + ' ainda não chegou. Confira a hora de entrega.'); el.value = t.inicio || ''; return; }
@@ -3066,6 +3101,8 @@ document.addEventListener('change', async e => {
   else if (a === 'rel-data') { S.relData = el.value || isoData(new Date()); render(); }
   else if (a === 'rel-pref') { S.relPref = el.value; render(); }
   else if (a === 'div-sel') { S.modal.sel[+el.dataset.i] = el.checked; renderModal(); }
+  else if (a === 'eq-membro') { M.membros = el.checked ? [...M.membros, el.value] : M.membros.filter(x => x !== el.value); renderModal(); }
+  else if (a === 'eq-motivo') { M.motivo = el.value; }
   else if (a === 'f-dia') { F.per = el.value ? 'dia:' + el.value : 'mes:' + isoData(new Date()).slice(0, 7); render(); }
   else if (a === 'apont-xlsx') {
     const arq = el.files[0]; if (!arq) return;
