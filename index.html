@@ -577,7 +577,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.17';
+const VERSAO = '1.18';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1152,7 +1152,7 @@ function cardTrem(t) {
   const naoInsp = t.vagoes.length - ins;
   const eqs = t.dist.map((d, i) => { const p = progEq(t, i);
     const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
-    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
+    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span> <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}</span></div><div>${st}${t.status === 'andamento' ? ` <button class="btn sm" data-act="editar-eq" data-id="${t.id}" data-i="${i}" title="Trocar integrantes só neste trem">✏ Editar</button>` : ''}</div>${barra(p.n / p.total * 100)}</div>`; }).join('');
   return `<div class="card">
     <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)}</span></h2>
     <div class="os-linha">${t.os ? `<span class="os-tag">OS <b>${esc(t.os)}</b></span>` : '<span class="small muted">OS não informada</span>'}<button class="btn sm" data-act="editar-os" data-id="${t.id}">✏ ${t.os ? 'Corrigir' : 'Informar'} OS</button></div>
@@ -1252,7 +1252,6 @@ function supNovo() {
         <label class="campo">Prefixo<input data-act="novo-campo" data-k="prefixo" value="${esc(N.prefixo)}" placeholder="Ex.: D77"></label>
         <label class="campo">OS do trem<input data-act="novo-campo" data-k="os" value="${esc(N.os || '')}" inputmode="numeric" placeholder="lida da ficha"></label>
         <label class="campo">Linha<select data-act="novo-campo" data-k="linha">${LINHAS.map(l => `<option ${l === N.linha ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="campo">Chegada<input type="time" data-act="novo-campo" data-k="chegada" value="${esc(N.chegada)}"></label>
       </div>
       <label class="upload ${N.lendo ? 'lendo' : ''}"><input type="file" accept="application/pdf,.pdf" data-act="ficha-pdf">
         <span class="ic">📄</span><span><b>${N.lendo ? 'Lendo a ficha…' : N.fichaNome ? 'Trocar ficha do trem' : 'Enviar ficha do trem (PDF)'}</b><br><span class="small muted">${N.fichaNome ? esc(N.fichaNome) : 'O PDF de impressão do trem. Locomotivas (mais de 4 eixos) são ignoradas.'}</span></span></label>
@@ -1649,7 +1648,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -1768,6 +1767,17 @@ function modalDividir(M) {
     ${eqs.map((e, i) => `<label class="radio"><input type="checkbox" data-act="div-sel" data-i="${i}" ${M.sel[i] !== false ? 'checked' : ''} ${e.membros.length ? '' : 'disabled'}> <span><b>Equipe ${e.n}</b> · ${esc(nomesEquipe(e.membros)) || '<i>sem integrantes</i>'}${(k => k >= 0 ? `<br><span class="small muted">posições ${posF(t, faixas[k][0])} a ${posF(t, faixas[k][1])}</span>` : '')(sel.indexOf(e))}</span></label>`).join('')}
     ${!S.eqSalvo[t.turno] ? '<p class="small muted">Equipes sugeridas para hoje (ajuste na aba Equipes, se precisar).</p>' : ''}
     <button class="btn primary big" data-act="salvar-divisao" ${sel.length ? '' : 'disabled'}>Enviar para ${sel.length} equipe(s)</button>`;
+}
+// troca de integrantes de uma equipe só neste trem (ex.: horário de refeição); a faixa de vagões e os registros ficam
+const MOTIVOS_TROCA_EQ = ['Horário de refeição', 'Apoio em outro trem', 'Falta / saída antecipada', 'Outro'];
+function modalEditarEq(M) {
+  const t = tremPorId(M.id), d = t.dist[M.i], outra = id => t.dist.find((x, j) => j !== M.i && x.membros.includes(id));
+  const ids = [...new Set([...d.membros, ...ativos(t.turno), ...M.membros])];
+  return `<div class="small muted">Trem ${esc(t.prefixo)} · ${esc(t.linha)} · ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div><h3>Editar a Equipe ${d.n} neste trem</h3>
+    <p class="small muted" style="margin:0 0 8px">Vale só para este trem: a equipe do dia não muda. Os vagões já registrados continuam com a equipe; quem entrar passa a ver o trem no celular e quem sair deixa de ver.</p>
+    ${ids.map(id => { const o = outra(id); return `<label class="radio"><input type="checkbox" data-act="eq-membro" value="${id}" ${M.membros.includes(id) ? 'checked' : ''} ${o ? 'disabled' : ''}> <span>${esc(nomeTec(id))}${o ? ` <span class="small muted">· na Equipe ${o.n} deste trem</span>` : d.membros.includes(id) ? ' <span class="small muted">· na equipe agora</span>' : ''}</span></label>`; }).join('')}
+    <label class="campo" style="margin-top:8px">Motivo<select data-act="eq-motivo">${MOTIVOS_TROCA_EQ.map(m => `<option ${m === M.motivo ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+    <button class="btn primary big" data-act="salvar-eq-trem" ${M.membros.length ? '' : 'disabled'}>${M.membros.length ? 'Salvar equipe (' + M.membros.length + ')' : 'Escolha pelo menos 1 técnico'}</button>`;
 }
 function modalNaoInsp(M) {
   const t = tremPorId(M.id), l = [];
@@ -2945,6 +2955,16 @@ document.addEventListener('click', async e => {
       teq.forEach(e => t.dist.push({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, inicio: null, termino: null }));
       S.modal = null; toast('Trem ' + t.prefixo + ' dividido entre ' + teq.length + ' equipes'); break;
     }
+    case 'editar-eq': { const t = tremPorId(el.dataset.id), i = +el.dataset.i; S.modal = { tipo: 'editareq', id: t.id, i, membros: t.dist[i].membros.slice(), motivo: MOTIVOS_TROCA_EQ[0] }; renderModal(); return; }
+    case 'salvar-eq-trem': {
+      const M = S.modal, t = tremPorId(M.id), d = t.dist[M.i]; if (!M.membros.length) return;
+      const antes = nomesEquipe(d.membros), depois = nomesEquipe(M.membros);
+      if (antes === depois) { S.modal = null; break; }
+      d.membros = M.membros.slice();
+      enviar({ tabela: 'trem_equipes', acao: 'update', dados: { membros: d.membros }, filtro: [['id', 'eq', d.rowId]], desc: 'Equipe ' + d.n + ' do trem ' + t.prefixo });
+      registrarLog(`Trem ${t.prefixo} · Equipe ${d.n}: ${antes} → ${depois} (${M.motivo})`);
+      S.modal = null; toast('Equipe ' + d.n + ' do ' + t.prefixo + ': ' + depois); break;
+    }
     case 'nao-insp': S.modal = { tipo: 'naoinsp', id: el.dataset.id }; renderModal(); return;
     case 'novo-desvio': S.modal = { tipo: 'desvio', id: el.dataset.id, motivo: '' }; renderModal(); return;
     case 'salvar-desvio': {
@@ -3066,6 +3086,8 @@ document.addEventListener('change', async e => {
   else if (a === 'rel-data') { S.relData = el.value || isoData(new Date()); render(); }
   else if (a === 'rel-pref') { S.relPref = el.value; render(); }
   else if (a === 'div-sel') { S.modal.sel[+el.dataset.i] = el.checked; renderModal(); }
+  else if (a === 'eq-membro') { M.membros = el.checked ? [...M.membros, el.value] : M.membros.filter(x => x !== el.value); renderModal(); }
+  else if (a === 'eq-motivo') { M.motivo = el.value; }
   else if (a === 'f-dia') { F.per = el.value ? 'dia:' + el.value : 'mes:' + isoData(new Date()).slice(0, 7); render(); }
   else if (a === 'apont-xlsx') {
     const arq = el.files[0]; if (!arq) return;
