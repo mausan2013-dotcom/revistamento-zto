@@ -356,7 +356,7 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .val-plano { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; } .val-plano > span { flex: 1 1 100%; }
 .retro-barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
 .retro-res { max-height: 55vh; overflow-y: auto; margin: 0; } .retro-vag { justify-content: space-between; text-align: left; min-height: 52px; font-weight: 600; padding: 6px 12px; gap: 8px; }
-.retro-nota { display: block; } .retro-nota .btn { margin-top: 8px; }
+.retro-planos { margin: 0 0 4px; border-top: 1px solid var(--line); border-radius: var(--radius); } .retro-nota { display: block; } .retro-nota .btn { margin-top: 8px; }
 .busca-linha { display: flex; gap: 8px; align-items: center; margin-top: 4px; } .busca-linha input { flex: 1; min-width: 0; }
 .card.plano-eq { border-left: 4px solid var(--info); }
 .mat-tab tr.sel td { background: var(--info-bg); }
@@ -596,7 +596,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.26';
+const VERSAO = '1.27';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1826,8 +1826,16 @@ function retroLista(M) {
   const t = tremQualquer(M.tremId); if (!t) return '';
   const ps = t.vagoes.map((c, i) => i + 1).filter(p => casaVag(t.vagoes[p - 1], M.q));
   return ps.map(p => { const r = t.reg[p], d = donoPos(t, p);
-    return `<button class="btn retro-vag" data-act="retro-vag" data-p="${p}"><span><b>${esc(t.vagoes[p - 1])}</b> <span class="small muted">${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)}${d ? ' · Equipe ' + d.n : ''}</span>${r ? `<br><span class="small">${r.h} · ${r.st === 'ok' ? 'sem intervenção' : esc(txtReg(r))}</span>` : ''}</span>${r ? `<span class="tag ${r.st === 'pend' ? 'warn' : r.st === 'int' ? 'info' : 'ok'}">${r.st === 'pend' ? 'pendente' : 'registrado'}</span>` : '<span class="tag">sem registro</span>'}</button>`; }).join('')
+    return `<button class="btn retro-vag" data-act="retro-vag" data-p="${p}"><span><b>${esc(t.vagoes[p - 1])}</b> <span class="small muted">${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)}${d ? ' · Equipe ' + d.n : ''}</span>${planosPend(t.vagoes[p - 1]).length ? ' <span class="tag plano">📋 plano</span>' : ''}${r ? `<br><span class="small">${r.h} · ${r.st === 'ok' ? 'sem intervenção' : esc(txtReg(r))}</span>` : ''}</span>${r ? `<span class="tag ${r.st === 'pend' ? 'warn' : r.st === 'int' ? 'info' : 'ok'}">${r.st === 'pend' ? 'pendente' : 'registrado'}</span>` : '<span class="tag">sem registro</span>'}</button>`; }).join('')
     || '<p class="small muted">Nenhum vagão com esse número nesta composição.</p>';
+}
+// planos especiais do vagão no lançamento retroativo: o líder responde ou corrige pelo técnico
+function retroPlanos(t, pos) {
+  const pp = planosPend(t.vagoes[pos - 1]), pex = (t.pexec || {})[pos] || {};
+  if (!pp.length) return '';
+  return `<div class="secao">Plano especial</div><div class="pl-acoes retro-planos">${pp.map(x => { const e = pex[x.plano]; return `<div class="pl-linha"><span>📋 ${esc(x.plano)}${x.prioridade ? ` <span class="small muted">(prioridade ${esc(x.prioridade)})</span>` : ''}<br>${tagExec(e)}${e?.por ? ` <span class="small muted">por ${esc(e.por)}</span>` : ''}</span>
+    <button class="btn sm ${e?.ok === true ? 'ok' : ''}" data-act="retro-plano" data-plano="${esc(x.plano)}" data-v="1">✓ Realizado</button>
+    <button class="btn sm ${e?.ok === false ? 'nao' : ''}" data-act="retro-plano" data-plano="${esc(x.plano)}" data-v="0">✗ Não realizado</button></div>`; }).join('')}</div>`;
 }
 function modalRetro(M) {
   const ts = tremsRetro();
@@ -1856,7 +1864,7 @@ function blocoArvore(M) {
     ${N.falha ? '<button class="btn" style="width:100%;margin-bottom:12px" data-act="add-falha">+ Adicionar falha</button>' : ''}`;
 }
 function modalVagao(M) {
-  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>` : '');
+  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
   if (!M.modo) return cab + `<div class="escolhas">
     <button class="btn ok big" data-act="salvar-ok">✓ Revistado, sem intervenção</button>
     <button class="btn big" style="color:var(--title);border-color:var(--title)" data-act="modo" data-v="int">🔧 Troca de material / ocorrência</button>
@@ -3119,6 +3127,12 @@ document.addEventListener('click', async e => {
     case 'abrir': if (el.dataset.trem) S.tecTrem = el.dataset.trem; abrirVagao(+el.dataset.p); return;
     case 'fechar': S.modal = null; renderModal(); return;
     case 'retro': S.modal = { tipo: 'retro', tremId: S.retroTrem || null, q: '' }; renderModal(); return;
+    case 'retro-plano': {
+      const t = tremQualquer(M.tremId), pos = M.pos, plano = el.dataset.plano, ok = v === '1', quando = new Date().toISOString(); if (!t) return;
+      ((t.pexec ||= {})[pos] ||= {})[plano] = { ok, quando, por: DB.me.nome };
+      enviar({ tabela: 'planos_execucao', acao: 'upsert', onConflict: 'trem_id,posicao,plano', dados: { trem_id: t.id, posicao: pos, vagao: t.vagoes[pos - 1], plano, realizado: ok, quando, por: DB.me.id }, desc: 'Plano ' + plano + ' (líder, retroativo)' });
+      toast((ok ? 'Plano realizado: ' : 'Plano não realizado: ') + plano); renderModal(); render(); return;
+    }
     case 'retro-voltar': S.modal = { tipo: 'retro', tremId: M.tremId, q: '' }; renderModal(); return;
     case 'retro-vag': { const p = +el.dataset.p, id = M.tremId; S.retroTrem = id; abrirVagao(p, id);
       Object.assign(S.modal, { retro: true, hora: tremQualquer(id).reg[p]?.h || agora() }); renderModal(); return; }
