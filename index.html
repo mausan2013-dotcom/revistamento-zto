@@ -231,6 +231,9 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 /* app real */
 .barra-prog { background: #fff3c4; color: #5a4300; font-size: 13px; padding: 6px 16px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
 .barra-prog[hidden] { display: none; }
+body.demo .barra-prog { background: #ece4ff; color: #3d2a7a; } body.demo .barra-prog .seg { border-color: #8b6fd6; }
+body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg button.on { background: #3d2a7a; color: #ece4ff; }
+.demo-tag { background: #3d2a7a; color: #fff; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 999px; }
 .barra-prog .seg { display: inline-flex; border: 1px solid #c9a227; border-radius: 999px; overflow: hidden; }
 .barra-prog .seg button { border: 0; background: transparent; padding: 4px 10px; font-weight: 700; font-size: 13px; cursor: pointer; color: #5a4300; }
 .barra-prog .seg button.on { background: #5a4300; color: #fff3c4; }
@@ -589,11 +592,24 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.22';
+const VERSAO = '1.23';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
 const sb = supabase.createClient(SUPA_URL, SUPA_CHAVE, { auth: { persistSession: true, storageKey: 'rzto_sessao' } });
+// ---------- modo demonstração (só para os logins abaixo): dados fictícios, nada vai para o banco ----------
+// Entrar troca os dados da tela por uma cena fictícia; sair recarrega o app. Enquanto durar, a fila de envio fica parada
+// (o que já estava pendente de verdade continua guardado) e qualquer gravação no Supabase é barrada aqui.
+let DEMO = false;
+const DEMO_LOGINS = ['mauricio.santiago'];
+const podeDemo = () => DEMO_LOGINS.includes(String(DB.me?.login || '').toLowerCase());
+(() => {
+  const bloq = () => { const r = { data: null, error: { message: 'Demonstração: nada é gravado no sistema' } };
+    const p = new Proxy(function () {}, { get: (t, k) => k === 'then' ? (ok => ok(r)) : () => p, apply: () => p }); return p; };
+  const from = sb.from.bind(sb); sb.from = t => { const q = from(t); if (DEMO) ['insert', 'update', 'upsert', 'delete'].forEach(m => { q[m] = bloq; }); return q; };
+  const rpc = sb.rpc.bind(sb); sb.rpc = (...a) => DEMO ? bloq() : rpc(...a);
+  const st = sb.storage.from.bind(sb.storage); sb.storage.from = b => { const x = st(b); if (DEMO) ['upload', 'remove', 'update', 'createSignedUrl'].forEach(m => { x[m] = async () => ({ data: null, error: { message: 'Demonstração: as fotos de exemplo não existem no sistema' } }); }); return x; };
+})();
 
 // ---------- utilidades ----------
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -736,6 +752,7 @@ async function emLotes(ids, montar) {
 // planos especiais pendentes por vagão (planilha diária enviada pelo Programador)
 const PEND = Object.assign({ mapa: {}, carga: null, quando: null, em: 0 }, lsLer('rzto_pend', {}), { em: 0 });
 async function carregarPendentes(forcar) {
+  if (DEMO) return;
   if (OFFLINE || (!forcar && Date.now() - PEND.em < 10 * 60e3)) return;
   try {
     const { data: c, error } = await sb.from('planos_cargas').select('id,quando').order('quando', { ascending: false }).limit(1);
@@ -753,6 +770,7 @@ const planosPend = cod => PEND.mapa[cod] || [];
 const txtPlanos = l => l.map(x => x.plano).join(', ');
 
 async function carregar() {
+  if (DEMO) return;
   const prog = ehGestao(), dias = prog ? 35 : DB.me.perfil === 'supervisor' ? 7 : DB.me.perfil === 'especializado' ? 15 : 3;
   const desde = new Date(); desde.setDate(desde.getDate() - dias);
   const [colab, trens, planos, eqd, log] = await Promise.all([
@@ -802,8 +820,8 @@ function usarCache() {
 let FILA = lsLer('rzto_fila', []), enviando = false, semSinal = false, erroFila = '';
 // modo offline manual: o usuário desliga a comunicação com a nuvem (sinal oscilando); tudo fica guardado no aparelho
 let OFFLINE = lsLer('rzto_offline', false);
-const precisaNuvem = () => { if (!OFFLINE) return true; toast('📴 Modo offline: toque no ☁ e religue a nuvem para isso'); return false; };
-function enviar(op) { FILA.push({ ...op, quando: Date.now() }); lsGravar('rzto_fila', FILA); processarFila(); indicador(); }
+const precisaNuvem = () => { if (DEMO) { toast('🎬 Demonstração: isso não é enviado ao sistema'); return false; } if (!OFFLINE) return true; toast('📴 Modo offline: toque no ☁ e religue a nuvem para isso'); return false; };
+function enviar(op) { if (DEMO) return; FILA.push({ ...op, quando: Date.now() }); lsGravar('rzto_fila', FILA); processarFila(); indicador(); }
 const ehRede = e => !e?.code && /fetch|network|Failed|Load failed|NetworkError/i.test(String(e?.message || e));
 async function executar(op) {
   if (op.acao === 'foto') {
@@ -820,7 +838,7 @@ async function executar(op) {
   return (await q).error;
 }
 async function processarFila() {
-  if (OFFLINE) { indicador(); return; }
+  if (OFFLINE || DEMO) { indicador(); return; }
   if (enviando || !FILA.length) return;
   enviando = true; indicador();
   while (FILA.length) {
@@ -836,6 +854,7 @@ async function processarFila() {
 }
 function indicador() {
   const el = $('sinc'); if (!el) return;
+  if (DEMO) { el.className = 'sinc'; el.textContent = '🎬 demonstração' + (FILA.length ? ` · ${FILA.length} real a enviar ao sair` : ''); el.title = 'Modo demonstração: nada é gravado'; return; }
   el.className = 'sinc' + (OFFLINE || semSinal ? ' off' : erroFila ? ' erro' : '');
   el.textContent = OFFLINE ? `📴 offline${FILA.length ? ' · ' + FILA.length : ''}` : semSinal ? `sem sinal · ${FILA.length} a enviar` : enviando || FILA.length ? `↻ enviando ${FILA.length}` : erroFila ? '⚠ ver aviso' : '☁ ✓ salvo';
   el.title = erroFila || (DB.atualizadoEm ? 'Atualizado às ' + hhmm(DB.atualizadoEm.getHours() * 60 + DB.atualizadoEm.getMinutes()) : '');
@@ -1072,6 +1091,51 @@ function txtReg(r) {
   return p.join(' · ');
 }
 
+// ---------- cena do modo demonstração (pessoas e trens fictícios do turno de serviço, horários relativos a agora) ----------
+function entrarDemo() {
+  DEMO = true; document.body.classList.add('demo');
+  const tt = SERVICO.turno || 'A', hoje = dataOp(), m0 = minAgora(), h = d => hhmm(((m0 - d) % 1440 + 1440) % 1440), iso = () => new Date().toISOString();
+  const P = (id, nome, perfil, extra = {}) => ({ id, nome, perfil, turno: tt, status: 'ativo', login: 'demo.' + id, ...extra });
+  DB.colab = [{ ...DB.me }, P('d-sup', 'Marcos Pereira', 'supervisor'), P('d-val', 'Rafael Lima', 'especializado'),
+    ...[['d1', 'André Souza'], ['d2', 'Bruno Carvalho'], ['d3', 'Caio Mendes'], ['d4', 'Diego Ramos'], ['d5', 'Eduardo Farias'], ['d6', 'Felipe Rocha'], ['d7', 'Gustavo Lopes'], ['d8', 'Henrique Alves'], ['d9', 'Igor Nunes'], ['d10', 'Júlio Teixeira']].map(([id, n]) => P(id, n, 'tecnico'))];
+  recalcCurto();
+  const SER = ['HPT', 'HTT', 'HFT', 'FTT', 'HPT', 'HTT', 'HPT', 'HFT'];
+  const vag = (n, s) => Array.from({ length: n }, (_, i) => ({ cod: SER[(i + s) % 8] + ' ' + String(30000 + (((i + 1) * 7919 + s * 104729) % 69999)).padStart(6, '0') + '-' + (((i + 1) * 7 + s) % 10), pos: i + 2 }));
+  const ok = (p, eq, hr, x = {}) => ({ posicao: p, resultado: 'ok', hora: hr, materiais: [], ocorrencias: [], obs: '', equipe: eq, ...x });
+  const vC = vag(64, 1), rC = [];
+  for (let p = 1; p <= 11; p++) rC.push(ok(p, 1, h(32 - p)));
+  Object.assign(rC[6], { resultado: 'int', ocorrencias: ['Retenção de vagão'], materiais: [{ id: 'sapata', nome: 'Sapata de freio', qtd: 1, pos: ['3D'] }, { id: 'chaveta', nome: 'Chaveta', qtd: 1 }], obs: 'Trinca de 200 mm na longarina' });
+  Object.assign(rC[9], { resultado: 'pend', motivo: 'Movimentação de trens' });
+  for (let p = 17; p <= 26; p++) rC.push(ok(p, 2, h(40 - p)));
+  Object.assign(rC.find(r => r.posicao === 19), { resultado: 'int', materiais: [{ id: 'sapata', nome: 'Sapata de freio', qtd: 1, pos: ['4D'] }] });
+  Object.assign(rC.find(r => r.posicao === 26), { resultado: 'int', materiais: [{ id: 'dual', nome: 'Trava de engate dual', qtd: 1 }] });
+  Object.assign(rC.find(r => r.posicao === 22), { obs: 'Friso fino no rodeiro 2' });
+  for (let p = 33; p <= 41; p++) rC.push(ok(p, 3, h(45 - p)));
+  const C63 = montarTrem({ id: 'demo-C63', prefixo: 'C63', data: hoje, turno: tt, lider_id: 'd-sup', linha: 'ZTO 1', status: 'andamento', validacao: 'na', os: '2095363', inicio: h(35), vagoes: vC, ordem: 1, criado_em: iso(),
+    restricoes: { [vC[39].cod]: { pos: 41, motivo: 'freio - freio isolado', data: diaRot(hoje) } } },
+    [{ id: 'dc1', numero: 1, membros: ['d1', 'd2'], ini: 1, fim: 16, inicio: h(35) }, { id: 'dc2', numero: 2, membros: ['d3', 'd4', 'd5'], ini: 17, fim: 32, inicio: h(34) },
+     { id: 'dc3', numero: 3, membros: ['d6', 'd7'], ini: 33, fim: 48, inicio: h(28) }, { id: 'dc4', numero: 4, membros: ['d8', 'd9', 'd10'], ini: 49, fim: 64 }],
+    rC, [{ id: 'dd1', ini: h(16), fim: h(9), motivo: 'Aguardando partida / entrada de trem', obs: 'Aguardando a partida da ZTO 2' }],
+    [{ posicao: 12, plano: 'Insp. Long HPT', realizado: true, quando: iso(), por: 'd1' }], []);
+  const L95 = montarTrem({ id: 'demo-L95', prefixo: 'L95', data: hoje, turno: tt, lider_id: 'd-sup', linha: 'ZTO 2', status: 'andamento', validacao: 'na', os: '2095401', vagoes: vag(48, 2), ordem: 2, criado_em: iso() },
+    [{ id: 'dl1', numero: 1, membros: ['d1', 'd2'], ini: 1, fim: 24 }, { id: 'dl2', numero: 2, membros: ['d3', 'd4', 'd5'], ini: 25, fim: 48 }], [], [], [], []);
+  const vK = vag(40, 3), rK = [];
+  for (let p = 1; p <= 40; p++) rK.push(ok(p, p <= 20 ? 1 : 2, h(150 - p)));
+  Object.assign(rK[3], { obs: 'Mangueira do freio ressecada' });
+  Object.assign(rK[8], { resultado: 'int', materiais: [{ id: 'sapata', nome: 'Sapata de freio', qtd: 2, pos: ['1E', '2E'] }] });
+  Object.assign(rK[14], { resultado: 'int', ocorrencias: ['Isolado fora da ficha'], obs: 'Freio isolado sem registro na ficha' });
+  Object.assign(rK[27], { resultado: 'int', materiais: [{ id: 'pino_t', nome: 'Pino T sem aba', qtd: 1 }] });
+  const K12 = montarTrem({ id: 'demo-K12', prefixo: 'K12', data: hoje, turno: tt, lider_id: 'd-sup', linha: 'ZTO 2', status: 'concluido', validacao: 'pendente', os: '2095288', inicio: h(185), fim: h(157), vagoes: vK, ordem: 0, criado_em: iso() },
+    [{ id: 'dk1', numero: 1, membros: ['d1', 'd2'], ini: 1, fim: 20, inicio: h(183), termino: h(160) }, { id: 'dk2', numero: 2, membros: ['d3', 'd4', 'd5'], ini: 21, fim: 40, inicio: h(182), termino: h(158) }],
+    rK, [], [{ posicao: 9, plano: 'Ampara Balanço', realizado: false, quando: iso(), por: 'd2' }], []);
+  DB.trens = [K12, C63, L95];
+  DB.planos = [planoDe({ id: 'demo-pl1', titulo: 'Conferir travas dual da série PCT', descricao: 'Em todos os PCT da composição, conferir a trava dual e registrar as faltantes.', turno: tt, equipe: 3, status: 'aberta', criado_por: 'd-val', criado_em: iso() })];
+  DB.equipesDia = []; DB.log = []; TEM_ORDEM = true; TEM_OS = true;
+  PEND.mapa = { [vC[0].cod]: [{ plano: 'Vagão Dual', prioridade: 'Alto' }], [vC[56].cod]: [{ plano: 'Insp. Avaria DDV', prioridade: '' }], [vK[29].cod]: [{ plano: 'Insp. Long HPT', prioridade: 'Alto' }] };
+  S.eq[tt] = [{ n: 1, membros: ['d1', 'd2'] }, { n: 2, membros: ['d3', 'd4', 'd5'] }, { n: 3, membros: ['d6', 'd7'] }, { n: 4, membros: ['d8', 'd9', 'd10'] }];
+  S.eqSalvo[tt] = true; S.eqSujo[tt] = false; S.turnoVer = tt; S.verTec = null; S.valTrem = null; S.apoio = null; S.modal = null; S.novo = null;
+}
+
 // ---------- render geral ----------
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
@@ -1089,7 +1153,9 @@ function barraProg() {
   const papeis = [['prog', 'Programador'], ['pcm', 'PCM'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico']];
   const tecs = ativos(S.turnoVer);
   if (S.papel === 'tec' && !tecs.includes(S.verTec)) S.verTec = tecs[0] || null;
-  return `<b>Acesso total</b><span>ver como:</span><span class="seg">${papeis.map(([k, l]) => `<button data-act="papel" data-v="${k}" class="${S.papel === k ? 'on' : ''}">${l}</button>`).join('')}</span>
+  const demo = DEMO ? '<span class="demo-tag">🎬 DEMONSTRAÇÃO · dados fictícios, nada é gravado</span><button class="btn sm" data-act="demo-sair">Sair da demonstração</button>'
+    : podeDemo() ? '<button class="btn sm" data-act="demo-entrar" title="Dados fictícios; nada é gravado">🎬 Modo demonstração</button>' : '';
+  return `${demo}<b>Acesso total</b><span>ver como:</span><span class="seg">${papeis.map(([k, l]) => `<button data-act="papel" data-v="${k}" class="${S.papel === k ? 'on' : ''}">${l}</button>`).join('')}</span>
     ${!['prog', 'pcm'].includes(S.papel) ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
     ${S.papel === 'tec' ? `<span>mecânico <select data-act="ver-tec">${tecs.map(id => `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select></span>` : ''}`;
 }
@@ -1406,6 +1472,7 @@ function modalColab(M) {
     <button class="btn primary big" data-act="salvar-colab" ${M.ocupado ? 'disabled' : ''}>${M.ocupado ? 'Cadastrando…' : 'Cadastrar'}</button>`;
 }
 async function chamarFuncao(corpo) {
+  if (DEMO) throw new Error('Demonstração: cadastros e senhas não são gravados');
   if (OFFLINE) throw new Error('Modo offline: toque no ☁ e religue a nuvem');
   const { data, error } = await sb.functions.invoke('gerenciar-colaborador', { body: corpo });
   if (error) {
@@ -2023,6 +2090,7 @@ const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, ok: false, planos: 
 
 // histórico resumido: uma linha por trem, somada no servidor (03-indicadores.sql); renova a cada 5 min
 async function carregarHist() {
+  if (DEMO) return;
   if (OFFLINE || Date.now() - HIST.em < 5 * 60e3) return;
   try {
     const [trens, mats, ret, det] = await Promise.all([
@@ -2041,6 +2109,7 @@ async function carregarHist() {
 }
 // planilha "Planos Especiais 2026": última carga enviada (05-planos-especiais.sql)
 async function carregarPlanosExt() {
+  if (DEMO) return;
   if (OFFLINE) return null;
   try {
     const { data: c, error } = await sb.from('planos_cargas').select('*').order('quando', { ascending: false }).limit(1);
@@ -2055,6 +2124,7 @@ async function carregarPlanosExt() {
 const ANO_APONT = 2026;
 const AP = { carga: null, dias: [], erro: null };
 async function carregarApont() {
+  if (DEMO) return;
   if (OFFLINE) return;
   try {
     const { data: c, error } = await sb.from('apont_cargas').select('*').order('quando', { ascending: false }).limit(1);
@@ -3222,6 +3292,12 @@ document.addEventListener('click', async e => {
     case 'esp-filtro': S.espFiltro = v; break;
     case 'ap-tipo': S.apTipo = v; break;
     case 'validar-trem': S.valTrem = el.dataset.id; break;
+    case 'demo-entrar': {
+      if (!podeDemo()) return;
+      if (!confirm('Entrar no modo demonstração?\n\n• A tela passa a mostrar pessoas e trens fictícios do turno de serviço.\n• Nada do que você fizer é gravado no sistema.\n• Para voltar aos dados reais, toque em “Sair da demonstração”.')) return;
+      entrarDemo(); toast('🎬 Modo demonstração: dados fictícios, nada é gravado'); break;
+    }
+    case 'demo-sair': DEMO = false; location.reload(); return;
     case 'val-voltar': S.valTrem = null; break;
     case 'val-buscar': S.valBusca = (document.querySelector('[data-act="val-busca"]')?.value || '').trim(); break;
     case 'val-busca-limpar': S.valBusca = ''; break;
