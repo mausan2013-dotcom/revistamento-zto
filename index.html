@@ -596,7 +596,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.31';
+const VERSAO = '1.32';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -2909,13 +2909,25 @@ function progVagao() {
   const cardForms = hf.length ? `<div class="card"><h2>Materiais aplicados · histórico do Forms <span class="dir">${hf.length} passagens</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Turno</th><th>Materiais</th></tr></thead><tbody>
     ${hf.map(r => `<tr><td>${diaRot(r.dataISO)}/${r.dataISO.slice(2, 4)}</td><td><b>${esc(r.prefixo)}</b><br><span class="small muted">${esc(r.linha || '')}</span></td><td>${r.turno || '–'}</td><td class="small">${r.apl.filter(x => x.vagao === cod).map(x => `${x.qtd}× ${esc(x.nome)}${x.pos.length ? ' (' + x.pos.join(', ') + ')' : ''}`).join(' · ')}</td></tr>`).join('')}
   </tbody></table></div></div>` : '';
+  // apontamentos da equipe neste vagão (defeitos, materiais, planos especiais e avarias), do mais recente para o mais antigo
+  const aps = cod ? linhasApont().filter(x => normCod(x.t.vagoes[x.p - 1] || '') === normCod(cod)) : [];
+  const eqAp = (t, p) => { const d = donoPos(t, p); return d ? `Equipe ${d.n}<br><span class="small">${esc(nomesEquipe(d.membros))}</span>` : '–'; };
+  const cardAp = `<div class="card"><h2>Apontamentos do vagão <span class="dir">${aps.length} apontamento(s) · app (35 dias)</span></h2>${aps.length ? `<div class="rolagem"><table class="tabela compacta"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Avaria</th><th>Materiais</th><th>Defeito / observação</th><th>Plano especial</th><th>Equipe</th><th>Validação</th></tr></thead><tbody>
+    ${aps.map(({ t, p, r, ex, tipos }) => `<tr><td>${diaRot(t.dataISO)}/${t.dataISO.slice(2, 4)} · ${t.turno}${r?.h ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${esc(t.linha || '')}${t.os ? ' · OS ' + esc(t.os) : ''}</span></td><td class="num">${posF(t, p)}</td>
+      <td class="small">${tipos.ava ? r.oc.map(o => `<span class="tag bad">${esc(o)}</span>`).join(' ') : '–'}</td>
+      <td class="small">${tipos.mat ? esc(r.mats.map(txtMat).join(' · ')) : '–'}</td>
+      <td class="small">${tipos.def ? esc([...r.falhas.map(f => f.comp + ': ' + f.falha), ...(r.obs ? ['“' + r.obs + '”'] : [])].join(' · ')) : '–'}${r ? btnFotos(r, '📷') : ''}</td>
+      <td class="small">${Object.entries(ex).map(([nm, e]) => `${esc(nm)}<br>${tagExec(e)}`).join('<br>') || '–'}</td>
+      <td class="small">${eqAp(t, p)}${r?.apontadoPor ? `<br><span class="muted">lançado por ${esc(r.apontadoPor)}</span>` : ''}</td>
+      <td class="small">${r?.val ? `<span class="tag ${r.val === 'corrigido' ? 'info' : 'ok'}">${r.val === 'corrigido' ? '✏ Corrigido' : '✓ Validado'}</span>` : r ? '<span class="tag neu">aguardando</span>' : '–'}</td></tr>`).join('')}
+  </tbody></table></div>` : '<p class="muted small" style="margin:0">Nenhum defeito, material, plano especial ou avaria apontado neste vagão nos trens do app.</p>'}</div>`;
   return `<div class="card"><h2>Buscar vagão <span class="dir">app (35 dias) + materiais do Forms</span></h2>
     <div style="display:flex;gap:8px"><input id="busca" value="${esc(S.busca)}" placeholder="Ex.: HPT 031995-3" class="inp"><button class="btn primary" data-act="buscar">Buscar</button></div>
     ${todos.length ? `<p class="small muted" style="margin:8px 0 0">Exemplos: ${todos.slice(-5).map(c => `<a href="#" data-act="ver-vagao" data-v="${esc(c)}">${esc(c)}</a>`).join(' · ')}</p>` : ''}</div>
   ${!q ? '' : !h ? '<div class="card muted">Vagão não encontrado nos trens carregados.</div>' : `
 ${h0.length ? `<div class="card"><h2>${esc(cod)} <span class="dir">${h0.length} passagens pelo revistamento (app)</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Equipe que revistou</th><th>Resultado</th><th>Detalhes</th></tr></thead><tbody>
     ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em andamento</span>' : ''}</td><td class="num">${posF(t, p)}</td><td>Equipe ${d.n}<br><span class="small">${esc(d.membros.map(nomeTec).join(', '))}</span></td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td><td class="small">${r ? (r.st === 'ok' ? '–' : esc(txtReg(r)) + btnFotos(r, '📷')) : esc(t.motivoNao || t.motivoParcial || '')}</td></tr>`).join('')}
-  </tbody></table></div></div>` : ''}`}${h ? cardForms : ''}`;
+  </tbody></table></div></div>` : ''}`}${h ? cardForms + cardAp : ''}`;
 }
 function progCadastros() {
   const lst = (tit, arr) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(m => `<li><span></span><span>${esc(m)}</span></li>`).join('')}</ul></div>`;
