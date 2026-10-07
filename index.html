@@ -355,6 +355,11 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .foto-opcoes { display: grid; margin-bottom: 10px; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
 .foto-opcoes .btn { position: relative; font-size: 15px; }
 .foto-opcoes input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.fotos-prev { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.foto-mini { position: relative; width: 84px; height: 84px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--bg); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; font-weight: 700; color: var(--title); }
+.foto-mini img { width: 100%; height: 100%; object-fit: cover; }
+.foto-mini small { font-weight: 600; color: var(--muted); }
+.foto-mini button { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border: 0; border-radius: 999px; background: rgba(0,0,0,.6); color: #fff; font-size: 13px; cursor: pointer; }
 .vg-bloco { display: flex; flex-direction: column; }
 .vg-bloco .vg { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .pl-acoes { background: var(--info-bg); border: 1px solid var(--line); border-top: 0; border-left: 4px solid var(--warn); border-radius: 0 0 var(--radius) var(--radius); padding: 8px 10px; }
@@ -579,7 +584,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.20';
+const VERSAO = '1.21';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -686,7 +691,12 @@ function recalcCurto() {
     x.curtoCalc = x.curto || (dup ? [p, x.nome.split(' ').slice(1).find(w => !/^(de|da|do|dos|das|e)$/i.test(w)) || ''].join(' ').trim() : p);
   });
 }
-const regDe = r => ({ st: r.resultado, h: hm(r.hora), mats: r.materiais || [], oc: r.ocorrencias || [], obs: r.obs || '', foto: !!r.foto_url, fotoUrl: r.foto_url, motivo: r.motivo || '', falhas: r.falhas || [], val: r.val, valPor: r.val_por ? C(r.val_por).nome : '', valEm: r.val_em || null, antes: r.antes || '', equipe: r.equipe, apontadoPor: r.apontado_por ? C(r.apontado_por).nome : '' });
+// fotos do vagão (até 3): registros.foto_url guarda um caminho (1 foto, formato antigo) ou uma lista JSON (2 ou 3)
+const MAX_FOTOS = 3;
+const fotosDe = v => { if (!v) return []; if (String(v).startsWith('[')) { try { return JSON.parse(v).filter(Boolean); } catch { return []; } } return [v]; };
+const fotoCampo = l => !l.length ? null : l.length === 1 ? l[0] : JSON.stringify(l);
+const btnFotos = (r, rot = '📷 Ver foto') => { const l = r?.fotos || []; return l.map((p, k) => ` <button class="btn sm" data-act="ver-foto" data-v="${esc(p)}">${l.length > 1 ? '📷 ' + (k + 1) : rot}</button>`).join(''); };
+const regDe = r => ({ st: r.resultado, h: hm(r.hora), mats: r.materiais || [], oc: r.ocorrencias || [], obs: r.obs || '', foto: !!r.foto_url, fotoUrl: fotosDe(r.foto_url)[0] || null, fotos: fotosDe(r.foto_url), motivo: r.motivo || '', falhas: r.falhas || [], val: r.val, valPor: r.val_por ? C(r.val_por).nome : '', valEm: r.val_em || null, antes: r.antes || '', equipe: r.equipe, apontadoPor: r.apontado_por ? C(r.apontado_por).nome : '' });
 function montarTrem(t, eqs, regs, dsv, pex = [], par = []) {
   const vag = t.vagoes || [], ini = hm(t.inicio), fim = hm(t.fim);
   const tr = { id: t.id, prefixo: t.prefixo, data: deISO(t.data), dataISO: t.data, turno: t.turno, liderId: t.lider_id, lider: t.lider_id ? C(t.lider_id).nome : liderDe(t.turno), linha: t.linha, chegada: hm(t.chegada) || '–',
@@ -795,7 +805,7 @@ async function executar(op) {
     const blob = await (await fetch(op.dataURL)).blob();
     const up = await sb.storage.from('fotos').upload(op.path, blob, { contentType: 'image/jpeg', upsert: true });
     if (up.error) return up.error;
-    return (await sb.from('registros').update({ foto_url: op.path }).eq('trem_id', op.trem_id).eq('posicao', op.posicao)).error;
+    return (await sb.from('registros').update({ foto_url: fotoCampo(op.lista || [op.path]) }).eq('trem_id', op.trem_id).eq('posicao', op.posicao)).error;
   }
   let q = sb.from(op.tabela);
   if (op.acao === 'insert') q = q.insert(op.dados);
@@ -1464,7 +1474,7 @@ function telaValidar(t) {
     if (!r) return `<div class="card ap" style="margin:0"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> <span class="tag neu">Sem registro do vagão</span>${planosHtml}<br><span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}</span></div>`;
     return `<div class="card ap ${r.val ? 'conferido' : ''}" style="margin:0"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${r.st === 'ok' && temDefeito(r) ? '' : tagReg(r)}${planosPend(t.vagoes[p - 1]).length ? ` <span class="tag plano" title="Plano especial pendente">📋 ${esc(txtPlanos(planosPend(t.vagoes[p - 1])))}</span>` : ''}<br>
-        <span class="small">${r.st === 'ok' ? (temDefeito(r) ? '<span class="tag warn">📝 Defeito</span> ' + esc(txtReg(r)) : '<span class="muted">vagão sem intervenção</span>') : esc(txtReg(r))}</span>${planosHtml}${r.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 ver foto</button>` : ''}<br>
+        <span class="small">${r.st === 'ok' ? (temDefeito(r) ? '<span class="tag warn">📝 Defeito</span> ' + esc(txtReg(r)) : '<span class="muted">vagão sem intervenção</span>') : esc(txtReg(r))}</span>${planosHtml}${btnFotos(r, '📷 ver foto')}<br>
         <span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))} · ${r.h}${rf ? ' · ficha: ' + esc(rf.motivo) : ''}</span>
         ${r.val === 'corrigido' ? `<br><span class="small" style="color:var(--info)">✏ Corrigido${r.valPor ? ' por ' + esc(r.valPor) : ''}${r.antes ? ' · antes: ' + esc(r.antes) : ''}</span>` : ''}</div>
       <div style="display:flex;gap:6px">${r.val ? `<span class="tag ok">${r.val === 'corrigido' ? '✏ Corrigido' : '✓ Validado'}</span>` : `<button class="btn sm ok" data-act="val-ok" data-id="${t.id}" data-p="${p}">✓ Validar</button>`}
@@ -1535,7 +1545,7 @@ function espItens() {
   ${vis.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Data</th><th>Trem</th><th>OS</th><th class="num">Pos.</th><th>Vagão</th><th>Equipe</th><th>Apontamento</th><th>Validação</th></tr></thead><tbody>
     ${vis.map(({ t, p, r }) => `<tr><td>${diaRot(t.dataISO)}<br><span class="small muted">turno ${t.turno}${r.h ? ' · ' + r.h : ''}</span></td><td><b>${esc(t.prefixo)}</b></td><td class="small">${esc(t.os || '–')}</td><td class="num">${posF(t, p)}</td><td><b>${esc(t.vagoes[p - 1])}</b></td>
       <td class="small">${esc(eqDe(t, p, r))}${r.apontadoPor ? `<br><span class="muted">lançado por ${esc(r.apontadoPor)}</span>` : ''}</td>
-      <td class="small">${esc(txtReg(r) || 'Sem intervenção')}${r.obs && !txtReg(r).includes(r.obs) ? `<div class="obs-tec">💬 ${esc(r.obs)}</div>` : ''}${r.foto ? `<br><button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 Ver foto</button>` : ''}</td>
+      <td class="small">${esc(txtReg(r) || 'Sem intervenção')}${r.obs && !txtReg(r).includes(r.obs) ? `<div class="obs-tec">💬 ${esc(r.obs)}</div>` : ''}${r.foto ? '<br>' + btnFotos(r) : ''}</td>
       <td class="small">${r.val === 'corrigido' ? `<span class="tag info">✏ Corrigido</span>${r.antes ? `<br><span class="muted">antes: ${esc(r.antes)}</span>` : ''}` : '<span class="tag ok">✓ Validado</span>'}<br><span class="muted">${esc((r.valPor || '').split(' ').slice(0, 2).join(' '))}${r.valEm ? ' · ' + dataBR(new Date(r.valEm)) + ' ' + horaDe(r.valEm) : ''}</span></td></tr>`).join('')}
   </tbody></table></div>` : '<p class="muted small" style="margin:0">Nenhum item validado neste filtro.</p>'}</div>`;
 }
@@ -1585,7 +1595,7 @@ function vistaApont() {
     ${Object.entries(ex).map(([nm, e]) => linha('📋', `<b>${esc(nm)}</b> ${tagExec(e)} <span class="muted">${esc((e.por || '').split(' ').slice(0, 2).join(' '))}${e.quando ? ' · ' + horaDe(e.quando) : ''}</span>`)).join('')}
     <div class="small muted" style="margin-top:6px">${esc(eqDe(t, p, r))}${r?.apontadoPor ? ' · lançado por ' + esc(r.apontadoPor) : ''}
       ${r?.val ? ` · <span class="tag ${r.val === 'corrigido' ? 'info' : 'ok'}">${r.val === 'corrigido' ? '✏ Corrigido' : '✓ Validado'}</span>` : t.validacao?.status === 'pendente' && r ? ' · <span class="tag neu">aguardando validação</span>' : ''}
-      ${r?.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 Ver foto</button>` : ''}</div></div>`).join('')
+      ${btnFotos(r)}</div></div>`).join('')
     || '<div class="card muted">Nenhum apontamento neste filtro.</div>'}
     ${vis.length > LIM ? `<p class="small muted" style="margin:6px 0 0">Mostrando ${LIM} de ${fmt(vis.length)}. Use os filtros de dia, prefixo ou vagão para ver os demais.</p>` : ''}</div>`;
 }
@@ -1658,7 +1668,7 @@ function abrirVagao(pos, tremId = S.tecTrem, validando = false) {
   const t = tremQualquer(tremId), r = t.reg[pos];
   S.modal = { tipo: 'vagao', pos, tremId, validando, modo: validando ? 'int' : r && r.st !== 'ok' ? r.st : null,
     sap: r ? (r.mats.find(m => m.id === 'sapata')?.pos || []).slice() : [], mats: r ? r.mats.filter(m => m.id !== 'sapata').map(m => ({ ...m })) : [],
-    oc: r ? r.oc.slice() : [], obs: r?.obs || '', foto: null, temFoto: !!r?.fotoUrl, motivo: r?.motivo || '', falhas: r ? r.falhas.slice() : [],
+    oc: r ? r.oc.slice() : [], obs: r?.obs || '', novas: [], antigas: (r?.fotos || []).slice(), motivo: r?.motivo || '', falhas: r ? r.falhas.slice() : [],
     novoMat: '', novoQtd: 1, outroNome: '', arv: { sis: '', sub: '', comp: '', falha: '' } };
   renderModal();
 }
@@ -1700,10 +1710,10 @@ function modalVagao(M) {
     ${OCORRENCIAS.map(o => `<label class="radio ${M.oc.includes(o) ? 'marcado' : ''}"><input type="checkbox" data-act="oc" value="${esc(o)}" ${M.oc.includes(o) ? 'checked' : ''}> ${esc(o)}</label>`).join('')}
     ${blocoArvore(M)}
     <label class="campo" style="margin-top:12px">Observação<textarea id="obs-reg" style="font-family:inherit;font-size:16px;min-height:70px" placeholder="Ex.: rolamento com retentor estourado">${esc(M.obs)}</textarea></label>
-    <div class="campo">Foto
-      <div class="foto-opcoes"><label class="btn"><input type="file" accept="image/*" capture="environment" data-act="foto">📷 Tirar foto</label>
-        <label class="btn"><input type="file" accept="image/*" data-act="foto">🖼 Galeria</label></div></div>
-    ${M.foto ? '<p class="small" style="margin:0 0 10px"><span class="tag ok">📷 Foto pronta para enviar</span></p>' : M.temFoto ? '<p class="small" style="margin:0 0 10px"><span class="tag ok">📷 Já tem foto</span></p>' : ''}
+    ${(n => `<div class="campo">Fotos <span class="small muted">(${n} de ${MAX_FOTOS})</span>
+      ${n < MAX_FOTOS ? `<div class="foto-opcoes"><label class="btn"><input type="file" accept="image/*" capture="environment" data-act="foto">📷 Tirar foto</label>
+        <label class="btn"><input type="file" accept="image/*" multiple data-act="foto">🖼 Galeria</label></div>` : `<p class="small muted" style="margin:4px 0 8px">Limite de ${MAX_FOTOS} fotos por vagão. Remova uma para trocar.</p>`}</div>
+    ${n ? `<div class="fotos-prev">${M.antigas.map((p, k) => `<span class="foto-mini salva"><span>📷 ${k + 1}<br><small>já salva</small></span><button data-act="foto-rem" data-k="a${k}" aria-label="Remover foto">✕</button></span>`).join('')}${M.novas.map((u, k) => `<span class="foto-mini"><img src="${u}" alt="Foto ${M.antigas.length + k + 1}"><button data-act="foto-rem" data-k="n${k}" aria-label="Remover foto">✕</button></span>`).join('')}</div>` : ''}`)(M.antigas.length + M.novas.length)}
     <button class="btn primary big" data-act="salvar-int">${M.validando ? 'Salvar correção' : 'Salvar vagão'}</button>
     ${M.validando ? '' : '<button class="btn" style="width:100%;margin-top:8px" data-act="modo" data-v="">Voltar</button>'}`;
 }
@@ -1720,7 +1730,7 @@ function reduzirFoto(arquivo) {
 function salvarVagao(st) {
   const M = S.modal, t = tremQualquer(M.tremId), antigo = t.reg[M.pos], eu = uidTec();
   const d = M.validando && antigo ? { n: antigo.equipe } : t.dist.find(x => eu && x.membros.includes(eu) && !x.termino && M.pos >= x.ini && M.pos <= x.fim) || donoPos(t, M.pos);
-  const r = { st: 'ok', h: M.validando && antigo ? antigo.h : agora(), mats: [], oc: [], obs: '', motivo: '', falhas: [], foto: antigo?.foto, fotoUrl: antigo?.fotoUrl, equipe: d?.n ?? null };
+  const r = { st: 'ok', h: M.validando && antigo ? antigo.h : agora(), mats: [], oc: [], obs: '', motivo: '', falhas: [], foto: antigo?.foto, fotoUrl: antigo?.fotoUrl, fotos: antigo?.fotos || [], equipe: d?.n ?? null };
   if (st === 'pend') Object.assign(r, { st, motivo: M.motivo });
   if (st === 'int') {
     if (M.sap.length) r.mats.push({ id: 'sapata', nome: MAT.sapata.nome, qtd: M.sap.length, pos: POSICOES.filter(p => M.sap.includes(p)) });
@@ -1733,7 +1743,12 @@ function salvarVagao(st) {
   } else {
     enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', dados: { trem_id: t.id, posicao: M.pos, vagao: t.vagoes[M.pos - 1], equipe: r.equipe, hora: r.h, ...dados }, desc: 'Vagão ' + t.vagoes[M.pos - 1] });
   }
-  if (M.foto) { const path = `${t.id}/${M.pos}-${Date.now()}.jpg`; r.foto = true; r.fotoUrl = path; enviar({ acao: 'foto', path, dataURL: M.foto, trem_id: t.id, posicao: M.pos, desc: 'Foto do vagão ' + t.vagoes[M.pos - 1] }); }
+  // fotos: cada nova sobe e grava a lista das fotos já enviadas; se só removeu, grava a lista que sobrou
+  const novas = M.novas || [], lista = (M.antigas || antigo?.fotos || []).slice(), mudou = novas.length || lista.length !== (antigo?.fotos || []).length;
+  novas.forEach((dataURL, k) => { const path = `${t.id}/${M.pos}-${Date.now()}-${k + 1}.jpg`; lista.push(path);
+    enviar({ acao: 'foto', path, lista: lista.slice(), dataURL, trem_id: t.id, posicao: M.pos, desc: 'Foto ' + lista.length + ' do vagão ' + t.vagoes[M.pos - 1] }); });
+  if (mudou && !novas.length) enviar({ tabela: 'registros', acao: 'update', dados: { foto_url: fotoCampo(lista) }, filtro: [['trem_id', 'eq', t.id], ['posicao', 'eq', M.pos]], desc: 'Fotos do vagão ' + t.vagoes[M.pos - 1] });
+  Object.assign(r, { fotos: lista, foto: lista.length > 0, fotoUrl: lista[0] || null });
   t.reg[M.pos] = r; S.modal = null;
   toast(M.validando ? 'Correção salva' : r.st === 'ok' ? 'Vagão registrado' : r.st === 'pend' ? 'Vagão marcado como pendente' : r.oc.length ? 'Ocorrência registrada' : 'Intervenção registrada');
   render();
@@ -2666,7 +2681,7 @@ function progVagao() {
     ${todos.length ? `<p class="small muted" style="margin:8px 0 0">Exemplos: ${todos.slice(-5).map(c => `<a href="#" data-act="ver-vagao" data-v="${esc(c)}">${esc(c)}</a>`).join(' · ')}</p>` : ''}</div>
   ${!q ? '' : !h ? '<div class="card muted">Vagão não encontrado nos trens carregados.</div>' : `
 ${h0.length ? `<div class="card"><h2>${esc(cod)} <span class="dir">${h0.length} passagens pelo revistamento (app)</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Equipe que revistou</th><th>Resultado</th><th>Detalhes</th></tr></thead><tbody>
-    ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em andamento</span>' : ''}</td><td class="num">${posF(t, p)}</td><td>Equipe ${d.n}<br><span class="small">${esc(d.membros.map(nomeTec).join(', '))}</span></td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td><td class="small">${r ? (r.st === 'ok' ? '–' : esc(txtReg(r)) + (r.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷</button>` : '')) : esc(t.motivoNao || t.motivoParcial || '')}</td></tr>`).join('')}
+    ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em andamento</span>' : ''}</td><td class="num">${posF(t, p)}</td><td>Equipe ${d.n}<br><span class="small">${esc(d.membros.map(nomeTec).join(', '))}</span></td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td><td class="small">${r ? (r.st === 'ok' ? '–' : esc(txtReg(r)) + btnFotos(r, '📷')) : esc(t.motivoNao || t.motivoParcial || '')}</td></tr>`).join('')}
   </tbody></table></div></div>` : ''}`}${h ? cardForms : ''}`;
 }
 function progCadastros() {
@@ -3025,6 +3040,7 @@ document.addEventListener('click', async e => {
     }
     case 'editar-eq': { const t = tremPorId(el.dataset.id), i = +el.dataset.i; S.modal = { tipo: 'editareq', id: t.id, i, membros: t.dist[i].membros.slice(), motivo: MOTIVOS_TROCA_EQ[0] }; renderModal(); return; }
     case 'eq-tirar': { const M = S.modal; if (M.membros.length > 1) M.membros = M.membros.filter(x => x !== v); renderModal(); return; }
+    case 'foto-rem': { lerCampos(); const k = el.dataset.k, i = +k.slice(1); (k[0] === 'a' ? M.antigas : M.novas).splice(i, 1); renderModal(); return; }
     case 'ret-abrir': S.modal.retirar = true; renderModal(); return;
     case 'ret-voltar': S.modal.retirar = false; renderModal(); return;
     case 'confirmar-retirada': {
@@ -3214,7 +3230,12 @@ document.addEventListener('change', async e => {
   else if (a === 'mot-parcial') { lerCampos(); M.motivoParcial = el.value; renderModal(); }
   else if (a === 'mot-atraso') { lerCampos(); M.motivoAtraso = el.value; renderModal(); }
   else if (a === 'arv') { lerCampos(); const n = M.arv, k = el.dataset.k, ordem = ['sis', 'sub', 'comp', 'falha']; n[k] = el.value; ordem.slice(ordem.indexOf(k) + 1).forEach(x => n[x] = ''); renderModal(); }
-  else if (a === 'foto') { lerCampos(); const f = el.files[0]; if (!f) return; try { M.foto = await reduzirFoto(f); } catch { toast('Não consegui ler a foto'); } renderModal(); }
+  else if (a === 'foto') {
+    lerCampos(); const vaga = MAX_FOTOS - M.antigas.length - M.novas.length, arqs = [...el.files].slice(0, Math.max(0, vaga));
+    if (el.files.length > arqs.length) toast(`Cabem ${MAX_FOTOS} fotos por vagão: entraram ${arqs.length}`);
+    for (const f of arqs) { try { M.novas.push(await reduzirFoto(f)); } catch { toast('Não consegui ler uma das fotos'); } }
+    renderModal();
+  }
 });
 document.addEventListener('input', e => {
   if (e.target.id !== 'busca-falha') return;
