@@ -350,6 +350,7 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .apoio-card { border-left: 4px solid var(--info); }
 .apoio-op { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .apoio-op > div { flex: 1; }
+.busca-linha { display: flex; gap: 8px; align-items: center; margin-top: 4px; } .busca-linha input { flex: 1; min-width: 0; }
 .card.plano-eq { border-left: 4px solid var(--info); }
 .mat-tab tr.sel td { background: var(--info-bg); }
 .mat-barra { height: 12px; background: var(--track); border-radius: 999px; overflow: hidden; }
@@ -1445,12 +1446,30 @@ function tagPlano(p) {
 // para o validador: vagões com defeito registrado (observação ou falha), material ou ocorrência, corrigidos,
 // ou com plano especial respondido (Realizado / Não realizado)
 const temDefeito = r => !!r && r.st !== 'pend' && (!!r.obs || r.falhas.length > 0);
-const apontamentos = t => { const ps = new Set([...Object.entries(t.reg).filter(([, r]) => r.st === 'int' || temDefeito(r) || r.val === 'corrigido').map(([p]) => +p), ...Object.keys(t.pexec || {}).map(Number)]);
+// planos especiais do vagão que ficaram sem resposta (Realizado / Não realizado) da equipe
+const planosSemResp = (t, p) => planosPend(t.vagoes[p - 1]).filter(x => !((t.pexec || {})[p] || {})[x.plano]);
+const apontamentos = t => { const ps = new Set([...Object.entries(t.reg).filter(([, r]) => r.st === 'int' || temDefeito(r) || r.val === 'corrigido').map(([p]) => +p), ...Object.keys(t.pexec || {}).map(Number),
+    ...t.vagoes.map((c, i) => i + 1).filter(p => planosSemResp(t, p).length)]);
   return [...ps].sort((a, b) => a - b).map(p => ({ p, r: t.reg[p], ex: (t.pexec || {})[p] || {} })); };
 const comPlano = t => t.vagoes.map((c, i) => { const ex = (t.pexec || {})[i + 1] || {}, pp = planosPend(c).slice();
   Object.keys(ex).forEach(n => { if (!pp.some(x => x.plano === n)) pp.push({ plano: n, prioridade: '' }); });
   return { p: i + 1, c, pp, ex }; }).filter(x => x.pp.length);
 const tagExec = e => !e ? '<span class="tag neu">Sem resposta</span>' : e.ok ? '<span class="tag ok">✓ Realizado</span>' : '<span class="tag bad">✗ Não realizado</span>';
+// busca de vagão na validação: aceita só os números, com ou sem série, traço e dígito ("052994", "HFT 052994-1")
+const normVag = x => semAcento(String(x || '')).replace(/[^a-z0-9]/g, '');
+const casaVag = (cod, q) => !q || normVag(cod).includes(normVag(q));
+const campoBuscaVal = (rot) => `<div class="card busca-val"><label class="campo" style="margin:0">${rot}<span class="busca-linha"><input data-act="val-busca" value="${esc(S.valBusca || '')}" placeholder="nº do vagão (ex.: 052994 ou HFT 052994-1)" inputmode="search" autocomplete="off">
+  ${S.valBusca ? '<button class="btn sm" data-act="val-busca-limpar">✕ Limpar</button>' : '<button class="btn sm primary" data-act="val-buscar">🔍 Buscar</button>'}</span></label></div>`;
+function resultadosBuscaVal(fila) {
+  const q = S.valBusca; if (!q) return '';
+  const achados = [];
+  fila.forEach(t => t.vagoes.forEach((c, i) => { if (!casaVag(c, q)) return; const p = i + 1, ap = apontamentos(t).find(x => x.p === p); achados.push({ t, p, c, ap }); }));
+  const sit = x => !x.ap ? '<span class="tag neu">sem apontamento (vagão OK)</span>' : !x.ap.r ? '<span class="tag warn">sem registro · plano sem resposta</span>' : x.ap.r.val === 'corrigido' ? '<span class="tag info">✏ Corrigido</span>' : x.ap.r.val ? '<span class="tag ok">✓ Validado</span>' : '<span class="tag warn">a conferir</span>';
+  return `<div class="card"><h2>Vagão “${esc(q)}” <span class="dir">${achados.length} na fila de validação</span></h2>
+    ${achados.length ? achados.map(x => `<div class="apoio-op"><div><b>${esc(x.c)}</b> · Trem <b>${esc(x.t.prefixo)}</b> · pos. ${posF(x.t, x.p)}<br><span class="small muted">${dataBR(x.t.data)} · turno ${x.t.turno} · ${esc(x.t.linha)}</span> ${sit(x)}</div>
+      <button class="btn sm primary" data-act="validar-trem" data-id="${x.t.id}">Abrir →</button></div>`).join('')
+    : '<p class="small muted" style="margin:0">Nenhum trem aguardando validação tem esse vagão. Confira o número, mude para “Todos os turnos” ou procure em Itens validados.</p>'}</div>`;
+}
 const filaValidacao = () => DB.trens.filter(t => t.status === 'concluido' && t.validacao?.status === 'pendente' && (S.espFiltro === 'todos' || t.turno === meuTurnoV()));
 const filtroTurnoV = () => `<div class="chips"><button class="chip ${S.espFiltro === 'turno' ? 'on' : ''}" data-act="esp-filtro" data-v="turno">Meu turno (${meuTurnoV()})</button><button class="chip ${S.espFiltro === 'todos' ? 'on' : ''}" data-act="esp-filtro" data-v="todos">Todos os turnos</button></div>`;
 function espValidacao() {
@@ -1458,6 +1477,7 @@ function espValidacao() {
   const fila = filaValidacao(), andamento = atuais().filter(t => S.espFiltro === 'todos' || t.turno === meuTurnoV());
   return `<p class="nota">Depois que o líder fecha o trem, os apontamentos das equipes (sapatas, materiais, ocorrências e pendências) chegam aqui para a validação técnica. Valide ou corrija cada um e conclua o trem.</p>
   ${filtroTurnoV()}
+  ${campoBuscaVal('Buscar vagão para validar')}${resultadosBuscaVal(fila)}
   <div class="grid">
     <div class="larga">${fila.length ? fila.map(t => { const aps = apontamentos(t), oc = aps.reduce((a, x) => a + (x.r ? x.r.oc.length : 0), 0), feitos = aps.filter(x => x.r.val).length;
       return `<div class="card"><h2>Trem ${esc(t.prefixo)} <span class="dir">${dataBR(t.data)} · turno ${t.turno} · ${t.linha} · líder ${esc(t.lider)}</span></h2>
@@ -1470,23 +1490,25 @@ function espValidacao() {
 }
 function telaValidar(t) {
   if (!t) { S.valTrem = null; return espValidacao(); }
-  const aps = apontamentos(t), falta = aps.filter(x => x.r && !x.r.val).length;
+  const todos = apontamentos(t), falta = todos.filter(x => x.r && !x.r.val).length, aps = todos.filter(x => casaVag(t.vagoes[x.p - 1], S.valBusca));
   return `<button class="btn sm" data-act="val-voltar" style="margin-bottom:12px">← Fila de validação</button>
   <div class="card"><h2>Trem ${esc(t.prefixo)} <span class="dir">${dataBR(t.data)} · turno ${t.turno} · ${t.linha}</span></h2>
-    <div class="resumo"><div><b>${t.vagoes.length}</b><span>na composição</span></div><div><b>${inspecionados(t)}</b><span>inspecionados</span></div><div><b>${aps.length}</b><span>apontamentos</span></div><div><b style="color:${falta ? 'var(--warn)' : 'var(--ok)'}">${falta}</b><span>a conferir</span></div></div>
+    <div class="resumo"><div><b>${t.vagoes.length}</b><span>na composição</span></div><div><b>${inspecionados(t)}</b><span>inspecionados</span></div><div><b>${todos.length}</b><span>apontamentos</span></div><div><b style="color:${falta ? 'var(--warn)' : 'var(--ok)'}">${falta}</b><span>a conferir</span></div></div>
     <p class="small muted" style="margin:0">Líder ${esc(t.lider)}${t.motivoParcial ? ' · inspeção parcial: ' + esc(t.motivoParcial) : ''}${t.desvios.length ? ' · desvio ' + dur(tempoDesvio(t)) : ''}${t.obsFech ? ' · “' + esc(t.obsFech) + '”' : ''}</p>
     ${falta ? `<div class="acoes"><button class="btn sm" data-act="val-todos" data-id="${t.id}">✓ Validar todos os que faltam (${falta})</button></div>` : ''}</div>
-  <p class="nota" style="margin:0 0 10px">Aparecem só os vagões com <b>defeito, material ou ocorrência</b> e os com <b>plano especial respondido</b> (Realizado / Não realizado). Vagões OK e pendentes não entram.</p>
+  <p class="nota" style="margin:0 0 10px">Aparecem os vagões com <b>defeito, material ou ocorrência</b>, os com <b>plano especial respondido</b> (Realizado / Não realizado) e os com <b>plano especial sem resposta</b> da equipe. Vagões OK sem plano e pendentes não entram.</p>
+  ${campoBuscaVal('Buscar vagão neste trem')}${S.valBusca ? `<p class="small" style="margin:-4px 0 10px">Mostrando <b>${aps.length}</b> de ${todos.length} apontamento(s) com “${esc(S.valBusca)}”.</p>` : ''}
   <div class="vagoes">${aps.map(({ p, r, ex }) => { const d = donoPos(t, p) || { n: r?.equipe ?? '–', membros: [] }, rf = restrDe(t, p);
-    const planosHtml = Object.entries(ex).map(([n, e]) => `<br><span class="tag plano">📋 ${esc(n)}</span> ${tagExec(e)} <span class="small muted">${esc(e.por || '')} · ${horaDe(e.quando)}</span>`).join('');
+    const planosHtml = Object.entries(ex).map(([n, e]) => `<br><span class="tag plano">📋 ${esc(n)}</span> ${tagExec(e)} <span class="small muted">${esc(e.por || '')} · ${horaDe(e.quando)}</span>`).join('') +
+      planosSemResp(t, p).map(x => `<br><span class="tag plano">📋 ${esc(x.plano)}</span> ${tagExec(null)} <span class="small muted">a equipe não respondeu${x.prioridade ? ' · prioridade ' + esc(x.prioridade) : ''}</span>`).join('');
     if (!r) return `<div class="card ap" style="margin:0"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> <span class="tag neu">Sem registro do vagão</span>${planosHtml}<br><span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}</span></div>`;
     return `<div class="card ap ${r.val ? 'conferido' : ''}" style="margin:0"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-      <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${r.st === 'ok' && temDefeito(r) ? '' : tagReg(r)}${planosPend(t.vagoes[p - 1]).length ? ` <span class="tag plano" title="Plano especial pendente">📋 ${esc(txtPlanos(planosPend(t.vagoes[p - 1])))}</span>` : ''}<br>
+      <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${r.st === 'ok' && temDefeito(r) ? '' : tagReg(r)}<br>
         <span class="small">${r.st === 'ok' ? (temDefeito(r) ? '<span class="tag warn">📝 Defeito</span> ' + esc(txtReg(r)) : '<span class="muted">vagão sem intervenção</span>') : esc(txtReg(r))}</span>${planosHtml}${btnFotos(r, '📷 ver foto')}<br>
         <span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))} · ${r.h}${rf ? ' · ficha: ' + esc(rf.motivo) : ''}</span>
         ${r.val === 'corrigido' ? `<br><span class="small" style="color:var(--info)">✏ Corrigido${r.valPor ? ' por ' + esc(r.valPor) : ''}${r.antes ? ' · antes: ' + esc(r.antes) : ''}</span>` : ''}</div>
       <div style="display:flex;gap:6px">${r.val ? `<span class="tag ok">${r.val === 'corrigido' ? '✏ Corrigido' : '✓ Validado'}</span>` : `<button class="btn sm ok" data-act="val-ok" data-id="${t.id}" data-p="${p}">✓ Validar</button>`}
-        ${r.st !== 'pend' ? `<button class="btn sm" data-act="val-corrigir" data-id="${t.id}" data-p="${p}">✏ Corrigir</button>` : ''}</div></div></div>`; }).join('') || '<div class="card muted">Nenhum apontamento neste trem: só vagões sem intervenção.</div>'}</div>
+        ${r.st !== 'pend' ? `<button class="btn sm" data-act="val-corrigir" data-id="${t.id}" data-p="${p}">✏ Corrigir</button>` : ''}</div></div></div>`; }).join('') || `<div class="card muted">${S.valBusca ? 'Nenhum apontamento deste trem com esse vagão.' : 'Nenhum apontamento neste trem: só vagões sem intervenção.'}</div>`}</div>
   <div class="card" style="margin-top:12px"><h2>Concluir validação</h2>
     <label class="campo">Parecer técnico (opcional)<textarea id="parecer" style="font-family:inherit;font-size:15px;min-height:60px"></textarea></label>
     <button class="btn primary big" data-act="val-concluir" data-id="${t.id}" ${falta ? 'disabled' : ''}>${falta ? `Faltam ${falta} apontamento(s)` : '✓ Concluir validação do trem'}</button></div>`;
@@ -3201,6 +3223,8 @@ document.addEventListener('click', async e => {
     case 'ap-tipo': S.apTipo = v; break;
     case 'validar-trem': S.valTrem = el.dataset.id; break;
     case 'val-voltar': S.valTrem = null; break;
+    case 'val-buscar': S.valBusca = (document.querySelector('[data-act="val-busca"]')?.value || '').trim(); break;
+    case 'val-busca-limpar': S.valBusca = ''; break;
     case 'val-ok': { const t = tremQualquer(el.dataset.id), p = +el.dataset.p; Object.assign(t.reg[p], { val: 'ok', valPor: DB.me.nome }); enviar({ tabela: 'registros', acao: 'update', dados: { val: 'ok' }, filtro: [['trem_id', 'eq', t.id], ['posicao', 'eq', p]], desc: 'Validação' }); break; }
     case 'val-todos': {
       const t = tremQualquer(el.dataset.id), ps = apontamentos(t).filter(x => x.r && !x.r.val).map(x => x.p);
@@ -3244,6 +3268,7 @@ document.addEventListener('change', async e => {
   else if (a === 'div-sel') { S.modal.sel[+el.dataset.i] = el.checked; renderModal(); }
   else if (a === 'eq-membro') { M.membros = el.checked ? [...M.membros, el.value] : M.membros.filter(x => x !== el.value); renderModal(); }
   else if (a === 'eq-motivo') { M.motivo = el.value; }
+  else if (a === 'val-busca') { S.valBusca = el.value.trim(); render(); }
   else if (a === 'ret-modo') { M.modoRet = el.value; renderModal(); }
   else if (a === 'f-dia') { F.per = el.value ? 'dia:' + el.value : 'mes:' + isoData(new Date()).slice(0, 7); render(); }
   else if (a === 'apont-xlsx') {
