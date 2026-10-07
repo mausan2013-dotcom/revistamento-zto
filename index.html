@@ -596,7 +596,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.30';
+const VERSAO = '1.31';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -2726,6 +2726,34 @@ function trensNaoRev() {
     && (F.prefixo === 'todos' || t.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === (t.status !== 'nao_revistado')))
     .sort((x, y) => y.dataISO.localeCompare(x.dataISO) || (y.inicio || y.chegada || '').localeCompare(x.inicio || x.chegada || ''));
 }
+// vagões que passaram nos trens dos últimos N dias e não foram revistados em nenhum deles (base: trens do app, 35 dias)
+const DIAS_SEM_REV = 20;
+function vagoesSemRevista(dias = DIAS_SEM_REV) {
+  const hoje = isoData(new Date()), corte = isoData(new Date(deISO(hoje).getTime() - (dias - 1) * 864e5)), V = {};
+  const ts = DB.trens.filter(t => t.vagoes.length).sort((a, b) => a.dataISO.localeCompare(b.dataISO));
+  ts.forEach(t => t.vagoes.forEach((c, i) => {
+    const k = normVag(c); if (!k) return;
+    const v = V[k] ||= { cod: c, ultRev: null, trens: [], revJanela: false };
+    const ok = sitVagao(t, i + 1).k === 'ok';
+    if (ok) { v.ultRev = t; if (t.dataISO >= corte) v.revJanela = true; }
+    else if (t.dataISO >= corte && t.status !== 'andamento') v.trens.push(t);     // trem em revista ainda pode revistar o vagão
+  }));
+  const dif = d => Math.round((deISO(hoje) - deISO(d)) / 864e5), base = ts.length ? ts[0].dataISO : hoje;   // sem revista na base: no mínimo desde o trem mais antigo carregado
+  return Object.values(V).filter(v => !v.revJanela && v.trens.length)
+    .map(v => ({ ...v, dias: dif(v.ultRev ? v.ultRev.dataISO : base), semBase: !v.ultRev, base, ultTrem: v.trens[v.trens.length - 1] }))
+    .sort((a, b) => b.dias - a.dias || b.trens.length - a.trens.length || a.cod.localeCompare(b.cod));
+}
+function cardSemRevista() {
+  const l = vagoesSemRevista(), lim = 300;
+  return `<div class="card"><h2>⚠ Vagões sem revista há ${DIAS_SEM_REV} dias ou mais <span class="dir">${fmt(l.length)} vagão(ões) · passaram em trens dos últimos ${DIAS_SEM_REV} dias sem ser revistados</span></h2>
+    <p class="small muted" style="margin:0 0 8px">Lista automática: o vagão sai daqui assim que for revistado em algum trem. Ordem: mais dias sem revista, depois mais trens sem revista. Considera todos os turnos e linhas (trens do app, últimos 35 dias).</p>
+    ${l.length ? `<div class="rolagem alto"><table class="tabela compacta sem-rev"><thead><tr><th>Vagão</th><th class="num">Dias sem revista</th><th class="num">Trens sem revista (${DIAS_SEM_REV} d)</th><th>Última revista</th><th>Última passagem sem revista</th><th>Trens</th></tr></thead><tbody>
+      ${l.slice(0, lim).map(v => `<tr><td><b>${esc(v.cod)}</b> <span class="tag bad">⚠ ${DIAS_SEM_REV}+ dias</span></td><td class="num"><b style="color:var(--bad)">${v.semBase ? '≥ ' : ''}${v.dias}</b></td><td class="num"><b>${v.trens.length}</b></td>
+        <td class="small">${v.ultRev ? `${diaRot(v.ultRev.dataISO)} · ${esc(v.ultRev.prefixo)}` : `<span class="muted">nenhuma desde ${diaRot(v.base)}</span>`}</td>
+        <td class="small">${diaRot(v.ultTrem.dataISO)} · ${esc(v.ultTrem.prefixo)} · ${esc(v.ultTrem.linha)}</td>
+        <td class="small muted">${v.trens.slice().reverse().map(t => `${esc(t.prefixo)} ${diaRot(t.dataISO)}`).join(', ')}</td></tr>`).join('')}
+    </tbody></table></div>${l.length > lim ? `<p class="small muted">Mostrando os ${lim} primeiros.</p>` : ''}` : `<p class="muted small" style="margin:0">Nenhum vagão passou nos últimos ${DIAS_SEM_REV} dias sem ser revistado.</p>`}</div>`;
+}
 function progNaoRev() {
   const todas = linhasHist(), ts = trensNaoRev(), [, , nomePer] = periodoDe(F.per);
   const eqPos = (t, p) => { const r = t.reg[p], d = (r && t.dist.find(x => x.n === r.equipe)) || [...t.dist].reverse().find(x => p >= x.ini && p <= x.fim); return d ? 'Equipe ' + d.n : '–'; };
@@ -2738,6 +2766,7 @@ function progNaoRev() {
     </tbody></table></td></tr>`;
   return `${barraFiltros(todas, `<span class="filtro-acoes"><button class="btn sm" data-act="exportar-naorev" ${ts.length ? '' : 'disabled'}>⬇ Excel (vagão a vagão)</button></span>`)}
   <div class="kpis">${kpi('Trens com ficha', fmt(ts.length), 'lançados no app · ' + esc(nomePer))}${kpi('Vagões nas fichas', fmt(tot.v), 'soma das composições')}${kpi('Vistoriados', fmt(tot.v - tot.n), tot.v ? pct1(tot.v - tot.n, tot.v) + '% dos vagões' : '')}${kpi('Não vistoriados', fmt(tot.n), tot.v ? pct1(tot.n, tot.v) + '% dos vagões' : '')}</div>
+  ${cardSemRevista()}
   <div class="card"><h2>Fichas dos trens <span class="dir">toque no trem para abrir a ficha · trens do app (últimos 35 dias)</span></h2>
     <div class="chips"><button class="chip ${S.nrSo ? '' : 'on'}" data-act="nr-so" data-v="0">Ficha completa</button><button class="chip ${S.nrSo ? 'on' : ''}" data-act="nr-so" data-v="1">Só não vistoriados</button></div>
     ${ts.length ? `<div class="rolagem"><table class="tabela compacta nr"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>OS</th><th>Linha</th><th>Situação</th><th class="num">Vagões</th><th class="num">Vistoriados</th><th class="num">Não vistoriados</th></tr></thead><tbody>
