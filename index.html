@@ -579,7 +579,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.19';
+const VERSAO = '1.20';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1066,6 +1066,8 @@ const ABAS = {
   prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['cadastros', 'Cadastros']],
   pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos']]
 };
+// apagar trem: programador, ou o líder (supervisor) nos trens do próprio turno
+const podeApagar = t => ehProg() || (DB.me?.perfil === 'supervisor' && t.turno === DB.me.turno);
 const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
 function barraProg() {
   if (!ehProg()) return '';
@@ -1178,7 +1180,7 @@ function cardTrem(t) {
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
     ${eqs}
     ${t.status === 'andamento' && !t.dist.some(d => d.membros.some(m => C(m).turno === t.turno)) ? `<div class="alerta" style="margin:10px 0 0"><span>👥 <b>Sem equipes deste turno neste trem.</b> ${t.dist.length ? 'Recebido do turno anterior: o que já foi registrado fica; divida o restante.' : ''}</span><button class="btn sm primary" data-act="dividir-trem" data-id="${t.id}">Dividir entre as equipes</button></div>` : ''}
-    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${ehProg() ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
+    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
     ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
   </div>`;
@@ -2894,10 +2896,17 @@ document.addEventListener('click', async e => {
       toast(`Revista iniciada às ${d.inicio}, começando no ${t.vagoes[M.s - 1]}`); carregar().catch(() => {}); break;
     }
     case 'apagar-trem': {
-      if (!ehProg()) return;
-      const id = el.dataset.id, nome = el.dataset.nome || 'selecionado';
-      if (!confirm(`Apagar o trem ${nome}?\n\nSaem junto a divisão das equipes, os registros dos vagões e os desvios. Não dá para desfazer.`)) return;
-      enviar({ tabela: 'trens', acao: 'delete', filtro: [['id', 'eq', id]], desc: 'Apagar trem ' + nome });
+      const id = el.dataset.id, nome = el.dataset.nome || 'selecionado', tr = tremQualquer(id);
+      if (!ehProg() && !(tr && podeApagar(tr))) return;
+      const nReg = tr ? Object.keys(tr.reg).length : 0;
+      if (!confirm(`Apagar o trem ${nome}?\n\n${nReg ? `Ele já tem ${nReg} vagão(ões) registrado(s) pelas equipes. ` : ''}Saem junto a divisão das equipes, os registros dos vagões e os desvios. Não dá para desfazer.`)) return;
+      if (ehProg()) enviar({ tabela: 'trens', acao: 'delete', filtro: [['id', 'eq', id]], desc: 'Apagar trem ' + nome });
+      else {                                               // líder: apaga na hora e confere se o banco permitiu (sem permissão, nada é apagado e não há erro)
+        if (!precisaNuvem()) return;
+        const { data, error } = await sb.from('trens').delete().eq('id', id).select('id');
+        if (error) { toast('⚠ Não apaguei: ' + (/fetch|network/i.test(error.message) ? 'sem internet' : error.message)); return; }
+        if (!data?.length) { toast('⚠ O banco não permitiu apagar. Peça ao programador para liberar (14-supervisor-apaga-trem.sql).'); return; }
+      }
       DB.trens = DB.trens.filter(x => x.id !== id); HIST.trens = HIST.trens.filter(x => x.id !== id);
       if (S.valTrem === id) S.valTrem = null;
       registrarLog('Apagou o trem ' + nome); toast('Trem ' + nome + ' apagado'); break;
