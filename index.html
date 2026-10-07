@@ -367,8 +367,9 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .fila-item:first-of-type { border-top: 0; }
 .fila-n { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; border-radius: 999px; background: var(--primary); color: var(--primary-ink); font-weight: 800; font-size: 14px; }
 .fila-n.pequeno { min-width: 26px; height: 26px; font-size: 12px; }
-.entrega { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--title); }
-.entrega input { min-height: 36px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 15px; }
+.entrega { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--title); }
+.entrega label { display: flex; align-items: center; gap: 8px; }
+.entrega input, .entrega select { min-height: 36px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 15px; }
 .fila-mov { display: flex; gap: 4px; }
 @media (max-width: 420px) { .fila-item { grid-template-columns: 34px minmax(0, 1fr) auto; } .fila-mov { grid-column: 2 / -1; justify-content: flex-end; } }
 .btn.avancar { width: 100%; margin-top: 10px; color: var(--warn); border-color: var(--warn); white-space: normal; }
@@ -1153,7 +1154,8 @@ function cardTrem(t) {
   const minRev = t.inicio ? difMin(t.inicio, agora()) : null, acima = minRev != null && minRev > META_MIN;
   const tempoRev = minRev == null ? '<span class="tag warn">⏱ Informe a hora de entrega</span>'
     : `<span class="tag ${acima ? 'bad' : 'info'}" title="Desde a entrega às ${t.inicio}${acima ? ' · acima da meta de ' + META_MIN + ' min' : ''}">${acima ? '⚠' : '⏱'} Em revistamento há ${dur(minRev)}${acima ? ' · acima de ' + META_MIN + ' min' : ''}</span>`;
-  const entrega = `<label class="entrega"><span>Entregue para revisão às</span><input type="time" value="${esc(t.inicio || '')}" data-act="trem-entrega" data-id="${t.id}"></label>`;
+  const entrega = `<div class="entrega"><label><span>Linha</span><select data-act="trem-linha" data-id="${t.id}">${LINHAS.map(l => `<option ${l === t.linha ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label><span>Entregue para revisão às</span><input type="time" value="${esc(t.inicio || '')}" data-act="trem-entrega" data-id="${t.id}"></label></div>`;
   const naoInsp = t.vagoes.length - ins;
   const eqs = t.dist.map((d, i) => { const p = progEq(t, i);
     const st = d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
@@ -1256,7 +1258,6 @@ function supNovo() {
       <div class="linha-campos">
         <label class="campo">Prefixo<input data-act="novo-campo" data-k="prefixo" value="${esc(N.prefixo)}" placeholder="Ex.: D77"></label>
         <label class="campo">OS do trem<input data-act="novo-campo" data-k="os" value="${esc(N.os || '')}" inputmode="numeric" placeholder="lida da ficha"></label>
-        <label class="campo">Linha<select data-act="novo-campo" data-k="linha">${LINHAS.map(l => `<option ${l === N.linha ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       </div>
       <label class="upload ${N.lendo ? 'lendo' : ''}"><input type="file" accept="application/pdf,.pdf" data-act="ficha-pdf">
         <span class="ic">📄</span><span><b>${N.lendo ? 'Lendo a ficha…' : N.fichaNome ? 'Trocar ficha do trem' : 'Enviar ficha do trem (PDF)'}</b><br><span class="small muted">${N.fichaNome ? esc(N.fichaNome) : 'O PDF de impressão do trem. Locomotivas (mais de 4 eixos) são ignoradas.'}</span></span></label>
@@ -1272,7 +1273,7 @@ function supNovo() {
         <div class="acoes" style="margin-top:0"><button class="btn sm primary" data-act="ler">Ler lista</button></div>
       </details>
       <hr style="border:0;border-top:1px solid var(--line);margin:14px 0 10px">
-      ${N.naoRev ? `<label class="campo">Motivo de o trem não ser revistado<select data-act="novo-campo" data-k="motivoNao"><option value="">Escolha…</option>${MOTIVOS_NAO_REV.map(m => `<option ${m === N.motivoNao ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
+      ${N.naoRev ? `<label class="campo">Linha<select data-act="novo-campo" data-k="linha">${LINHAS.map(l => `<option ${l === N.linha ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label class="campo">Motivo de o trem não ser revistado<select data-act="novo-campo" data-k="motivoNao"><option value="">Escolha…</option>${MOTIVOS_NAO_REV.map(m => `<option ${m === N.motivoNao ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
         <div class="acoes" style="margin-top:0"><button class="btn primary" data-act="salvar-nao-rev" ${N.prefixo.trim() && N.motivoNao ? '' : 'disabled'}>Registrar trem não revistado</button><button class="btn" data-act="nao-rev" data-v="0">Cancelar</button></div>`
         : '<button class="btn sm" data-act="nao-rev" data-v="1">Este trem não será revistado…</button>'}
     </div>
@@ -3081,6 +3082,11 @@ document.addEventListener('change', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, N = S.novo, M = S.modal;
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
+  else if (a === 'trem-linha') {
+    const t = tremPorId(el.dataset.id); if (!t || !el.value || el.value === t.linha) return;
+    t.linha = el.value; enviar({ tabela: 'trens', acao: 'update', dados: { linha: el.value }, filtro: [['id', 'eq', t.id]], desc: 'Linha do trem ' + t.prefixo });
+    toast('Trem ' + t.prefixo + ' na ' + el.value); render();
+  }
   else if (a === 'trem-entrega') {
     const t = tremPorId(el.dataset.id); if (!t || !el.value) return;
     if (horaFutura(el.value)) { toast('⚠ ' + el.value + ' ainda não chegou. Confira a hora de entrega.'); el.value = t.inicio || ''; return; }
