@@ -596,7 +596,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.28';
+const VERSAO = '1.29';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1520,6 +1520,8 @@ function tagPlano(p) {
 const temDefeito = r => !!r && r.st !== 'pend' && (!!r.obs || r.falhas.length > 0);
 // planos especiais do vagão que ficaram sem resposta (Realizado / Não realizado) da equipe
 const planosSemResp = (t, p) => planosPend(t.vagoes[p - 1]).filter(x => !((t.pexec || {})[p] || {})[x.plano]);
+// planos especiais sem resposta na faixa da equipe: travam o "Encerrar minha parte"
+const planosAbertosFaixa = (t, d) => { const out = []; for (let p = d.ini; p <= d.fim; p++) planosSemResp(t, p).forEach(x => out.push({ p, cod: t.vagoes[p - 1], plano: x.plano })); return out; };
 const apontamentos = t => { const ps = new Set([...Object.entries(t.reg).filter(([, r]) => r.st === 'int' || temDefeito(r) || r.val === 'corrigido').map(([p]) => +p), ...Object.keys(t.pexec || {}).map(Number),
     ...t.vagoes.map((c, i) => i + 1).filter(p => planosSemResp(t, p).length)]);
   return [...ps].sort((a, b) => a - b).map(p => ({ p, r: t.reg[p], ex: (t.pexec || {})[p] || {} })); };
@@ -1791,7 +1793,7 @@ function tecMeu() {
     ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length; return a.length ? `<p class="small" style="margin:8px 0 0">${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''} <span class="muted">na sua faixa · use o filtro ⚠ Atenção</span></p>` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
-      : p.n === p.total ? '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>'
+      : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
       : `<span class="small muted">Revista iniciada às ${d.inicio}</span>`}</div>
     ${seguintes.length && !d.termino ? `<button class="btn sm avancar" data-act="tec-avancar" data-id="${t.id}" data-nome="${esc(t.prefixo)}" data-prox="${esc(seguintes[0].prefixo)}">⏭ Avançar para o próximo trem (${esc(seguintes[0].prefixo)}) sem encerrar este</button>` : ''}
   </div>
@@ -3090,6 +3092,7 @@ document.addEventListener('click', async e => {
       // fall through
     case 'comeco-sim': case 'encerrar': {
       const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'encerrar' ? 'termino' : 'inicio';
+      if (campo === 'termino' && planosAbertosFaixa(t, d).length) { const sr = planosAbertosFaixa(t, d); S.tecFiltro = 'atencao'; render(); toast(`📋 Plano especial sem resposta: ${sr.map(x => x.cod).join(', ')}`); return; }
       if (a === 'comeco-sim') S.modal = null;
       d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: campo === 'inicio' ? 'Início da revista' : 'Fim da revista' });
       if (campo === 'termino') (t.paradas || []).filter(x => x.tec === uidTec() && !x.fim).forEach(x => { x.fim = new Date().toISOString(); enviar({ tabela: 'paradas', acao: 'update', dados: { fim: x.fim }, filtro: [['id', 'eq', x.id]], desc: 'Parada finalizada' }); });
