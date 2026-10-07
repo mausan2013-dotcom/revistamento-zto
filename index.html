@@ -600,7 +600,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.35';
+const VERSAO = '1.36';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1810,7 +1810,9 @@ function tecMeu() {
   ${t.status !== 'andamento' ? `<p class="nota" style="margin:0 0 10px">Trem <b>${t.status === 'nao_revistado' ? 'não revistado' : 'fechado'}</b> em ${dataBR(t.data)}. ${S.supLanca ? 'Os lançamentos entram neste trem (e na validação, se ainda não validado).' : ''}</p>` : ''}
   ${d.inicio || escolhido ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos'], ...(atencaoFaixa(t, d).length ? [['atencao', '⚠ Atenção ' + atencaoFaixa(t, d).length]] : [])].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
   <div class="vagoes">${lista.join('') || '<div class="card muted">Nada nesta lista.</div>'}</div>
-  ${(n => n && (!d.termino || escolhido) ? `<button class="btn ok big finalizar" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">${n} vagão(ões) sem apontamento serão registrados como OK</span></button>` : '')(p.total - p.n)}` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
+  ${(n => n && (!d.termino || escolhido) ? (sr => sr.length
+      ? `<div class="alerta" style="margin:12px 0 8px"><span>📋 <b>Plano especial sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado para finalizar o bloco.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big finalizar" style="opacity:.55" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">responda os planos especiais primeiro</span></button>`
+      : `<button class="btn ok big finalizar" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">${n} vagão(ões) sem apontamento serão registrados como OK</span></button>`)(planosAbertosFaixa(t, d)) : '')(p.total - p.n)}` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
 }
 // planos especiais enviados pelo validador para a equipe (ficam no próprio Meu turno)
 function planosEquipe() {
@@ -3116,8 +3118,10 @@ document.addEventListener('click', async e => {
       const t = tremQualquer(el.dataset.id), d = t && t.dist[eqDoTrem(t)]; if (!d) return;
       const livres = []; for (let p = d.ini; p <= d.fim; p++) if (!t.reg[p]) livres.push(p);
       if (!livres.length) return;
-      const semResp = livres.filter(p => planosPend(t.vagoes[p - 1]).some(x => !((t.pexec || {})[p] || {})[x.plano]));
-      if (!confirm(`Registrar ${livres.length} vagão(ões) sem apontamento como OK (revistado, sem intervenção)?` + (semResp.length ? `\n\nAtenção: ${semResp.length} deles têm plano especial sem resposta (Realizado / Não realizado).` : '') + `\n\nOs vagões com defeito ou informação devem ser registrados antes.`)) return;
+      // trava: nenhum plano especial da faixa pode ficar sem resposta (Realizado / Não realizado)
+      const sr = planosAbertosFaixa(t, d);
+      if (sr.length) { S.tecFiltro = 'atencao'; render(); toast(`📋 Plano especial sem resposta: ${sr.map(x => x.cod).join(', ')}. Responda para finalizar o bloco.`); return; }
+      if (!confirm(`Registrar ${livres.length} vagão(ões) sem apontamento como OK (revistado, sem intervenção)?\n\nOs vagões com defeito ou informação devem ser registrados antes.`)) return;
       const h = agora(), linhas = livres.map(p => ({ trem_id: t.id, posicao: p, vagao: t.vagoes[p - 1], equipe: d.n, hora: h, resultado: 'ok', materiais: [], ocorrencias: [], obs: null, motivo: null, falhas: [] }));
       enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', dados: linhas, desc: `Bloco de ${livres.length} vagões (${t.prefixo})` });
       livres.forEach(p => t.reg[p] = { st: 'ok', h, mats: [], oc: [], obs: '', motivo: '', falhas: [], equipe: d.n });
