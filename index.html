@@ -577,7 +577,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.13';
+const VERSAO = '1.14';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -826,7 +826,7 @@ addEventListener('online', processarFila);
 const S = {
   papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'geral', pcm: 'geral' }, turnoVer: SERVICO.turno, verTec: null,
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
-  novo: null, busca: '', relData: null, relPref: 'todos', supLanca: false, supData: null, supTrem: null, tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
+  novo: null, busca: '', relData: null, relPref: 'todos', supLanca: false, supData: null, supTrem: null, apDia: '', apTurno: '', apPref: '', apBusca: '', apTipo: '', tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
 const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog', pcm: 'pcm' };
 const ehProg = () => DB.me?.perfil === 'programador';
@@ -1036,11 +1036,11 @@ function txtReg(r) {
 // ---------- render geral ----------
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
-  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe']],
-  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados']],
-  tec: [['meu', 'Meu turno']],
-  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão']]
+  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos']],
+  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['apont', 'Apontamentos']],
+  tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos']],
+  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['cadastros', 'Cadastros']],
+  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos']]
 };
 const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
 function barraProg() {
@@ -1512,6 +1512,48 @@ function espValidados() {
   return `${filtroTurnoV()}<div class="card"><h2>Trens validados <span class="dir">últimos ${lst.length}</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Apontamentos</th><th class="num">Corrigidos</th><th>Validado por</th><th>Parecer</th></tr></thead><tbody>
     ${lst.map(t => `<tr><td>${dataBR(t.data)}</td><td>${t.turno}</td><td><b>${esc(t.prefixo)}</b></td><td>${t.linha}</td><td class="num">${apontamentos(t).length}</td><td class="num">${t.validacao.corrigidos || 0}</td><td class="small">${esc((t.validacao.por || '').split(' ').slice(0, 2).join(' '))}</td><td class="small muted">${esc(t.validacao.parecer || '')}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum ainda.</td></tr>'}
   </tbody></table></div></div>`;
+}
+
+// ---------- APONTAMENTOS (todos os perfis): tudo o que as equipes lançaram nos vagões ----------
+const TIPOS_AP = { def: '📝 Defeitos', mat: '🔧 Materiais', pla: '📋 Planos especiais', ava: '⚠ Avarias' };
+function linhasApont() {
+  const out = [];
+  DB.trens.forEach(t => { const ps = new Set([...Object.keys(t.reg), ...Object.keys(t.pexec || {})].map(Number));
+    ps.forEach(p => { const r = t.reg[p] || null, ex = (t.pexec || {})[p] || {};
+      const tipos = { def: !!r && (r.falhas.length > 0 || !!r.obs), mat: !!r && r.mats.length > 0, pla: Object.keys(ex).length > 0, ava: !!r && r.oc.length > 0 };
+      if (Object.values(tipos).some(Boolean)) out.push({ t, p, r, ex, tipos }); }); });
+  return out.sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || (b.r?.h || '').localeCompare(a.r?.h || '') || a.t.prefixo.localeCompare(b.t.prefixo) || a.p - b.p);
+}
+function vistaApont() {
+  const todas = linhasApont(), dias = [...new Set(todas.map(x => x.t.dataISO))].sort().reverse();
+  if (S.apDia && !dias.includes(S.apDia)) S.apDia = '';
+  const doFiltro = todas.filter(x => (!S.apDia || x.t.dataISO === S.apDia) && (!S.apTurno || x.t.turno === S.apTurno));
+  const prefs = [...new Set(doFiltro.map(x => x.t.prefixo))].sort(); if (S.apPref && !prefs.includes(S.apPref)) S.apPref = '';
+  const busca = semAcento((S.apBusca || '').trim());
+  const base = doFiltro.filter(x => (!S.apPref || x.t.prefixo === S.apPref) && (!busca || semAcento(x.t.vagoes[x.p - 1] || '').includes(busca)));
+  const vis = base.filter(x => !S.apTipo || x.tipos[S.apTipo]), LIM = 150;
+  const n = k => base.filter(x => x.tipos[k]).length, itens = base.reduce((a, x) => a + (x.r ? qtdItens(x.r) : 0), 0);
+  const eqDe = (t, p, r) => { const d = (r && t.dist.find(x => x.n === r.equipe)) || t.dist.find(x => p >= x.ini && p <= x.fim); return d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : ''; };
+  const linha = (ic, txt) => `<div class="small" style="margin-top:4px">${ic} ${txt}</div>`;
+  return `<p class="nota">Tudo o que as equipes lançaram nos vagões: <b>defeitos</b> (observações e falhas), <b>materiais</b> aplicados, <b>planos especiais</b> executados e <b>avarias</b> (retenção, isolamento, normalização). Mostra os trens carregados no aparelho (${{ tec: 'últimos 3 dias', sup: 'últimos 7 dias', esp: 'últimos 15 dias' }[PAPEL[DB.me.perfil]] || 'últimos 35 dias'}).</p>
+  <div class="card"><div class="linha-campos"><label class="campo">Dia<select data-act="it-filtro" data-k="apDia"><option value="">Todos</option>${dias.map(d => `<option value="${d}" ${d === S.apDia ? 'selected' : ''}>${diaRot(d)}</option>`).join('')}</select></label>
+    <label class="campo">Turno<select data-act="it-filtro" data-k="apTurno"><option value="">Todos</option>${'ABCD'.split('').map(t => `<option ${t === S.apTurno ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="campo">Prefixo<select data-act="it-filtro" data-k="apPref"><option value="">Todos</option>${prefs.map(p => `<option ${p === S.apPref ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
+    <label class="campo">Vagão<input data-act="it-filtro" data-k="apBusca" value="${esc(S.apBusca || '')}" placeholder="número do vagão" inputmode="search" autocomplete="off"></label></div>
+    <div class="chips" style="margin:0"><button class="chip ${!S.apTipo ? 'on' : ''}" data-act="ap-tipo" data-v="">Todos (${base.length})</button>${Object.entries(TIPOS_AP).map(([k, l]) => `<button class="chip ${S.apTipo === k ? 'on' : ''}" data-act="ap-tipo" data-v="${k}">${l} (${n(k)})</button>`).join('')}</div></div>
+  <div class="kpis">${kpi('Vagões com apontamento', fmt(base.length), 'no filtro')}${kpi('Defeitos', fmt(n('def')), 'vagões com observação ou falha')}${kpi('Materiais', fmt(itens), n('mat') + ' vagão(ões)')}${kpi('Planos especiais', fmt(n('pla')), 'vagões com plano respondido')}${kpi('Avarias', fmt(n('ava')), 'retenção, isolamento, normalização')}</div>
+  <div class="vagoes">${vis.slice(0, LIM).map(({ t, p, r, ex, tipos }) => `<div class="card ap" style="margin:0">
+    <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline"><b style="color:var(--title)">${esc(t.vagoes[p - 1] || '–')}</b><span class="small">Trem <b>${esc(t.prefixo)}</b> · pos. ${posF(t, p)}${t.os ? ' · OS ' + esc(t.os) : ''}</span>
+      <span class="small muted" style="margin-left:auto">${diaRot(t.dataISO)} · turno ${t.turno}${r?.h ? ' · ' + r.h : ''}</span></div>
+    ${tipos.ava ? linha('⚠', `<b>Avaria:</b> ${r.oc.map(o => `<span class="tag bad">${esc(o)}</span>`).join(' ')}`) : ''}
+    ${tipos.mat ? linha('🔧', `<b>Materiais:</b> ${esc(r.mats.map(txtMat).join(' · '))}`) : ''}
+    ${tipos.def ? linha('📝', `<b>Defeito:</b> ${esc([...r.falhas.map(f => f.comp + ': ' + f.falha), ...(r.obs ? ['“' + r.obs + '”'] : [])].join(' · '))}`) : ''}
+    ${Object.entries(ex).map(([nm, e]) => linha('📋', `<b>${esc(nm)}</b> ${tagExec(e)} <span class="muted">${esc((e.por || '').split(' ').slice(0, 2).join(' '))}${e.quando ? ' · ' + horaDe(e.quando) : ''}</span>`)).join('')}
+    <div class="small muted" style="margin-top:6px">${esc(eqDe(t, p, r))}${r?.apontadoPor ? ' · lançado por ' + esc(r.apontadoPor) : ''}
+      ${r?.val ? ` · <span class="tag ${r.val === 'corrigido' ? 'info' : 'ok'}">${r.val === 'corrigido' ? '✏ Corrigido' : '✓ Validado'}</span>` : t.validacao?.status === 'pendente' && r ? ' · <span class="tag neu">aguardando validação</span>' : ''}
+      ${r?.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 Ver foto</button>` : ''}</div></div>`).join('')
+    || '<div class="card muted">Nenhum apontamento neste filtro.</div>'}
+    ${vis.length > LIM ? `<p class="small muted" style="margin:6px 0 0">Mostrando ${LIM} de ${fmt(vis.length)}. Use os filtros de dia, prefixo ou vagão para ver os demais.</p>` : ''}</div>`;
 }
 
 // ---------- TÉCNICO ----------
@@ -2567,11 +2609,11 @@ function exportar(tipo) {
 }
 
 const VIEWS = {
-  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao },
-  tec: { meu: tecMeu },
-  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens },
-  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, cadastros: progCadastros },
-  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao }
+  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont },
+  tec: { meu: tecMeu, apont: vistaApont },
+  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, apont: vistaApont },
+  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, cadastros: progCadastros },
+  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont }
 };
 
 // ---------- login, troca de senha, entrada ----------
@@ -2954,6 +2996,7 @@ document.addEventListener('click', async e => {
       Object.assign(p, { status: 'reaberta', coment: c }); enviar({ tabela: 'planos', acao: 'update', dados: { status: 'reaberta', comentario: c }, filtro: [['id', 'eq', p.id]], desc: 'Plano especial' }); toast('Plano reaberto para a equipe'); break;
     }
     case 'esp-filtro': S.espFiltro = v; break;
+    case 'ap-tipo': S.apTipo = v; break;
     case 'validar-trem': S.valTrem = el.dataset.id; break;
     case 'val-voltar': S.valTrem = null; break;
     case 'val-ok': { const t = tremQualquer(el.dataset.id), p = +el.dataset.p; Object.assign(t.reg[p], { val: 'ok', valPor: DB.me.nome }); enviar({ tabela: 'registros', acao: 'update', dados: { val: 'ok' }, filtro: [['trem_id', 'eq', t.id], ['posicao', 'eq', p]], desc: 'Validação' }); break; }
