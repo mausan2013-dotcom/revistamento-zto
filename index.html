@@ -596,7 +596,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.29';
+const VERSAO = '1.30';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -2111,15 +2111,13 @@ async function printDe(id, nome, texto, whats = true) {
   toast('Gerando imagem…');
   try { await compartilharImagem(await gerarImagem(el), nome, texto, whats); } catch (e) { toast('⚠ ' + e.message); }
 }
-// texto do relatório de planos para colar no WhatsApp: por prefixo/OS, depois por plano, com o resultado de cada vagão
+// texto do relatório de planos para colar no WhatsApp: por prefixo/OS, depois por plano, só com o resultado de cada vagão
 function textoRelPlanos() {
   const { linhas } = linhasRelPlanos(), res = e => !e ? '⏳ Sem resposta' : e.ok ? '✅ Realizado' : '❌ Não realizado';
   const trens = [...new Set(linhas.map(x => x.t))].sort((a, b) => a.prefixo.localeCompare(b.prefixo) || a.turno.localeCompare(b.turno));
   return trens.map(t => {
     const doTrem = linhas.filter(x => x.t === t), planos = [...new Set(doTrem.map(x => x.plano))].sort((a, b) => a.localeCompare(b));
-    return `*${t.prefixo}${t.os ? ' / OS ' + t.os : ''}*\n\n` + planos.map(n => `📋 *${n}*\n` + doTrem.filter(x => x.plano === n).sort((a, b) => a.p - b.p).map(x => {
-      const r = t.reg[x.p], obs = r && (r.obs || r.st !== 'ok') ? (r.obs || txtReg(r)) : '';
-      return `• ${x.c} - ${res(x.e)}${obs ? '\n   💬 ' + obs : ''}`; }).join('\n')).join('\n\n');
+    return `*${t.prefixo}${t.os ? ' / OS ' + t.os : ''}*\n\n` + planos.map(n => `📋 *${n}*\n` + doTrem.filter(x => x.plano === n).sort((a, b) => a.p - b.p).map(x => `• ${x.c} - ${res(x.e)}`).join('\n')).join('\n\n');
   }).join('\n\n────────\n\n');
 }
 async function copiarTexto(txt, msg) {
