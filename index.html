@@ -353,6 +353,7 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .apoio-card { border-left: 4px solid var(--info); }
 .apoio-op { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .apoio-op > div { flex: 1; }
+.val-plano { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; } .val-plano > span { flex: 1 1 100%; }
 .busca-linha { display: flex; gap: 8px; align-items: center; margin-top: 4px; } .busca-linha input { flex: 1; min-width: 0; }
 .card.plano-eq { border-left: 4px solid var(--info); }
 .mat-tab tr.sel td { background: var(--info-bg); }
@@ -592,7 +593,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.23';
+const VERSAO = '1.24';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1567,7 +1568,9 @@ function telaValidar(t) {
   ${campoBuscaVal('Buscar vagão neste trem')}${S.valBusca ? `<p class="small" style="margin:-4px 0 10px">Mostrando <b>${aps.length}</b> de ${todos.length} apontamento(s) com “${esc(S.valBusca)}”.</p>` : ''}
   <div class="vagoes">${aps.map(({ p, r, ex }) => { const d = donoPos(t, p) || { n: r?.equipe ?? '–', membros: [] }, rf = restrDe(t, p);
     const planosHtml = Object.entries(ex).map(([n, e]) => `<br><span class="tag plano">📋 ${esc(n)}</span> ${tagExec(e)} <span class="small muted">${esc(e.por || '')} · ${horaDe(e.quando)}</span>`).join('') +
-      planosSemResp(t, p).map(x => `<br><span class="tag plano">📋 ${esc(x.plano)}</span> ${tagExec(null)} <span class="small muted">a equipe não respondeu${x.prioridade ? ' · prioridade ' + esc(x.prioridade) : ''}</span>`).join('');
+      planosSemResp(t, p).map(x => `<div class="val-plano"><span><span class="tag plano">📋 ${esc(x.plano)}</span> ${tagExec(null)} <span class="small muted">a equipe não respondeu${x.prioridade ? ' · prioridade ' + esc(x.prioridade) : ''}</span></span>
+        <button class="btn sm" data-act="val-plano" data-id="${t.id}" data-p="${p}" data-plano="${esc(x.plano)}" data-v="1">✓ Realizado</button>
+        <button class="btn sm" data-act="val-plano" data-id="${t.id}" data-p="${p}" data-plano="${esc(x.plano)}" data-v="0">✗ Não realizado</button></div>`).join('');
     if (!r) return `<div class="card ap" style="margin:0"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> <span class="tag neu">Sem registro do vagão</span>${planosHtml}<br><span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}</span></div>`;
     return `<div class="card ap ${r.val ? 'conferido' : ''}" style="margin:0"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
       <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${r.st === 'ok' && temDefeito(r) ? '' : tagReg(r)}<br>
@@ -3298,6 +3301,12 @@ document.addEventListener('click', async e => {
       entrarDemo(); toast('🎬 Modo demonstração: dados fictícios, nada é gravado'); break;
     }
     case 'demo-sair': DEMO = false; location.reload(); return;
+    case 'val-plano': {
+      const t = tremQualquer(el.dataset.id), pos = +el.dataset.p, plano = el.dataset.plano, ok = v === '1', quando = new Date().toISOString(); if (!t) return;
+      ((t.pexec ||= {})[pos] ||= {})[plano] = { ok, quando, por: DB.me.nome };
+      enviar({ tabela: 'planos_execucao', acao: 'upsert', onConflict: 'trem_id,posicao,plano', dados: { trem_id: t.id, posicao: pos, vagao: t.vagoes[pos - 1], plano, realizado: ok, quando, por: DB.me.id }, desc: 'Plano ' + plano + ' (validador)' });
+      toast((ok ? 'Plano realizado: ' : 'Plano não realizado: ') + plano + ' · respondido por você'); break;
+    }
     case 'val-voltar': S.valTrem = null; break;
     case 'val-buscar': S.valBusca = (document.querySelector('[data-act="val-busca"]')?.value || '').trim(); break;
     case 'val-busca-limpar': S.valBusca = ''; break;
