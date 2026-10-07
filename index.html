@@ -577,7 +577,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.16';
+const VERSAO = '1.17';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1407,8 +1407,10 @@ function tagPlano(p) {
   if (p.status === 'reaberta') return '<span class="tag bad">↩ Reaberto</span>';
   return '<span class="tag neu">Aberto</span>';
 }
-// para o validador: vagões com defeito/material/ocorrência (intervenção), corrigidos, ou com plano especial respondido (Realizado / Não realizado)
-const apontamentos = t => { const ps = new Set([...Object.entries(t.reg).filter(([, r]) => r.st === 'int' || r.val === 'corrigido').map(([p]) => +p), ...Object.keys(t.pexec || {}).map(Number)]);
+// para o validador: vagões com defeito registrado (observação ou falha), material ou ocorrência, corrigidos,
+// ou com plano especial respondido (Realizado / Não realizado)
+const temDefeito = r => !!r && r.st !== 'pend' && (!!r.obs || r.falhas.length > 0);
+const apontamentos = t => { const ps = new Set([...Object.entries(t.reg).filter(([, r]) => r.st === 'int' || temDefeito(r) || r.val === 'corrigido').map(([p]) => +p), ...Object.keys(t.pexec || {}).map(Number)]);
   return [...ps].sort((a, b) => a - b).map(p => ({ p, r: t.reg[p], ex: (t.pexec || {})[p] || {} })); };
 const comPlano = t => t.vagoes.map((c, i) => { const ex = (t.pexec || {})[i + 1] || {}, pp = planosPend(c).slice();
   Object.keys(ex).forEach(n => { if (!pp.some(x => x.plano === n)) pp.push({ plano: n, prioridade: '' }); });
@@ -1444,8 +1446,8 @@ function telaValidar(t) {
     const planosHtml = Object.entries(ex).map(([n, e]) => `<br><span class="tag plano">📋 ${esc(n)}</span> ${tagExec(e)} <span class="small muted">${esc(e.por || '')} · ${horaDe(e.quando)}</span>`).join('');
     if (!r) return `<div class="card ap" style="margin:0"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> <span class="tag neu">Sem registro do vagão</span>${planosHtml}<br><span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))}</span></div>`;
     return `<div class="card ap ${r.val ? 'conferido' : ''}" style="margin:0"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
-      <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${tagReg(r)}${planosPend(t.vagoes[p - 1]).length ? ` <span class="tag plano" title="Plano especial pendente">📋 ${esc(txtPlanos(planosPend(t.vagoes[p - 1])))}</span>` : ''}<br>
-        <span class="small">${r.st === 'ok' ? '<span class="muted">vagão sem intervenção</span>' : esc(txtReg(r))}</span>${planosHtml}${r.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 ver foto</button>` : ''}<br>
+      <div style="flex:1;min-width:220px"><b style="color:var(--title)">Pos. ${posF(t, p)} · ${esc(t.vagoes[p - 1])}</b> ${r.st === 'ok' && temDefeito(r) ? '' : tagReg(r)}${planosPend(t.vagoes[p - 1]).length ? ` <span class="tag plano" title="Plano especial pendente">📋 ${esc(txtPlanos(planosPend(t.vagoes[p - 1])))}</span>` : ''}<br>
+        <span class="small">${r.st === 'ok' ? (temDefeito(r) ? '<span class="tag warn">📝 Defeito</span> ' + esc(txtReg(r)) : '<span class="muted">vagão sem intervenção</span>') : esc(txtReg(r))}</span>${planosHtml}${r.fotoUrl ? ` <button class="btn sm" data-act="ver-foto" data-v="${esc(r.fotoUrl)}">📷 ver foto</button>` : ''}<br>
         <span class="small muted">Equipe ${d.n} · ${esc(nomesEquipe(d.membros))} · ${r.h}${rf ? ' · ficha: ' + esc(rf.motivo) : ''}</span>
         ${r.val === 'corrigido' ? `<br><span class="small" style="color:var(--info)">✏ Corrigido${r.valPor ? ' por ' + esc(r.valPor) : ''}${r.antes ? ' · antes: ' + esc(r.antes) : ''}</span>` : ''}</div>
       <div style="display:flex;gap:6px">${r.val ? `<span class="tag ok">${r.val === 'corrigido' ? '✏ Corrigido' : '✓ Validado'}</span>` : `<button class="btn sm ok" data-act="val-ok" data-id="${t.id}" data-p="${p}">✓ Validar</button>`}
@@ -1537,8 +1539,10 @@ function linhasApont() {
       if (Object.values(tipos).some(Boolean)) out.push({ t, p, r, ex, tipos }); }); });
   return out.sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || (b.r?.h || '').localeCompare(a.r?.h || '') || a.t.prefixo.localeCompare(b.t.prefixo) || a.p - b.p);
 }
+// técnico vê só o que é dele e da dupla: a equipe do registro (ou a da faixa do vagão) tem ele como membro
+const minhaDupla = (t, p, r) => { const eu = uidTec(), d = (r && t.dist.find(x => x.n === r.equipe)) || t.dist.find(x => p >= x.ini && p <= x.fim); return !!eu && !!d && d.membros.includes(eu); };
 function vistaApont() {
-  const todas = linhasApont(), dias = [...new Set(todas.map(x => x.t.dataISO))].sort().reverse();
+  const soMeus = S.papel === 'tec', todas = linhasApont().filter(x => !soMeus || minhaDupla(x.t, x.p, x.r)), dias = [...new Set(todas.map(x => x.t.dataISO))].sort().reverse();
   if (S.apDia && !dias.includes(S.apDia)) S.apDia = '';
   const doFiltro = todas.filter(x => (!S.apDia || x.t.dataISO === S.apDia) && (!S.apTurno || x.t.turno === S.apTurno));
   const prefs = [...new Set(doFiltro.map(x => x.t.prefixo))].sort(); if (S.apPref && !prefs.includes(S.apPref)) S.apPref = '';
@@ -1548,7 +1552,7 @@ function vistaApont() {
   const n = k => base.filter(x => x.tipos[k]).length, itens = base.reduce((a, x) => a + (x.r ? qtdItens(x.r) : 0), 0);
   const eqDe = (t, p, r) => { const d = (r && t.dist.find(x => x.n === r.equipe)) || t.dist.find(x => p >= x.ini && p <= x.fim); return d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : ''; };
   const linha = (ic, txt) => `<div class="small" style="margin-top:4px">${ic} ${txt}</div>`;
-  return `<p class="nota">Tudo o que as equipes lançaram nos vagões: <b>defeitos</b> (observações e falhas), <b>materiais</b> aplicados, <b>planos especiais</b> executados e <b>avarias</b> (retenção, isolamento, normalização). Mostra os trens carregados no aparelho (${{ tec: 'últimos 3 dias', sup: 'últimos 7 dias', esp: 'últimos 15 dias' }[PAPEL[DB.me.perfil]] || 'últimos 35 dias'}).</p>
+  return `<p class="nota">${soMeus ? `Os seus apontamentos e os da sua dupla${uidTec() ? '' : ' (escolha o mecânico)'}:` : 'Tudo o que as equipes lançaram nos vagões:'} <b>defeitos</b> (observações e falhas), <b>materiais</b> aplicados, <b>planos especiais</b> executados e <b>avarias</b> (retenção, isolamento, normalização). Mostra os trens carregados no aparelho (${{ tec: 'últimos 3 dias', sup: 'últimos 7 dias', esp: 'últimos 15 dias' }[PAPEL[DB.me.perfil]] || 'últimos 35 dias'}).</p>
   <div class="card"><div class="linha-campos"><label class="campo">Dia<select data-act="it-filtro" data-k="apDia"><option value="">Todos</option>${dias.map(d => `<option value="${d}" ${d === S.apDia ? 'selected' : ''}>${diaRot(d)}</option>`).join('')}</select></label>
     <label class="campo">Turno<select data-act="it-filtro" data-k="apTurno"><option value="">Todos</option>${'ABCD'.split('').map(t => `<option ${t === S.apTurno ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <label class="campo">Prefixo<select data-act="it-filtro" data-k="apPref"><option value="">Todos</option>${prefs.map(p => `<option ${p === S.apPref ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
