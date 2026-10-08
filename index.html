@@ -605,7 +605,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.41';
+const VERSAO = '1.42';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -783,10 +783,10 @@ const planosPend = cod => PEND.mapa[cod] || [];
 const txtPlanos = l => l.map(x => x.plano).join(', ');
 
 // Carga dos dados. Para economizar tráfego (Supabase), há dois tipos:
-//  · completa (período do perfil, colaboradores, planos, histórico): ao entrar, a cada 10 min e em "Atualizar agora";
-//  · leve (a cada 30 s): só os trens vivos (em revista ou aguardando validação), os planos em aberto e as equipes do dia.
+//  · completa (período do perfil, colaboradores, planos, histórico): ao entrar, a cada 20 min e em "Atualizar agora";
+//  · leve (a cada 60 s e ao voltar para o app): só os trens vivos (em revista ou aguardando validação), os planos em aberto e as equipes do dia.
 // Os dados ficam em RAW (linhas do banco) e a tela é montada a partir dele; a leve só troca o que mudou.
-const CARGA_COMPLETA_MS = 10 * 60e3;
+const CARGA_COMPLETA_MS = 20 * 60e3;
 const RAW = { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, desde: null };
 const resetRaw = () => Object.assign(RAW, { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, desde: null });
 const vivoRaw = t => t.status === 'andamento' || t.validacao === 'pendente';
@@ -3196,7 +3196,8 @@ async function atualizar(forcar) {
   if (ocupado && !forcar) return;
   try { await carregar(forcar); semSinal = false; render(); } catch (e) { if (ehRede(e)) { semSinal = true; indicador(); } }
 }
-setInterval(() => atualizar(false), 30000);
+const RECARGA_MS = 60e3;                                  // recarga leve (o app também atualiza ao voltar para a tela)
+setInterval(() => atualizar(false), RECARGA_MS);
 // versão nova publicada: avisa e, quando o app volta para a tela sem nada pendente, recarrega sozinho
 let NOVA = null;
 async function conferirVersao() {
