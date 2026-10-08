@@ -358,6 +358,11 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .apoio-op { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .apoio-op > div { flex: 1; }
 .val-plano { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; } .val-plano > span { flex: 1 1 100%; }
+.aten-resumo { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 10px; margin: 8px 0 0; padding: 8px 10px; background: var(--info-bg); border: 1px solid var(--line); border-radius: var(--radius); font: inherit; font-size: 13px; text-align: left; color: var(--ink); cursor: pointer; }
+.aten-resumo .seta { flex: none; font-size: 12px; font-weight: 700; color: var(--title); white-space: nowrap; }
+.aten-lista { list-style: none; margin: 0; padding: 4px 10px 6px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--radius) var(--radius); font-size: 13px; max-height: 300px; overflow-y: auto; }
+.aten-lista li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); } .aten-lista li:last-child { border-bottom: 0; }
+.aten-lista .pos { flex: none; min-width: 26px; font-weight: 800; color: var(--title); }
 .retro-barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
 .retro-res { max-height: 55vh; overflow-y: auto; margin: 0; } .retro-vag { justify-content: space-between; text-align: left; min-height: 52px; font-weight: 600; padding: 6px 12px; gap: 8px; }
 .retro-planos { margin: 0 0 4px; border-top: 1px solid var(--line); border-radius: var(--radius); } .retro-nota { display: block; } .retro-nota .btn { margin-top: 8px; }
@@ -600,7 +605,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.36';
+const VERSAO = '1.37';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1798,7 +1803,11 @@ function tecMeu() {
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
     ${d.comeco > d.ini ? `<div class="small" style="color:var(--info);font-weight:700">↪ Começando no ${esc(t.vagoes[d.comeco - 1])} (${t.posFicha ? 'pos.' : 'nº'} ${posF(t, d.comeco)}); no fim, os vagões antes dele</div>` : ''}<div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
     ${barra(p.n / p.total * 100)}
-    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length; return a.length ? `<p class="small" style="margin:8px 0 0">${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''} <span class="muted">na sua faixa · use o filtro ⚠ Atenção</span></p>` : ''; })(atencaoFaixa(t, d))}
+    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length, ab = S.tecAten === t.id + ':' + d.n;
+      return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
+      ${ab ? `<ul class="aten-lista">${a.map(x => `<li><span class="pos">${posF(t, x.pos)}</span><span><b>${esc(x.cod)}</b>${x.r ? ' <span class="tag ok">registrado</span>' : ''}
+        ${x.rf ? `<br><span style="color:var(--warn)">⚠ Na ficha: ${esc(x.rf.motivo)}${x.rf.data ? ` <span class="muted">(desde ${esc(x.rf.data)})</span>` : ''}</span>` : ''}
+        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
       : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
@@ -3090,7 +3099,7 @@ document.addEventListener('click', async e => {
   $('tt').hidden = true;
   const el = e.target.closest('[data-act]');
   if (!el) { if (e.target === $('modal')) { S.modal = null; renderModal(); } return; }
-  if (visaoTecSup() && !S.supLanca && el.closest('.somente-leitura') && !['tec-filtro', 'ver-vagao'].includes(el.dataset.act)) { e.preventDefault(); toast('Só visualização: o mecânico registra pelo celular dele'); return; }
+  if (visaoTecSup() && !S.supLanca && el.closest('.somente-leitura') && !['tec-filtro', 'tec-aten', 'ver-vagao'].includes(el.dataset.act)) { e.preventDefault(); toast('Só visualização: o mecânico registra pelo celular dele'); return; }
   if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox' && el.type !== 'radio')) return;
   const a = el.dataset.act, v = el.dataset.v, N = S.novo, M = S.modal;
   lerCampos();
@@ -3137,6 +3146,7 @@ document.addEventListener('click', async e => {
     }
     case 'tec-voltar': S.tecPulados = S.tecPulados.filter(x => x !== el.dataset.id); lsGravar('rzto_pulados', S.tecPulados); window.scrollTo(0, 0); break;
     case 'tec-filtro': S.tecFiltro = v; break;
+    case 'tec-aten': S.tecAten = S.tecAten === v ? null : v; break;
     case 'apoio-ini': S.apoio = { trem: el.dataset.id, eq: +v, tec: uidTec() }; S.apoioFiltro = 'faltam'; lsGravar('rzto_apoio', S.apoio); window.scrollTo(0, 0);
       toast('Apoio à Equipe ' + v + ': comece pelo fim da faixa'); break;
     case 'apoio-sair': sairApoio(); window.scrollTo(0, 0); break;
