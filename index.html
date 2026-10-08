@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.44';
+const VERSAO = '1.45';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1801,19 +1801,21 @@ function espValidados() {
 }
 
 // ---------- APONTAMENTOS (todos os perfis): tudo o que as equipes lançaram nos vagões ----------
-const TIPOS_AP = { def: '📝 Defeitos', mat: '🔧 Materiais', pla: '📋 Planos especiais', ava: '⚠ Avarias' };
-function linhasApont() {
+const TIPOS_AP = { def: '📝 Defeitos', mat: '🔧 Materiais', pla: '📋 Planos especiais', ava: '⚠ Avarias', fic: '🚩 Isolados na ficha' };
+// comFicha: inclui os vagões com restrição na ficha do trem (isolados), mesmo sem nenhum registro da equipe
+function linhasApont(comFicha) {
   const out = [];
   DB.trens.forEach(t => { const ps = new Set([...Object.keys(t.reg), ...Object.keys(t.pexec || {})].map(Number));
+    if (comFicha) t.vagoes.forEach((c, i) => { if (restrDe(t, i + 1)) ps.add(i + 1); });
     ps.forEach(p => { const r = t.reg[p] || null, ex = (t.pexec || {})[p] || {};
-      const tipos = { def: !!r && (r.falhas.length > 0 || !!r.obs), mat: !!r && r.mats.length > 0, pla: Object.keys(ex).length > 0, ava: !!r && r.oc.length > 0 };
+      const tipos = { def: !!r && (r.falhas.length > 0 || !!r.obs), mat: !!r && r.mats.length > 0, pla: Object.keys(ex).length > 0, ava: !!r && r.oc.length > 0, fic: !!comFicha && !!restrDe(t, p) };
       if (Object.values(tipos).some(Boolean)) out.push({ t, p, r, ex, tipos }); }); });
   return out.sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || (b.r?.h || '').localeCompare(a.r?.h || '') || a.t.prefixo.localeCompare(b.t.prefixo) || a.p - b.p);
 }
 // técnico vê só o que é dele e da dupla: a equipe do registro (ou a da faixa do vagão) tem ele como membro
 const minhaDupla = (t, p, r) => { const eu = uidTec(), d = donoPos(t, p); return !!eu && !!d && d.membros.includes(eu); };
 function vistaApont() {
-  const soMeus = S.papel === 'tec', todas = linhasApont().filter(x => !soMeus || minhaDupla(x.t, x.p, x.r)), dias = [...new Set(todas.map(x => x.t.dataISO))].sort().reverse();
+  const soMeus = S.papel === 'tec', todas = linhasApont(true).filter(x => !soMeus || minhaDupla(x.t, x.p, x.r)), dias = [...new Set(todas.map(x => x.t.dataISO))].sort().reverse();
   if (S.apDia && !dias.includes(S.apDia)) S.apDia = '';
   const doFiltro = todas.filter(x => (!S.apDia || x.t.dataISO === S.apDia) && (!S.apTurno || x.t.turno === S.apTurno));
   const prefs = [...new Set(doFiltro.map(x => x.t.prefixo))].sort(); if (S.apPref && !prefs.includes(S.apPref)) S.apPref = '';
@@ -1823,16 +1825,17 @@ function vistaApont() {
   const n = k => base.filter(x => x.tipos[k]).length, itens = base.reduce((a, x) => a + (x.r ? qtdItens(x.r) : 0), 0);
   const eqDe = (t, p, r) => { const d = donoPos(t, p); return d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : ''; };
   const linha = (ic, txt) => `<div class="small" style="margin-top:4px">${ic} ${txt}</div>`;
-  return `<p class="nota">${soMeus ? `Os seus apontamentos e os da sua dupla${uidTec() ? '' : ' (escolha o mecânico)'}:` : 'Tudo o que as equipes lançaram nos vagões:'} <b>defeitos</b> (observações e falhas), <b>materiais</b> aplicados, <b>planos especiais</b> executados e <b>avarias</b> (retenção, isolamento, normalização). Mostra os trens carregados no aparelho (${{ tec: 'últimos 3 dias', sup: 'últimos 7 dias', esp: 'últimos 15 dias' }[PAPEL[DB.me.perfil]] || 'últimos 35 dias'}).</p>
+  return `<p class="nota">${soMeus ? `Os seus apontamentos e os da sua dupla${uidTec() ? '' : ' (escolha o mecânico)'}:` : 'Tudo o que as equipes lançaram nos vagões:'} <b>defeitos</b> (observações e falhas), <b>materiais</b> aplicados, <b>planos especiais</b> executados e <b>avarias</b> (retenção, isolamento, normalização), além dos vagões <b>isolados na ficha</b> do trem, mesmo sem registro. Mostra os trens carregados no aparelho (${{ tec: 'últimos 3 dias', sup: 'últimos 7 dias', esp: 'últimos 15 dias' }[PAPEL[DB.me.perfil]] || 'últimos 35 dias'}).</p>
   <div class="card"><div class="linha-campos"><label class="campo">Dia<select data-act="it-filtro" data-k="apDia"><option value="">Todos</option>${dias.map(d => `<option value="${d}" ${d === S.apDia ? 'selected' : ''}>${diaRot(d)}</option>`).join('')}</select></label>
     <label class="campo">Turno<select data-act="it-filtro" data-k="apTurno"><option value="">Todos</option>${'ABCD'.split('').map(t => `<option ${t === S.apTurno ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <label class="campo">Prefixo<select data-act="it-filtro" data-k="apPref"><option value="">Todos</option>${prefs.map(p => `<option ${p === S.apPref ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
     <label class="campo">Vagão<input data-act="it-filtro" data-k="apBusca" value="${esc(S.apBusca || '')}" placeholder="número do vagão" inputmode="search" autocomplete="off"></label></div>
     <div class="chips" style="margin:0"><button class="chip ${!S.apTipo ? 'on' : ''}" data-act="ap-tipo" data-v="">Todos (${base.length})</button>${Object.entries(TIPOS_AP).map(([k, l]) => `<button class="chip ${S.apTipo === k ? 'on' : ''}" data-act="ap-tipo" data-v="${k}">${l} (${n(k)})</button>`).join('')}</div></div>
-  <div class="kpis">${kpi('Vagões com apontamento', fmt(base.length), 'no filtro')}${kpi('Defeitos', fmt(n('def')), 'vagões com observação ou falha')}${kpi('Materiais', fmt(itens), n('mat') + ' vagão(ões)')}${kpi('Planos especiais', fmt(n('pla')), 'vagões com plano respondido')}${kpi('Avarias', fmt(n('ava')), 'retenção, isolamento, normalização')}</div>
+  <div class="kpis">${kpi('Vagões com apontamento', fmt(base.length), 'no filtro')}${kpi('Defeitos', fmt(n('def')), 'vagões com observação ou falha')}${kpi('Materiais', fmt(itens), n('mat') + ' vagão(ões)')}${kpi('Planos especiais', fmt(n('pla')), 'vagões com plano respondido')}${kpi('Avarias', fmt(n('ava')), 'retenção, isolamento, normalização')}${kpi('Isolados na ficha', fmt(n('fic')), 'restrição na ficha do trem')}</div>
   <div class="vagoes">${vis.slice(0, LIM).map(({ t, p, r, ex, tipos }) => `<div class="card ap" style="margin:0">
     <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline"><b style="color:var(--title)">${esc(t.vagoes[p - 1] || '–')}</b><span class="small">Trem <b>${esc(t.prefixo)}</b> · pos. ${posF(t, p)}${t.os ? ' · OS ' + esc(t.os) : ''}</span>
       <span class="small muted" style="margin-left:auto">${diaRot(t.dataISO)} · turno ${t.turno}${r?.h ? ' · ' + r.h : ''}</span></div>
+    ${tipos.fic ? (rf => linha('🚩', `<b>Na ficha:</b> ${esc(rf.motivo)}${rf.data ? ` <span class="muted">(desde ${esc(rf.data)})</span>` : ''} ${r ? `<span class="tag ${r.st === 'pend' ? 'warn' : 'ok'}">${r.st === 'pend' ? 'não revistado' : 'revistado às ' + r.h}</span>` : '<span class="tag neu">sem registro da equipe</span>'}`))(restrDe(t, p)) : ''}
     ${tipos.ava ? linha('⚠', `<b>Avaria:</b> ${r.oc.map(o => `<span class="tag bad">${esc(o)}</span>`).join(' ')}`) : ''}
     ${tipos.mat ? linha('🔧', `<b>Materiais:</b> ${esc(r.mats.map(txtMat).join(' · '))}`) : ''}
     ${tipos.def ? linha('📝', `<b>Defeito:</b> ${esc([...r.falhas.map(f => f.comp + ': ' + f.falha), ...(r.obs ? ['“' + r.obs + '”'] : [])].join(' · '))}`) : ''}
