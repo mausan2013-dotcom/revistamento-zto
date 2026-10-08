@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.43';
+const VERSAO = '1.44';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -894,7 +894,7 @@ async function executar(op) {
   }
   let q = sb.from(op.tabela);
   if (op.acao === 'insert') q = q.insert(op.dados);
-  else if (op.acao === 'upsert') q = q.upsert(op.dados, { onConflict: op.onConflict });
+  else if (op.acao === 'upsert') q = q.upsert(op.dados, op.ignorar ? { onConflict: op.onConflict, ignoreDuplicates: true } : { onConflict: op.onConflict });   // ignorar: insere só o que não existe
   else q = op.acao === 'delete' ? q.delete() : q.update(op.dados);
   for (const [col, opr, val] of op.filtro || []) q = q[opr](col, val);
   return (await q).error;
@@ -1360,6 +1360,15 @@ function analiseParadas(ts) {
 }
 
 // ---------- SUPERVISOR (líder) ----------
+// faixas abertas de equipes diferentes do turno que cobrem os mesmos vagões ainda pendentes
+function sobrepostas(t) {
+  if (t.status !== 'andamento') return [];
+  const ab = t.dist.filter(d => !d.termino && d.membros.some(m => C(m).turno === t.turno)), out = [];
+  ab.forEach((x, i) => ab.slice(i + 1).forEach(y => { if (x.n === y.n) return; const ini = Math.max(x.ini, y.ini), fim = Math.min(x.fim, y.fim);
+    let pend = false; for (let p = ini; p <= fim; p++) if (!t.reg[p]) { pend = true; break; }
+    if (ini <= fim && pend) out.push({ a: Math.min(x.n, y.n), b: Math.max(x.n, y.n), ini, fim }); }));
+  return out;
+}
 function cardTrem(t) {
   const ins = inspecionados(t), pct = t.vagoes.length ? ins / t.vagoes.length * 100 : 0, pronto = t.dist.length && t.dist.every(d => d.termino);
   const aberto = t.desvios.find(d => !d.fim);
@@ -1394,6 +1403,7 @@ function cardTrem(t) {
     <div class="trem-info">${tempoRev}${naoInsp ? `<button class="btn sm" data-act="nao-insp" data-id="${t.id}">📋 ${naoInsp} vagão(ões) não inspecionado(s)</button>` : '<span class="tag ok">✓ Todos inspecionados</span>'}</div>
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
     ${eqs}
+    ${(l => l.length ? `<div class="alerta" style="margin:10px 0 0"><span>⚠ <b>Faixas sobrepostas:</b> ${l.map(x => `Equipe ${x.a} e Equipe ${x.b} nas ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, x.ini)} a ${posF(t, x.fim)}`).join('; ')}. Esses vagões aparecem para as duas equipes: combine quem faz.</span></div>` : '')(sobrepostas(t))}
     ${t.status === 'andamento' && !t.dist.some(d => d.membros.some(m => C(m).turno === t.turno)) ? `<div class="alerta" style="margin:10px 0 0"><span>👥 <b>Sem equipes deste turno neste trem.</b> ${t.dist.length ? 'Recebido do turno anterior: o que já foi registrado fica; divida o restante.' : ''}</span><button class="btn sm primary" data-act="dividir-trem" data-id="${t.id}">Dividir entre as equipes</button></div>` : ''}
     <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
@@ -3258,15 +3268,19 @@ document.addEventListener('click', async e => {
     case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
     case 'finalizar-bloco': {
-      const t = tremQualquer(el.dataset.id), d = t && t.dist[eqDoTrem(t)]; if (!d) return;
+      // antes de registrar, busca a divisão e os registros atuais no banco (só se não houver nada pendente de envio,
+      // para não esconder registros deste celular que ainda não subiram)
+      if (navigator.onLine && !OFFLINE && !DEMO && !FILA.length && !enviando) { toast('Conferindo a faixa…'); try { await carregar(); } catch (e) {} render(); }
+      const t = tremQualquer(el.dataset.id), d = t && t.dist[eqDoTrem(t)]; if (!d || d.termino) { toast('A sua faixa neste trem mudou ou já foi encerrada. Confira a lista.'); return; }
       const livres = []; for (let p = d.ini; p <= d.fim; p++) if (!t.reg[p]) livres.push(p);
-      if (!livres.length) return;
+      if (!livres.length) { toast('Todos os vagões da faixa já estão registrados'); return; }
       // trava: nenhum plano especial da faixa pode ficar sem resposta (Realizado / Não realizado)
       const sr = planosAbertosFaixa(t, d);
       if (sr.length) { S.tecFiltro = 'atencao'; render(); toast(`📋 Plano especial sem resposta: ${sr.map(x => x.cod).join(', ')}. Responda para finalizar o bloco.`); return; }
-      if (!confirm(`Registrar ${livres.length} vagão(ões) sem apontamento como OK (revistado, sem intervenção)?\n\nOs vagões com defeito ou informação devem ser registrados antes.`)) return;
+      const lista = livres.map(p => `${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)} · ${t.vagoes[p - 1]}`), mostra = lista.slice(0, 25).join('\n') + (lista.length > 25 ? `\n… e mais ${lista.length - 25}` : '');
+      if (!confirm(`Registrar como OK (revistado, sem intervenção) estes ${livres.length} vagão(ões) da sua faixa?\n\n${mostra}\n\nConfira se todos foram revistados. Os vagões com defeito ou informação devem ser registrados antes.`)) return;
       const h = agora(), linhas = livres.map(p => ({ trem_id: t.id, posicao: p, vagao: t.vagoes[p - 1], equipe: d.n, hora: h, resultado: 'ok', materiais: [], ocorrencias: [], obs: null, motivo: null, falhas: [] }));
-      enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', dados: linhas, desc: `Bloco de ${livres.length} vagões (${t.prefixo})` });
+      enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', ignorar: true, dados: linhas, desc: `Bloco de ${livres.length} vagões (${t.prefixo})` });   // nunca grava por cima de um registro que já exista
       livres.forEach(p => t.reg[p] = { st: 'ok', h, mats: [], oc: [], obs: '', motivo: '', falhas: [], equipe: d.n });
       toast(`${livres.length} vagões registrados como OK`); window.scrollTo(0, 0); break;
     }
