@@ -605,7 +605,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.40';
+const VERSAO = '1.41';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -782,22 +782,16 @@ async function carregarPendentes(forcar) {
 const planosPend = cod => PEND.mapa[cod] || [];
 const txtPlanos = l => l.map(x => x.plano).join(', ');
 
-async function carregar() {
-  if (DEMO) return;
-  const prog = ehGestao(), dias = prog ? 35 : DB.me.perfil === 'supervisor' ? 7 : DB.me.perfil === 'especializado' ? 15 : 3;
-  const desde = new Date(); desde.setDate(desde.getDate() - dias);
-  const [colab, trens, planos, eqd, log] = await Promise.all([
-    tudo(() => sb.from('colaboradores').select('*').order('nome')),
-    tudo(() => sb.from('trens').select('*').or(`data.gte.${isoData(desde)},status.eq.andamento,validacao.eq.pendente`).order('criado_em')),
-    tudo(() => sb.from('planos').select('*').order('criado_em', { ascending: false })),
-    tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5)))),
-    ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve([])
-  ]);
-  DB.colab = colab; recalcCurto();
-  if (!TEM_ORDEM) TEM_ORDEM = !(await sb.from('trens').select('ordem').limit(1)).error;           // 07-ordem-trens.sql
-  if (!TEM_OS) TEM_OS = !(await sb.from('trens').select('os').limit(1)).error;                    // 12-pcm-apontamentos.sql (confere de novo até existir)
-  DB.me = colab.find(x => x.id === DB.me.id) || DB.me;
-  const ids = trens.map(t => t.id);
+// Carga dos dados. Para economizar tráfego (Supabase), há dois tipos:
+//  · completa (período do perfil, colaboradores, planos, histórico): ao entrar, a cada 10 min e em "Atualizar agora";
+//  · leve (a cada 30 s): só os trens vivos (em revista ou aguardando validação), os planos em aberto e as equipes do dia.
+// Os dados ficam em RAW (linhas do banco) e a tela é montada a partir dele; a leve só troca o que mudou.
+const CARGA_COMPLETA_MS = 10 * 60e3;
+const RAW = { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, desde: null };
+const resetRaw = () => Object.assign(RAW, { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, desde: null });
+const vivoRaw = t => t.status === 'andamento' || t.validacao === 'pendente';
+const PLANO_ABERTO = ['aberta', 'feita', 'reaberta'];
+async function filhosDe(ids) {
   const [eqs, regs, dsv, pex, par] = ids.length ? await Promise.all([
     emLotes(ids, l => sb.from('trem_equipes').select('*').in('trem_id', l)),
     emLotes(ids, l => sb.from('registros').select('*').in('trem_id', l).order('posicao')),
@@ -807,15 +801,67 @@ async function carregar() {
   ]) : [[], [], [], [], []];
   const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
   const pe = por(eqs, 'trem_id'), pr = por(regs, 'trem_id'), pd = por(dsv, 'trem_id'), px = por(pex, 'trem_id'), pp = por(par, 'trem_id');
-  DB.trens = trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || [], px[t.id] || [], pp[t.id] || []));
-  DB.planos = planos.filter(p => ['aberta', 'feita', 'reaberta'].includes(p.status) || new Date(p.criado_em) > desde).map(planoDe);
-  DB.equipesDia = eqd;
-  if (prog) { DB.planosTodos = planos.map(planoDe); await carregarHist(); }
+  ids.forEach(id => { RAW.filhos[id] = { eqs: pe[id] || [], regs: pr[id] || [], dsv: pd[id] || [], pex: px[id] || [], par: pp[id] || [] }; });
+}
+// completa = true força a completa; sem argumento, decide pelo tempo desde a última completa
+async function carregar(completa) {
+  if (DEMO) return;
+  if (completa || !RAW.completaEm || Date.now() - RAW.completaEm > CARGA_COMPLETA_MS) return carregarCompleto();
+  return carregarVivos();
+}
+async function carregarCompleto() {
+  const prog = ehGestao(), dias = prog ? 35 : DB.me.perfil === 'supervisor' ? 7 : DB.me.perfil === 'especializado' ? 15 : 3;
+  const desde = new Date(); desde.setDate(desde.getDate() - dias);
+  const [colab, trens, planos, eqd, log] = await Promise.all([
+    tudo(() => sb.from('colaboradores').select('*').order('nome')),
+    tudo(() => sb.from('trens').select('*').or(`data.gte.${isoData(desde)},status.eq.andamento,validacao.eq.pendente`).order('criado_em')),
+    tudo(() => sb.from('planos').select('*').order('criado_em', { ascending: false })),
+    tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5)))),
+    ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve([])
+  ]);
+  if (!TEM_ORDEM) TEM_ORDEM = !(await sb.from('trens').select('ordem').limit(1)).error;           // 07-ordem-trens.sql
+  if (!TEM_OS) TEM_OS = !(await sb.from('trens').select('os').limit(1)).error;                    // 12-pcm-apontamentos.sql (confere de novo até existir)
+  const filhos = RAW.filhos; RAW.filhos = {};
+  try { await filhosDe(trens.map(t => t.id)); } catch (e) { RAW.filhos = filhos; throw e; }
+  Object.assign(RAW, { trens: new Map(trens.map(t => [t.id, t])), planos: new Map(planos.map(x => [x.id, x])), colab, eqd, log, desde, completaEm: Date.now() });
+  if (prog) await carregarHist();
+  await montarDados();
+}
+async function carregarVivos() {
+  const antes = [...RAW.trens.values()].filter(vivoRaw).map(t => t.id), abertos = [...RAW.planos.values()].filter(x => PLANO_ABERTO.includes(x.status)).map(x => x.id);
+  const filtroT = ['status.eq.andamento', 'validacao.eq.pendente', ...(antes.length ? [`id.in.(${antes.join(',')})`] : [])].join(',');
+  const filtroP = [`status.in.(${PLANO_ABERTO.join(',')})`, ...(abertos.length ? [`id.in.(${abertos.join(',')})`] : [])].join(',');
+  const [trens, planos, eqd] = await Promise.all([
+    tudo(() => sb.from('trens').select('*').or(filtroT).order('criado_em')),
+    tudo(() => sb.from('planos').select('*').or(filtroP)),
+    tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5))))
+  ]);
+  const ids = trens.map(t => t.id);
+  await filhosDe(ids);
+  antes.filter(id => !ids.includes(id)).forEach(id => { RAW.trens.delete(id); delete RAW.filhos[id]; });        // apagado
+  trens.forEach(t => RAW.trens.set(t.id, t));
+  abertos.filter(id => !planos.some(x => x.id === id)).forEach(id => RAW.planos.delete(id));
+  planos.forEach(x => RAW.planos.set(x.id, x));
+  RAW.eqd = eqd;
+  await montarDados();
+}
+// monta DB a partir de RAW (vale para as duas cargas)
+async function montarDados() {
+  const prog = ehGestao(), desde = RAW.desde || new Date(0);
+  DB.colab = RAW.colab; recalcCurto();
+  DB.me = RAW.colab.find(x => x.id === DB.me.id) || DB.me;
+  const trens = [...RAW.trens.values()].sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em))), F0 = { eqs: [], regs: [], dsv: [], pex: [], par: [] };
+  DB.trens = trens.map(t => { const f = RAW.filhos[t.id] || F0; return montarTrem(t, f.eqs, f.regs, f.dsv, f.pex, f.par); });
+  const planos = [...RAW.planos.values()].sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+  DB.planos = planos.filter(p => PLANO_ABERTO.includes(p.status) || new Date(p.criado_em) > desde).map(planoDe);
+  DB.equipesDia = RAW.eqd;
+  if (prog) DB.planosTodos = planos.map(planoDe);
   await carregarPendentes();
-  DB.log = log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
+  DB.log = RAW.log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
   sincronizarEquipes();
   DB.carregado = true; DB.atualizadoEm = new Date();
-  if (!prog) lsGravar('rzto_cache', { me: DB.me.id, colab, trens, planos, eqd, eqs, regs, dsv, pex, par, em: Date.now() });
+  if (!prog) { const fs = trens.map(t => RAW.filhos[t.id] || F0), junta = k => fs.flatMap(f => f[k]);
+    lsGravar('rzto_cache', { me: DB.me.id, colab: RAW.colab, trens, planos, eqd: RAW.eqd, eqs: junta('eqs'), regs: junta('regs'), dsv: junta('dsv'), pex: junta('pex'), par: junta('par'), em: Date.now() }); }
 }
 function usarCache() {
   const c = lsLer('rzto_cache', null);
@@ -825,6 +871,8 @@ function usarCache() {
   const pe = por(c.eqs, 'trem_id'), pr = por(c.regs, 'trem_id'), pd = por(c.dsv, 'trem_id'), px = por(c.pex || [], 'trem_id'), pp = por(c.par || [], 'trem_id');
   DB.trens = c.trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || [], px[t.id] || [], pp[t.id] || []));
   DB.planos = c.planos.map(planoDe); DB.equipesDia = c.eqd; DB.carregado = true; DB.atualizadoEm = new Date(c.em);
+  resetRaw(); c.trens.forEach(t => RAW.trens.set(t.id, t)); c.planos.forEach(x => RAW.planos.set(x.id, x)); Object.assign(RAW, { colab: c.colab, eqd: c.eqd });
+  c.trens.forEach(t => { RAW.filhos[t.id] = { eqs: pe[t.id] || [], regs: pr[t.id] || [], dsv: pd[t.id] || [], pex: px[t.id] || [], par: pp[t.id] || [] }; });
   sincronizarEquipes();
   return true;
 }
@@ -1567,7 +1615,7 @@ async function salvarColab() {
         ? await chamarFuncao({ acao: 'criar', nome: c.nome, curto: (c.curto || '').trim() || null, matricula: (c.mat || '').trim() || null, turno: c.turno || null, perfil: c.perfil || 'tecnico' })
         : await chamarFuncao({ acao: 'senha', id: M.id });
       S.modal = { tipo: 'colab', acao: 'credencial', cred: r, campos: {} };
-      await carregar().catch(() => {}); render();
+      await carregar(true).catch(() => {}); render();
     } catch (e) { M.ocupado = false; renderModal(); toast('⚠ ' + e.message); }
     return;
   }
@@ -3132,8 +3180,9 @@ async function entrar() {
   S.planoTurno = me.turno || SERVICO.turno;
   mostrarTela('tela-app');
   $('main').innerHTML = '<div class="card muted">Carregando…</div>';
+  resetRaw();
   if (OFFLINE) { if (!usarCache()) { OFFLINE = false; lsGravar('rzto_offline', false); toast('Sem dados guardados neste aparelho: a nuvem foi religada'); } }
-  if (!OFFLINE) try { await carregar(); } catch (e) {
+  if (!OFFLINE) try { await carregar(true); } catch (e) {
     if (!usarCache()) { $('main').innerHTML = `<div class="card"><p>Não consegui carregar os dados${ehRede(e) ? ' (sem internet)' : ': ' + esc(e.message)}.</p><button class="btn primary" data-act="recarregar">Tentar de novo</button></div>`; return; }
     semSinal = ehRede(e); toast('Sem internet: mostrando os últimos dados guardados');
   }
@@ -3145,7 +3194,7 @@ async function atualizar(forcar) {
   SERVICO = emServico();
   const ocupado = S.modal || FILA.length || enviando || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && $('main').contains(document.activeElement));
   if (ocupado && !forcar) return;
-  try { await carregar(); semSinal = false; render(); } catch (e) { if (ehRede(e)) { semSinal = true; indicador(); } }
+  try { await carregar(forcar); semSinal = false; render(); } catch (e) { if (ehRede(e)) { semSinal = true; indicador(); } }
 }
 setInterval(() => atualizar(false), 30000);
 // versão nova publicada: avisa e, quando o app volta para a tela sem nada pendente, recarrega sozinho
