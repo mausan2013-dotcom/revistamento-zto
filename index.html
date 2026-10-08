@@ -605,7 +605,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.37';
+const VERSAO = '1.38';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1248,6 +1248,39 @@ function cardParadas(ts, vazio = 'neste período', cls = '') {
       ${x.ps.map(p => `<tr><td>${esc(C(p.tec).nome)}<br><span class="small muted">${p.eq ? 'Equipe ' + p.eq : ''}</span></td><td class="small">${esc(MOT_PARADA[p.motivo])}</td><td class="small">${horaDe(p.ini)}–${p.fim ? horaDe(p.fim) : '<span class="tag info">agora</span>'}</td><td class="num">${durMinS(minParada(p))}</td></tr>`).join('')}
     </tbody></table></td></tr>` : ''}`).join('')}
   </tbody></table></div>` : `<p class="muted small" style="margin:0">Nenhuma parada registrada ${vazio}.</p>`}</div>`;
+}
+
+// análise das paradas por fatores externos (abaixo da tabela): segue os filtros do painel e o motivo escolhido nos botões
+const COR_PARADA = { movimentacao: 'var(--s1)', autorizacao: 'var(--s4)' };
+const uniaoMin = ps => { const iv = ps.map(x => [Date.parse(x.ini), x.fim ? Date.parse(x.fim) : Date.now()]).sort((a, b) => a[0] - b[0]); let tot = 0, ini = null, fim = null;
+  iv.forEach(([a, b]) => { if (fim == null || a > fim) { if (fim != null) tot += fim - ini; ini = a; fim = b; } else fim = Math.max(fim, b); }); if (fim != null) tot += fim - ini; return tot / 60000; };
+function analiseParadas(ts) {
+  const comPar = ts.filter(t => (t.paradas || []).length);
+  if (!comPar.length) return '';
+  const mot = S.parMot || '', okM = x => !mot || x.motivo === mot;
+  const todas = comPar.flatMap(t => t.paradas.map(x => ({ ...x, t, min: minParada(x) })));
+  const ps = todas.filter(okM), trs = comPar.filter(t => t.paradas.some(okM));
+  const soma = l => l.reduce((a, x) => a + x.min, 0), mins = k => soma(ps.filter(x => x.motivo === k));
+  const fmtM = v => durMinS(v || 0), motivos = Object.keys(MOT_PARADA).filter(k => !mot || k === mot);
+  // impacto: tempo em que a composição ficou parada (união dos cronômetros dos técnicos) sobre o tempo de revisão
+  const comDur = trs.filter(t => t.durMin > 0), parado = comDur.reduce((a, t) => a + uniaoMin(t.paradas.filter(okM)), 0), revisao = comDur.reduce((a, t) => a + t.durMin, 0);
+  const dias = Object.entries(porChave(ps, x => x.t.dataISO)).sort(([a], [b]) => a.localeCompare(b));
+  const horas = Array.from({ length: 24 }, (_, h) => ps.filter(x => new Date(x.ini).getHours() === h));
+  const FX = [['até 5 min', 0, 5], ['5 a 10', 5, 10], ['10 a 20', 10, 20], ['20 a 30', 20, 30], ['mais de 30', 30, 1e9]];
+  const topT = trs.map(t => [`${t.prefixo} · ${diaRot(t.dataISO)} · ${t.turno}`, Math.round(uniaoMin(t.paradas.filter(okM)))]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const chip = (k, l) => `<button class="chip ${mot === k ? 'on' : ''}" data-act="par-mot" data-v="${k}">${l}</button>`;
+  return `<div class="card larga"><h2>Análise das paradas por fatores externos <span class="dir">segue os filtros do topo · passe o mouse ou toque nos gráficos</span></h2>
+    <div class="chips" style="margin:0 0 10px">${chip('', 'Todos os motivos')}${Object.entries(MOT_PARADA).map(([k, l]) => chip(k, l)).join('')}</div>
+    <div class="kpis">${kpi('Paradas', fmt(ps.length), `em ${trs.length} trem(ns) · ${pct1(trs.length, ts.length)}% dos trens do app`)}${kpi('Tempo parado', fmtM(soma(ps)), 'soma dos cronômetros dos técnicos')}
+      ${kpi('Média por parada', fmtM(ps.length ? soma(ps) / ps.length : 0), 'mais longa: ' + fmtM(Math.max(0, ...ps.map(x => x.min))))}${kpi('Por trem com parada', fmtM(trs.length ? trs.reduce((a, t) => a + uniaoMin(t.paradas.filter(okM)), 0) / trs.length : 0), 'composição parada (sem somar técnicos)')}
+      ${kpi('Impacto no tempo de revisão', revisao ? pct1(parado, revisao) + '%' : '–', revisao ? `${fmtM(parado)} parados em ${fmtM(revisao)} de revisão` : 'trens ainda sem término')}</div></div>
+  <div class="card"><h2>Tempo parado por motivo <span class="dir">soma</span></h2>${rosca(Object.keys(MOT_PARADA).map(k => [MOT_PARADA_C[k] + ' (min)', Math.round(soma(todas.filter(x => x.motivo === k))), COR_PARADA[k]]))}
+    <p class="small muted" style="margin:6px 0 0">${Object.keys(MOT_PARADA).map(k => { const l = todas.filter(x => x.motivo === k); return `${MOT_PARADA_C[k]}: ${l.length} parada(s), média ${fmtM(l.length ? soma(l) / l.length : 0)}`; }).join('<br>')}</p></div>
+  <div class="card" data-sp="4"><h2>Minutos parados por dia <span class="dir">por motivo</span></h2>${linhas(dias.map(([d, l]) => ({ rot: diaRot(d), n: l.length })), motivos.map(k => ({ nome: MOT_PARADA_C[k], cor: COR_PARADA[k], vals: dias.map(([, l]) => Math.round(soma(l.filter(x => x.motivo === k)))) })), { fmtV: v => fmt(Math.round(v)) + ' min' })}</div>
+  <div class="card"><h2>Paradas por turno <span class="dir">minutos</span></h2>${pilhas('ABCD'.split('').filter(tt => todas.some(x => x.t.turno === tt)).map(tt => ({ rot: 'Turno ' + tt, partes: Object.keys(MOT_PARADA).map(k => Math.round(soma(ps.filter(x => x.t.turno === tt && x.motivo === k)))) })), Object.values(MOT_PARADA_C), Object.keys(MOT_PARADA).map(k => COR_PARADA[k]))}</div>
+  <div class="card"><h2>Hora do dia em que param <span class="dir">paradas por hora de início (0 a 23 h)</span></h2>${colunas(horas.map((l, h) => ({ rot: h % 3 ? '' : String(h), v: l.length, tip: `${pad(h)}h: ${l.length} parada(s) · ${fmtM(soma(l))}` })), { cor: 'var(--s2)', larg: 12, alt: 130 })}</div>
+  <div class="card"><h2>Duração das paradas <span class="dir">quantidade por faixa</span></h2>${colunas(FX.map(([r, a, b]) => { const l = ps.filter(x => x.min >= a && x.min < b); return { rot: r, v: l.length, tip: `${r}: ${l.length} parada(s) · ${pct1(l.length, ps.length)}%` }; }), { cor: 'var(--s3)', larg: 56, alt: 130 })}</div>
+  <div class="card"><h2>Trens com mais tempo parado <span class="dir">composição parada (min)</span></h2>${hbars(topT, 'min')}</div>`;
 }
 
 // ---------- SUPERVISOR (líder) ----------
@@ -2560,6 +2593,7 @@ function progGeral() {
     <div class="card"><h2>Vagões retidos <span class="dir">${retidos.length}</span></h2>${retidos.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Vagão / avaria</th></tr></thead><tbody>${retidos.map(x => `<tr><td>${diaRot(x.r.dataISO)}</td><td><b>${esc(x.r.prefixo)}</b></td><td>${x.vagao ? `<a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a><br>` : ''}${x.obs ? '<span class="small">' + esc(x.obs) + '</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
     <div class="card"><h2>Trens não revistados <span class="dir">${naoRev.length}</span></h2>${naoRev.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Turno</th><th>Justificativa</th></tr></thead><tbody>${naoRev.map(r => `<tr><td>${diaRot(r.dataISO)}</td><td><b>${esc(r.prefixo)}</b></td><td>${r.turno}</td><td class="small">${esc(r.motivoNao || '–')}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
     ${cardParadas(trensNaoRev(), 'no período (trens do app)', 'larga')}
+    ${analiseParadas(trensNaoRev())}
   </div>`;
 }
 
@@ -3262,6 +3296,7 @@ document.addEventListener('click', async e => {
       t.os = os; enviar({ tabela: 'trens', acao: 'update', dados: { os: os || null }, filtro: [['id', 'eq', t.id]], desc: 'OS do trem ' + t.prefixo });
       toast(os ? `OS ${os} gravada no ${t.prefixo}` : 'OS apagada'); break;
     }
+    case 'par-mot': S.parMot = v || ''; break;
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-so': S.nrSo = v === '1'; break;
