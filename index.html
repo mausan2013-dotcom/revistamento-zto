@@ -605,7 +605,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.39';
+const VERSAO = '1.40';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -1241,57 +1241,71 @@ function cardParadaTec(t, d) {
       <div class="parada-bts">${Object.entries(MOT_PARADA).map(([k, l]) => `<button class="btn big" data-act="parada-ini" data-id="${t.id}" data-v="${k}">▶ ${l}</button>`).join('')}</div>`}
     ${feitas.length ? `<ul class="feed parada-lista">${feitas.slice().reverse().map(x => `<li><span class="h">${horaDe(x.ini)}</span><span>${esc(MOT_PARADA[x.motivo])} · <b>${durMinS(minParada(x))}</b><br><span class="small muted">${horaDe(x.ini)}–${horaDe(x.fim)}</span></span></li>`).join('')}</ul>` : ''}</div>`;
 }
-// tabela por composição: tempo médio das paradas; tocar no trem mostra todos os apontamentos
+// uma parada da composição = registros de técnicos no mesmo trem que começam até 30 s depois do primeiro do grupo.
+// A duração dela é a MÉDIA dos cronômetros do grupo (não a soma); registros em outro momento são outra parada e somam.
+const JANELA_PARADA = 30e3;
+function eventosParada(t) {
+  const ps = (t.paradas || []).slice().sort((a, b) => Date.parse(a.ini) - Date.parse(b.ini)), ev = [];
+  ps.forEach(x => { const i = Date.parse(x.ini), e = ev[ev.length - 1];
+    if (e && i - e.t0 <= JANELA_PARADA) e.regs.push(x); else ev.push({ t0: i, regs: [x] }); });
+  return ev.map((e, k) => { const cont = {}; e.regs.forEach(x => { cont[x.motivo] = (cont[x.motivo] || 0) + 1; });
+    return { t, k: k + 1, ini: e.regs[0].ini, motivo: Object.entries(cont).sort((a, b) => b[1] - a[1])[0][0], min: e.regs.reduce((a, x) => a + minParada(x), 0) / e.regs.length, n: e.regs.length, regs: e.regs, aberta: e.regs.some(x => !x.fim) }; });
+}
+// tabela por composição: paradas (já agrupadas) e tempo; tocar no trem mostra os registros de cada técnico
 function cardParadas(ts, vazio = 'neste período', cls = '') {
-  const media = l => l.length ? l.reduce((a, b) => a + b, 0) / l.length : null;
-  const ls = ts.filter(t => (t.paradas || []).length).map(t => { const ps = t.paradas, m = k => media(ps.filter(x => x.motivo === k).map(minParada));
-    return { t, ps, tecs: new Set(ps.map(x => x.tec)).size, med: media(ps.map(minParada)), mov: m('movimentacao'), aut: m('autorizacao'), abertas: ps.filter(x => !x.fim).length }; })
+  const media = l => l.length ? l.reduce((a, b) => a + b, 0) / l.length : null, soma = l => l.reduce((a, e) => a + e.min, 0);
+  const ls = ts.filter(t => (t.paradas || []).length).map(t => { const ev = eventosParada(t), m = k => media(ev.filter(e => e.motivo === k).map(e => e.min));
+    return { t, ev, regs: t.paradas.length, tecs: new Set(t.paradas.map(x => x.tec)).size, tot: soma(ev), med: media(ev.map(e => e.min)), mov: m('movimentacao'), aut: m('autorizacao'), abertas: ev.filter(e => e.aberta).length }; })
     .sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || (b.t.chegada || '').localeCompare(a.t.chegada || ''));
-  const todas = ls.flatMap(x => x.ps), mg = media(todas.map(minParada));
+  const todas = ls.flatMap(x => x.ev), mg = media(todas.map(e => e.min));
   const mt = v => v == null ? '–' : `<b style="color:${v > 10 ? 'var(--bad)' : 'var(--ink)'}">${durMinS(v)}</b>`;
   return `<div class="card ${cls}"><h2>⏸ Paradas por fatores externos <span class="dir">${ls.length ? `${fmt(todas.length)} parada(s) em ${ls.length} trem(ns) · média ${durMinS(mg)}` : ''}</span></h2>
-  ${ls.length ? `<p class="small muted" style="margin:0 0 8px">Registradas pelos técnicos no cronômetro do Meu turno: movimentação na linha paralela e aguardando autorização para transpor. Toque no trem para ver todos os apontamentos.</p>
-  <div class="rolagem"><table class="tabela compacta"><thead><tr><th>Trem</th><th class="num">Paradas</th><th class="num">Tempo médio</th><th>Por motivo (média)</th></tr></thead><tbody>
+  ${ls.length ? `<p class="small muted" style="margin:0 0 8px">Registradas pelos técnicos no cronômetro do Meu turno: movimentação na linha paralela e aguardando autorização para transpor. Técnicos que param juntos (início com até 30 s de diferença) contam como <b>uma parada</b>, com a média dos cronômetros. Toque no trem para ver os registros.</p>
+  <div class="rolagem"><table class="tabela compacta"><thead><tr><th>Trem</th><th class="num">Paradas</th><th class="num">Tempo parado</th><th class="num">Tempo médio</th><th>Por motivo (média)</th></tr></thead><tbody>
   ${ls.map(x => `<tr class="nr-trem ${S.parAberto === x.t.id ? 'on' : ''}" data-act="par-abrir" data-id="${x.t.id}"><td><b>${S.parAberto === x.t.id ? '▾' : '▸'} ${esc(x.t.prefixo)}</b><br><span class="small muted">${diaRot(x.t.dataISO)} · turno ${x.t.turno} · ${esc(x.t.linha)}</span></td>
-      <td class="num">${x.ps.length}<br><span class="small muted">${x.tecs} técnico(s)</span>${x.abertas ? `<br><span class="tag info">${x.abertas} em andamento</span>` : ''}</td><td class="num">${mt(x.med)}</td>
+      <td class="num">${x.ev.length}<br><span class="small muted">${x.regs} registro(s) · ${x.tecs} técnico(s)</span>${x.abertas ? `<br><span class="tag info">${x.abertas} em andamento</span>` : ''}</td><td class="num">${mt(x.tot)}</td><td class="num">${mt(x.med)}</td>
       <td class="small">${x.mov != null ? `${MOT_PARADA_C.movimentacao}: ${mt(x.mov)}` : ''}${x.mov != null && x.aut != null ? '<br>' : ''}${x.aut != null ? `${MOT_PARADA_C.autorizacao}: ${mt(x.aut)}` : ''}</td></tr>
-    ${S.parAberto === x.t.id ? `<tr class="nr-ficha"><td colspan="4"><table class="tabela compacta"><thead><tr><th>Técnico</th><th>Motivo</th><th>Horário</th><th class="num">Duração</th></tr></thead><tbody>
-      ${x.ps.map(p => `<tr><td>${esc(C(p.tec).nome)}<br><span class="small muted">${p.eq ? 'Equipe ' + p.eq : ''}</span></td><td class="small">${esc(MOT_PARADA[p.motivo])}</td><td class="small">${horaDe(p.ini)}–${p.fim ? horaDe(p.fim) : '<span class="tag info">agora</span>'}</td><td class="num">${durMinS(minParada(p))}</td></tr>`).join('')}
+    ${S.parAberto === x.t.id ? `<tr class="nr-ficha"><td colspan="5"><table class="tabela compacta"><thead><tr><th>Parada</th><th>Técnico</th><th>Motivo</th><th>Horário</th><th class="num">Duração</th></tr></thead><tbody>
+      ${x.ev.map(e => e.regs.map((p, j) => `<tr${j ? '' : ' style="border-top:2px solid var(--line)"'}><td class="small">${j ? '' : `<b>#${e.k}</b> · ${durMinS(e.min)}${e.n > 1 ? `<br><span class="muted">média de ${e.n}</span>` : ''}`}</td><td>${esc(C(p.tec).nome)}<br><span class="small muted">${p.eq ? 'Equipe ' + p.eq : ''}</span></td><td class="small">${esc(MOT_PARADA[p.motivo])}</td><td class="small">${horaDe(p.ini)}–${p.fim ? horaDe(p.fim) : '<span class="tag info">agora</span>'}</td><td class="num">${durMinS(minParada(p))}</td></tr>`).join('')).join('')}
     </tbody></table></td></tr>` : ''}`).join('')}
   </tbody></table></div>` : `<p class="muted small" style="margin:0">Nenhuma parada registrada ${vazio}.</p>`}</div>`;
 }
 
-// análise das paradas por fatores externos (abaixo da tabela): segue os filtros do painel e o motivo escolhido nos botões
+// análise das paradas por fatores externos (abaixo da tabela): segue os filtros do painel e o motivo escolhido nos botões.
+// Usa as paradas da composição (eventosParada): técnicos parados juntos contam uma vez, pela média.
 const COR_PARADA = { movimentacao: 'var(--s1)', autorizacao: 'var(--s4)' };
-const uniaoMin = ps => { const iv = ps.map(x => [Date.parse(x.ini), x.fim ? Date.parse(x.fim) : Date.now()]).sort((a, b) => a[0] - b[0]); let tot = 0, ini = null, fim = null;
-  iv.forEach(([a, b]) => { if (fim == null || a > fim) { if (fim != null) tot += fim - ini; ini = a; fim = b; } else fim = Math.max(fim, b); }); if (fim != null) tot += fim - ini; return tot / 60000; };
 function analiseParadas(ts) {
-  const comPar = ts.filter(t => (t.paradas || []).length);
-  if (!comPar.length) return '';
-  const mot = S.parMot || '', okM = x => !mot || x.motivo === mot;
-  const todas = comPar.flatMap(t => t.paradas.map(x => ({ ...x, t, min: minParada(x) })));
-  const ps = todas.filter(okM), trs = comPar.filter(t => t.paradas.some(okM));
-  const soma = l => l.reduce((a, x) => a + x.min, 0), mins = k => soma(ps.filter(x => x.motivo === k));
-  const fmtM = v => durMinS(v || 0), motivos = Object.keys(MOT_PARADA).filter(k => !mot || k === mot);
-  // impacto: tempo em que a composição ficou parada (união dos cronômetros dos técnicos) sobre o tempo de revisão
-  const comDur = trs.filter(t => t.durMin > 0), parado = comDur.reduce((a, t) => a + uniaoMin(t.paradas.filter(okM)), 0), revisao = comDur.reduce((a, t) => a + t.durMin, 0);
-  const dias = Object.entries(porChave(ps, x => x.t.dataISO)).sort(([a], [b]) => a.localeCompare(b));
-  const horas = Array.from({ length: 24 }, (_, h) => ps.filter(x => new Date(x.ini).getHours() === h));
+  if (!ts.some(t => (t.paradas || []).length)) return '';
+  const mot = S.parMot || '', okM = e => !mot || e.motivo === mot;
+  const todos = ts.flatMap(eventosParada), ev = todos.filter(okM), trs = [...new Set(ev.map(e => e.t))];
+  const soma = l => l.reduce((a, e) => a + e.min, 0), fmtM = v => durMinS(v || 0), motivos = Object.keys(MOT_PARADA).filter(k => !mot || k === mot);
+  const parTrem = t => soma(ev.filter(e => e.t === t));
+  // impacto: tempo parado sobre o tempo de revisão (entrega → término) dos trens com parada
+  const comDur = trs.filter(t => t.durMin > 0), parado = comDur.reduce((a, t) => a + parTrem(t), 0), revisao = comDur.reduce((a, t) => a + t.durMin, 0);
+  // acima da meta: quantos ficariam dentro dos 30 min sem as paradas
+  const acima = ts.filter(t => t.durMin > META_MIN), justif = acima.filter(t => t.durMin - parTrem(t) <= META_MIN), comParAcima = acima.filter(t => parTrem(t) > 0);
+  const dias = Object.entries(porChave(ev, e => e.t.dataISO)).sort(([a], [b]) => a.localeCompare(b));
+  const horas = Array.from({ length: 24 }, (_, h) => ev.filter(e => new Date(e.ini).getHours() === h));
   const FX = [['até 5 min', 0, 5], ['5 a 10', 5, 10], ['10 a 20', 10, 20], ['20 a 30', 20, 30], ['mais de 30', 30, 1e9]];
-  const topT = trs.map(t => [`${t.prefixo} · ${diaRot(t.dataISO)} · ${t.turno}`, Math.round(uniaoMin(t.paradas.filter(okM)))]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const rotT = t => `${t.prefixo} · ${diaRot(t.dataISO)} · ${t.turno}`;
+  const topT = trs.map(t => [rotT(t), Math.round(parTrem(t))]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const revPar = comParAcima.slice().sort((a, b) => b.durMin - a.durMin).slice(0, 10).map(t => { const p = Math.min(t.durMin, Math.round(parTrem(t))); return { rot: rotT(t), partes: [t.durMin - p, p] }; });
   const chip = (k, l) => `<button class="chip ${mot === k ? 'on' : ''}" data-act="par-mot" data-v="${k}">${l}</button>`;
   return `<div class="card larga"><h2>Análise das paradas por fatores externos <span class="dir">segue os filtros do topo · passe o mouse ou toque nos gráficos</span></h2>
     <div class="chips" style="margin:0 0 10px">${chip('', 'Todos os motivos')}${Object.entries(MOT_PARADA).map(([k, l]) => chip(k, l)).join('')}</div>
-    <div class="kpis">${kpi('Paradas', fmt(ps.length), `em ${trs.length} trem(ns) · ${pct1(trs.length, ts.length)}% dos trens do app`)}${kpi('Tempo parado', fmtM(soma(ps)), 'soma dos cronômetros dos técnicos')}
-      ${kpi('Média por parada', fmtM(ps.length ? soma(ps) / ps.length : 0), 'mais longa: ' + fmtM(Math.max(0, ...ps.map(x => x.min))))}${kpi('Por trem com parada', fmtM(trs.length ? trs.reduce((a, t) => a + uniaoMin(t.paradas.filter(okM)), 0) / trs.length : 0), 'composição parada (sem somar técnicos)')}
-      ${kpi('Impacto no tempo de revisão', revisao ? pct1(parado, revisao) + '%' : '–', revisao ? `${fmtM(parado)} parados em ${fmtM(revisao)} de revisão` : 'trens ainda sem término')}</div></div>
-  <div class="card"><h2>Tempo parado por motivo <span class="dir">soma</span></h2>${rosca(Object.keys(MOT_PARADA).map(k => [MOT_PARADA_C[k] + ' (min)', Math.round(soma(todas.filter(x => x.motivo === k))), COR_PARADA[k]]))}
-    <p class="small muted" style="margin:6px 0 0">${Object.keys(MOT_PARADA).map(k => { const l = todas.filter(x => x.motivo === k); return `${MOT_PARADA_C[k]}: ${l.length} parada(s), média ${fmtM(l.length ? soma(l) / l.length : 0)}`; }).join('<br>')}</p></div>
-  <div class="card" data-sp="4"><h2>Minutos parados por dia <span class="dir">por motivo</span></h2>${linhas(dias.map(([d, l]) => ({ rot: diaRot(d), n: l.length })), motivos.map(k => ({ nome: MOT_PARADA_C[k], cor: COR_PARADA[k], vals: dias.map(([, l]) => Math.round(soma(l.filter(x => x.motivo === k)))) })), { fmtV: v => fmt(Math.round(v)) + ' min' })}</div>
-  <div class="card"><h2>Paradas por turno <span class="dir">minutos</span></h2>${pilhas('ABCD'.split('').filter(tt => todas.some(x => x.t.turno === tt)).map(tt => ({ rot: 'Turno ' + tt, partes: Object.keys(MOT_PARADA).map(k => Math.round(soma(ps.filter(x => x.t.turno === tt && x.motivo === k)))) })), Object.values(MOT_PARADA_C), Object.keys(MOT_PARADA).map(k => COR_PARADA[k]))}</div>
+    <p class="small muted" style="margin:0 0 10px">Técnicos que param juntos na mesma composição (início com até 30 s de diferença) contam como <b>uma parada</b>, com a média dos cronômetros. Paradas em outro momento somam.</p>
+    <div class="kpis">${kpi('Paradas', fmt(ev.length), `em ${trs.length} trem(ns) · ${pct1(trs.length, ts.length)}% dos trens do app`)}${kpi('Tempo parado', fmtM(soma(ev)), `${fmt(ev.reduce((a, e) => a + e.n, 0))} registro(s) de técnicos`)}
+      ${kpi('Média por parada', fmtM(ev.length ? soma(ev) / ev.length : 0), 'mais longa: ' + fmtM(Math.max(0, ...ev.map(e => e.min))))}${kpi('Por trem com parada', fmtM(trs.length ? soma(ev) / trs.length : 0), 'atraso médio na liberação')}
+      ${kpi('Impacto no tempo de revisão', revisao ? pct1(parado, revisao) + '%' : '–', revisao ? `${fmtM(parado)} parados em ${fmtM(revisao)} de revisão` : 'trens ainda sem término')}
+      ${kpi(`Acima de ${META_MIN} min justificados`, acima.length ? `${fmt(justif.length)} de ${fmt(acima.length)}` : '–', acima.length ? `${pct1(justif.length, acima.length)}% ficariam na meta sem as paradas` : `nenhum trem acima de ${META_MIN} min`)}</div></div>
+  <div class="card" data-sp="4"><h2>Trens acima de ${META_MIN} min com parada <span class="dir">tempo de revisão = sem parada + parado</span></h2>${revPar.length ? pilhas(revPar, ['Revisão sem parada (min)', 'Parado (min)'], ['var(--s2)', 'var(--s4)']) + `<p class="small muted" style="margin:6px 0 0">Se a parte sem parada fica em até ${META_MIN} min, a parada explica o atraso do trem.</p>` : semDados}</div>
+  <div class="card"><h2>Tempo parado por motivo <span class="dir">soma</span></h2>${rosca(Object.keys(MOT_PARADA).map(k => [MOT_PARADA_C[k] + ' (min)', Math.round(soma(todos.filter(e => e.motivo === k))), COR_PARADA[k]]))}
+    <p class="small muted" style="margin:6px 0 0">${Object.keys(MOT_PARADA).map(k => { const l = todos.filter(e => e.motivo === k); return `${MOT_PARADA_C[k]}: ${l.length} parada(s), média ${fmtM(l.length ? soma(l) / l.length : 0)}`; }).join('<br>')}</p></div>
+  <div class="card" data-sp="4"><h2>Minutos parados por dia <span class="dir">por motivo</span></h2>${linhas(dias.map(([d, l]) => ({ rot: diaRot(d), n: l.length })), motivos.map(k => ({ nome: MOT_PARADA_C[k], cor: COR_PARADA[k], vals: dias.map(([, l]) => Math.round(soma(l.filter(e => e.motivo === k)))) })), { fmtV: v => fmt(Math.round(v)) + ' min' })}</div>
+  <div class="card"><h2>Paradas por turno <span class="dir">minutos</span></h2>${pilhas('ABCD'.split('').filter(tt => todos.some(e => e.t.turno === tt)).map(tt => ({ rot: 'Turno ' + tt, partes: Object.keys(MOT_PARADA).map(k => Math.round(soma(ev.filter(e => e.t.turno === tt && e.motivo === k)))) })), Object.values(MOT_PARADA_C), Object.keys(MOT_PARADA).map(k => COR_PARADA[k]))}</div>
   <div class="card"><h2>Hora do dia em que param <span class="dir">paradas por hora de início (0 a 23 h)</span></h2>${colunas(horas.map((l, h) => ({ rot: h % 3 ? '' : String(h), v: l.length, tip: `${pad(h)}h: ${l.length} parada(s) · ${fmtM(soma(l))}` })), { cor: 'var(--s2)', larg: 12, alt: 130 })}</div>
-  <div class="card"><h2>Duração das paradas <span class="dir">quantidade por faixa</span></h2>${colunas(FX.map(([r, a, b]) => { const l = ps.filter(x => x.min >= a && x.min < b); return { rot: r, v: l.length, tip: `${r}: ${l.length} parada(s) · ${pct1(l.length, ps.length)}%` }; }), { cor: 'var(--s3)', larg: 56, alt: 130 })}</div>
-  <div class="card"><h2>Trens com mais tempo parado <span class="dir">composição parada (min)</span></h2>${hbars(topT, 'min')}</div>`;
+  <div class="card"><h2>Duração das paradas <span class="dir">quantidade por faixa</span></h2>${colunas(FX.map(([r, a, b]) => { const l = ev.filter(e => e.min >= a && e.min < b); return { rot: r, v: l.length, tip: `${r}: ${l.length} parada(s) · ${pct1(l.length, ev.length)}%` }; }), { cor: 'var(--s3)', larg: 56, alt: 130 })}</div>
+  <div class="card"><h2>Trens com mais tempo parado <span class="dir">minutos</span></h2>${hbars(topT, 'min')}</div>`;
 }
 
 // ---------- SUPERVISOR (líder) ----------
