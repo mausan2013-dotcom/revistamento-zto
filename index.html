@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.43';
+const VERSAO = '1.46';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -894,7 +894,7 @@ async function executar(op) {
   }
   let q = sb.from(op.tabela);
   if (op.acao === 'insert') q = q.insert(op.dados);
-  else if (op.acao === 'upsert') q = q.upsert(op.dados, { onConflict: op.onConflict });
+  else if (op.acao === 'upsert') q = q.upsert(op.dados, op.ignorar ? { onConflict: op.onConflict, ignoreDuplicates: true } : { onConflict: op.onConflict });   // ignorar: insere só o que não existe
   else q = op.acao === 'delete' ? q.delete() : q.update(op.dados);
   for (const [col, opr, val] of op.filtro || []) q = q[opr](col, val);
   return (await q).error;
@@ -1360,6 +1360,15 @@ function analiseParadas(ts) {
 }
 
 // ---------- SUPERVISOR (líder) ----------
+// faixas abertas de equipes diferentes do turno que cobrem os mesmos vagões ainda pendentes
+function sobrepostas(t) {
+  if (t.status !== 'andamento') return [];
+  const ab = t.dist.filter(d => !d.termino && d.membros.some(m => C(m).turno === t.turno)), out = [];
+  ab.forEach((x, i) => ab.slice(i + 1).forEach(y => { if (x.n === y.n) return; const ini = Math.max(x.ini, y.ini), fim = Math.min(x.fim, y.fim);
+    let pend = false; for (let p = ini; p <= fim; p++) if (!t.reg[p]) { pend = true; break; }
+    if (ini <= fim && pend) out.push({ a: Math.min(x.n, y.n), b: Math.max(x.n, y.n), ini, fim }); }));
+  return out;
+}
 function cardTrem(t) {
   const ins = inspecionados(t), pct = t.vagoes.length ? ins / t.vagoes.length * 100 : 0, pronto = t.dist.length && t.dist.every(d => d.termino);
   const aberto = t.desvios.find(d => !d.fim);
@@ -1394,6 +1403,7 @@ function cardTrem(t) {
     <div class="trem-info">${tempoRev}${naoInsp ? `<button class="btn sm" data-act="nao-insp" data-id="${t.id}">📋 ${naoInsp} vagão(ões) não inspecionado(s)</button>` : '<span class="tag ok">✓ Todos inspecionados</span>'}</div>
     ${aberto ? `<div class="alerta"><span>⏱ <b>Em desvio desde ${aberto.ini}</b>: ${esc(aberto.motivo)}</span><button class="btn sm" data-act="fim-desvio" data-id="${t.id}">Encerrar desvio</button></div>` : ''}
     ${eqs}
+    ${(l => l.length ? `<div class="alerta" style="margin:10px 0 0"><span>⚠ <b>Faixas sobrepostas:</b> ${l.map(x => `Equipe ${x.a} e Equipe ${x.b} nas ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, x.ini)} a ${posF(t, x.fim)}`).join('; ')}. Esses vagões aparecem para as duas equipes: combine quem faz.</span></div>` : '')(sobrepostas(t))}
     ${t.status === 'andamento' && !t.dist.some(d => d.membros.some(m => C(m).turno === t.turno)) ? `<div class="alerta" style="margin:10px 0 0"><span>👥 <b>Sem equipes deste turno neste trem.</b> ${t.dist.length ? 'Recebido do turno anterior: o que já foi registrado fica; divida o restante.' : ''}</span><button class="btn sm primary" data-act="dividir-trem" data-id="${t.id}">Dividir entre as equipes</button></div>` : ''}
     <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
@@ -1791,19 +1801,21 @@ function espValidados() {
 }
 
 // ---------- APONTAMENTOS (todos os perfis): tudo o que as equipes lançaram nos vagões ----------
-const TIPOS_AP = { def: '📝 Defeitos', mat: '🔧 Materiais', pla: '📋 Planos especiais', ava: '⚠ Avarias' };
-function linhasApont() {
+const TIPOS_AP = { def: '📝 Defeitos', mat: '🔧 Materiais', pla: '📋 Planos especiais', ava: '⚠ Avarias', fic: '🚩 Isolados na ficha' };
+// comFicha: inclui os vagões com restrição na ficha do trem (isolados), mesmo sem nenhum registro da equipe
+function linhasApont(comFicha) {
   const out = [];
   DB.trens.forEach(t => { const ps = new Set([...Object.keys(t.reg), ...Object.keys(t.pexec || {})].map(Number));
+    if (comFicha) t.vagoes.forEach((c, i) => { if (restrDe(t, i + 1)) ps.add(i + 1); });
     ps.forEach(p => { const r = t.reg[p] || null, ex = (t.pexec || {})[p] || {};
-      const tipos = { def: !!r && (r.falhas.length > 0 || !!r.obs), mat: !!r && r.mats.length > 0, pla: Object.keys(ex).length > 0, ava: !!r && r.oc.length > 0 };
+      const tipos = { def: !!r && (r.falhas.length > 0 || !!r.obs), mat: !!r && r.mats.length > 0, pla: Object.keys(ex).length > 0, ava: !!r && r.oc.length > 0, fic: !!comFicha && !!restrDe(t, p) };
       if (Object.values(tipos).some(Boolean)) out.push({ t, p, r, ex, tipos }); }); });
   return out.sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || (b.r?.h || '').localeCompare(a.r?.h || '') || a.t.prefixo.localeCompare(b.t.prefixo) || a.p - b.p);
 }
 // técnico vê só o que é dele e da dupla: a equipe do registro (ou a da faixa do vagão) tem ele como membro
 const minhaDupla = (t, p, r) => { const eu = uidTec(), d = donoPos(t, p); return !!eu && !!d && d.membros.includes(eu); };
 function vistaApont() {
-  const soMeus = S.papel === 'tec', todas = linhasApont().filter(x => !soMeus || minhaDupla(x.t, x.p, x.r)), dias = [...new Set(todas.map(x => x.t.dataISO))].sort().reverse();
+  const soMeus = S.papel === 'tec', todas = linhasApont(true).filter(x => !soMeus || minhaDupla(x.t, x.p, x.r)), dias = [...new Set(todas.map(x => x.t.dataISO))].sort().reverse();
   if (S.apDia && !dias.includes(S.apDia)) S.apDia = '';
   const doFiltro = todas.filter(x => (!S.apDia || x.t.dataISO === S.apDia) && (!S.apTurno || x.t.turno === S.apTurno));
   const prefs = [...new Set(doFiltro.map(x => x.t.prefixo))].sort(); if (S.apPref && !prefs.includes(S.apPref)) S.apPref = '';
@@ -1813,16 +1825,17 @@ function vistaApont() {
   const n = k => base.filter(x => x.tipos[k]).length, itens = base.reduce((a, x) => a + (x.r ? qtdItens(x.r) : 0), 0);
   const eqDe = (t, p, r) => { const d = donoPos(t, p); return d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : ''; };
   const linha = (ic, txt) => `<div class="small" style="margin-top:4px">${ic} ${txt}</div>`;
-  return `<p class="nota">${soMeus ? `Os seus apontamentos e os da sua dupla${uidTec() ? '' : ' (escolha o mecânico)'}:` : 'Tudo o que as equipes lançaram nos vagões:'} <b>defeitos</b> (observações e falhas), <b>materiais</b> aplicados, <b>planos especiais</b> executados e <b>avarias</b> (retenção, isolamento, normalização). Mostra os trens carregados no aparelho (${{ tec: 'últimos 3 dias', sup: 'últimos 7 dias', esp: 'últimos 15 dias' }[PAPEL[DB.me.perfil]] || 'últimos 35 dias'}).</p>
+  return `<p class="nota">${soMeus ? `Os seus apontamentos e os da sua dupla${uidTec() ? '' : ' (escolha o mecânico)'}:` : 'Tudo o que as equipes lançaram nos vagões:'} <b>defeitos</b> (observações e falhas), <b>materiais</b> aplicados, <b>planos especiais</b> executados e <b>avarias</b> (retenção, isolamento, normalização), além dos vagões <b>isolados na ficha</b> do trem, mesmo sem registro. Mostra os trens carregados no aparelho (${{ tec: 'últimos 3 dias', sup: 'últimos 7 dias', esp: 'últimos 15 dias' }[PAPEL[DB.me.perfil]] || 'últimos 35 dias'}).</p>
   <div class="card"><div class="linha-campos"><label class="campo">Dia<select data-act="it-filtro" data-k="apDia"><option value="">Todos</option>${dias.map(d => `<option value="${d}" ${d === S.apDia ? 'selected' : ''}>${diaRot(d)}</option>`).join('')}</select></label>
     <label class="campo">Turno<select data-act="it-filtro" data-k="apTurno"><option value="">Todos</option>${'ABCD'.split('').map(t => `<option ${t === S.apTurno ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
     <label class="campo">Prefixo<select data-act="it-filtro" data-k="apPref"><option value="">Todos</option>${prefs.map(p => `<option ${p === S.apPref ? 'selected' : ''}>${esc(p)}</option>`).join('')}</select></label>
     <label class="campo">Vagão<input data-act="it-filtro" data-k="apBusca" value="${esc(S.apBusca || '')}" placeholder="número do vagão" inputmode="search" autocomplete="off"></label></div>
     <div class="chips" style="margin:0"><button class="chip ${!S.apTipo ? 'on' : ''}" data-act="ap-tipo" data-v="">Todos (${base.length})</button>${Object.entries(TIPOS_AP).map(([k, l]) => `<button class="chip ${S.apTipo === k ? 'on' : ''}" data-act="ap-tipo" data-v="${k}">${l} (${n(k)})</button>`).join('')}</div></div>
-  <div class="kpis">${kpi('Vagões com apontamento', fmt(base.length), 'no filtro')}${kpi('Defeitos', fmt(n('def')), 'vagões com observação ou falha')}${kpi('Materiais', fmt(itens), n('mat') + ' vagão(ões)')}${kpi('Planos especiais', fmt(n('pla')), 'vagões com plano respondido')}${kpi('Avarias', fmt(n('ava')), 'retenção, isolamento, normalização')}</div>
+  <div class="kpis">${kpi('Vagões com apontamento', fmt(base.length), 'no filtro')}${kpi('Defeitos', fmt(n('def')), 'vagões com observação ou falha')}${kpi('Materiais', fmt(itens), n('mat') + ' vagão(ões)')}${kpi('Planos especiais', fmt(n('pla')), 'vagões com plano respondido')}${kpi('Avarias', fmt(n('ava')), 'retenção, isolamento, normalização')}${kpi('Isolados na ficha', fmt(n('fic')), 'restrição na ficha do trem')}</div>
   <div class="vagoes">${vis.slice(0, LIM).map(({ t, p, r, ex, tipos }) => `<div class="card ap" style="margin:0">
     <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline"><b style="color:var(--title)">${esc(t.vagoes[p - 1] || '–')}</b><span class="small">Trem <b>${esc(t.prefixo)}</b> · pos. ${posF(t, p)}${t.os ? ' · OS ' + esc(t.os) : ''}</span>
       <span class="small muted" style="margin-left:auto">${diaRot(t.dataISO)} · turno ${t.turno}${r?.h ? ' · ' + r.h : ''}</span></div>
+    ${tipos.fic ? (rf => linha('🚩', `<b>Na ficha:</b> ${esc(rf.motivo)}${rf.data ? ` <span class="muted">(desde ${esc(rf.data)})</span>` : ''} ${r ? `<span class="tag ${r.st === 'pend' ? 'warn' : 'ok'}">${r.st === 'pend' ? 'não revistado' : 'revistado às ' + r.h}</span>` : '<span class="tag neu">sem registro da equipe</span>'}`))(restrDe(t, p)) : ''}
     ${tipos.ava ? linha('⚠', `<b>Avaria:</b> ${r.oc.map(o => `<span class="tag bad">${esc(o)}</span>`).join(' ')}`) : ''}
     ${tipos.mat ? linha('🔧', `<b>Materiais:</b> ${esc(r.mats.map(txtMat).join(' · '))}`) : ''}
     ${tipos.def ? linha('📝', `<b>Defeito:</b> ${esc([...r.falhas.map(f => f.comp + ': ' + f.falha), ...(r.obs ? ['“' + r.obs + '”'] : [])].join(' · '))}`) : ''}
@@ -2121,37 +2134,48 @@ function modalDividir(M) {
 }
 // troca de integrantes de uma equipe só neste trem (ex.: horário de refeição); a faixa de vagões e os registros ficam
 const MOTIVOS_TROCA_EQ = ['Horário de refeição', 'Apoio em outro trem', 'Falta / saída antecipada', 'Outro'];
-// retirar a equipe i do trem: a parte dela é encerrada (o que registrou continua dela) e os vagões que faltavam na faixa
-// são divididos entre as equipes ativas do turno no trem, em blocos seguidos na ordem da composição (a equipe mais à
-// frente recebe o primeiro bloco). Cada bloco vira uma faixa extra da equipe (nova linha em trem_equipes), que ela faz
-// depois da própria faixa. Também dá para mandar tudo para uma equipe só.
+// Redivisão em sequência: ao retirar (sai) ou reaplicar (volta) uma equipe, a divisão das equipes abertas do turno é
+// refeita do zero, na ordem em que elas estão no trem, dividindo igualmente os vagões que ainda faltam. Ex.: Equipe 1
+// 2–12, Equipe 2 13–22, Equipe 3 23–30; tirando a 1 → Equipe 2 2–16 e Equipe 3 17–30. O que já foi registrado continua
+// com quem registrou; faixas extras antigas da mesma equipe são fechadas (a faixa principal passa a cobrir tudo).
+function redivisao(t, sai, volta) {
+  const doTurno = x => x.membros.some(m => C(m).turno === t.turno), livre = p => !t.reg[p] || t.reg[p].st === 'pend';
+  const abertas = t.dist.filter(d => doTurno(d) && !d.termino && d !== sai).concat(volta && volta.termino ? [volta] : []);
+  const principal = new Map(); abertas.forEach(d => { if (!principal.has(d.n) || d === volta) principal.set(d.n, d); });
+  const times = [...principal.values()].sort((a, b) => a.ini - b.ini || a.n - b.n), fechar = abertas.filter(d => principal.get(d.n) !== d);
+  const L = [...new Set([...abertas, ...(sai ? [sai] : [])].flatMap(d => { const l = []; for (let p = d.ini; p <= d.fim; p++) l.push(p); return l; }))].sort((a, b) => a - b);
+  const pend = L.filter(livre), k = Math.min(times.length, pend.length), mud = [];
+  if (!times.length) return { erro: 'Não há outra equipe deste turno aberta neste trem para receber os vagões. Use “Dividir entre as equipes” ou passe o trem.', pend, times };
+  let a = 0, ini = L[0];
+  times.forEach((d, j) => {
+    if (j >= k) { mud.push({ d, ini: d.ini, fim: d.fim, comeco: d.comeco, n: 0, igual: true }); return; }
+    const n = Math.floor(pend.length / k) + (j < pend.length % k ? 1 : 0), fim = j === k - 1 ? L[L.length - 1] : pend[a + n - 1]; a += n;
+    const comeco = d.comeco && d.comeco >= ini && d.comeco <= fim ? d.comeco : null;
+    mud.push({ d, ini, fim, comeco, n, igual: d.ini === ini && d.fim === fim }); ini = fim + 1;
+  });
+  return { pend, times, fechar, mud };
+}
+// aplica a redivisão: grava as faixas novas e fecha as faixas extras que sobraram
+function aplicarRedivisao(t, P, h) {
+  P.mud.filter(x => !x.igual).forEach(x => { const dados = { ini: x.ini, fim: x.fim, comeco: x.comeco ?? null };
+    Object.assign(x.d, dados); enviar({ tabela: 'trem_equipes', acao: 'update', dados, filtro: [['id', 'eq', x.d.rowId]], desc: 'Faixa da Equipe ' + x.d.n + ' do trem ' + t.prefixo }); });
+  (P.fechar || []).forEach(x => { x.termino = h; enviar({ tabela: 'trem_equipes', acao: 'update', dados: { termino: h }, filtro: [['id', 'eq', x.rowId]], desc: 'Faixa extra da Equipe ' + x.n + ' unida à principal (' + t.prefixo + ')' }); });
+}
 const timesDoTrem = (t, ex) => { const doTurno = x => x.membros.some(m => C(m).turno === t.turno), m = new Map();
   t.dist.forEach(x => { if (x.n !== ex && doTurno(x) && !m.has(x.n)) m.set(x.n, x); }); return [...m.values()].sort((a, b) => a.ini - b.ini); };
-function planoRetirada(t, i, modo) {
-  const R = t.dist[i], pend = []; for (let p = R.ini; p <= R.fim; p++) if (!t.reg[p] || t.reg[p].st === 'pend') pend.push(p);
-  const times = timesDoTrem(t, R.n), ativas = times.filter(x => t.dist.some(y => y.n === x.n && !y.termino)), alvo = ativas.length ? ativas : times;
-  const modos = [...(alvo.length > 1 ? ['todas'] : []), ...alvo.map(x => 'eq' + x.n)];
-  if (!pend.length) return { R, pend, alvo, modos, modo: null, mud: [] };
-  if (!alvo.length) return { R, pend, erro: 'Não há outra equipe deste turno neste trem para receber os vagões. Use “Dividir entre as equipes” ou passe o trem.' };
-  if (!modos.includes(modo)) modo = modos[0];
-  const quem = modo === 'todas' ? alvo : alvo.filter(x => 'eq' + x.n === modo), k = quem.length, mud = [];
-  let a = 0; quem.forEach((d, j) => { const n = Math.floor(pend.length / k) + (j < pend.length % k ? 1 : 0), b = pend.slice(a, a + n); a += n;
-    if (b.length) mud.push({ d: t.dist.find(y => y.n === d.n && !y.termino) || d, ini: b[0], fim: b[b.length - 1], n: b.length }); });
-  return { R, pend, alvo, modos, modo, mud };
-}
 function modalRetirarEq(M) {
-  const t = tremPorId(M.id), P = planoRetirada(t, M.i, M.modoRet), R = P.R;
-  const rot = k => k === 'todas' ? `Dividir entre todas as equipes ativas (${(P.alvo || []).length})` : (x => `Tudo para a Equipe ${x.n} (${esc(nomesEquipe(x.membros))})`)(P.alvo.find(x => 'eq' + x.n === k));
+  const t = tremPorId(M.id), R = t.dist[M.i], P = redivisao(t, R, null), pf = p => posF(t, p), rot = t.posFicha ? 'posições' : 'vagões';
   return `<div class="small muted">Trem ${esc(t.prefixo)} · ${esc(t.linha)}</div><h3>Retirar a Equipe ${R.n} deste trem</h3>
-    <p class="small" style="margin:0 0 8px"><b>${esc(nomesEquipe(R.membros))}</b> · ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, R.ini)} a ${posF(t, R.fim)}</p>
+    <p class="small" style="margin:0 0 8px"><b>${esc(nomesEquipe(R.membros))}</b> · ${rot} ${pf(R.ini)} a ${pf(R.fim)}</p>
     <p class="small muted" style="margin:0 0 8px">A parte da equipe é encerrada agora e o trem sai do celular dela. Os vagões que ela já registrou continuam com ela.</p>
-    ${P.erro ? `<div class="alerta"><span>⚠ ${esc(P.erro)}</span></div>` : !P.pend.length ? '<p class="small" style="color:var(--ok);font-weight:700">✓ Todos os vagões da faixa já foram registrados: nada a redividir.</p>'
-    : `<div class="secao">${P.pend.length} vagão(ões) a revistar na faixa · quem fica com eles</div>
-      ${P.modos.map(k => `<label class="radio"><input type="radio" name="modo-ret" data-act="ret-modo" value="${k}" ${k === P.modo ? 'checked' : ''}> ${rot(k)}</label>`).join('')}
-      <ul class="small" style="margin:6px 0 10px;padding-left:18px">${P.mud.map(x => `<li><b>Equipe ${x.d.n}</b> recebe ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, x.ini)} a ${posF(t, x.fim)} · +${x.n} vagão(ões)${x.d.termino ? ' · <b>volta para o trem</b> (tinha terminado)' : ' · depois da própria faixa'}</li>`).join('')}</ul>
-      <p class="small muted" style="margin:0 0 8px">Cada equipe vê os vagões recebidos como <b>faixa extra</b> no celular, logo depois de encerrar a própria faixa. Se retirou por engano, use <b>↩ Reaplicar</b> no cartão do trem.</p>`}
+    ${P.erro ? `<div class="alerta"><span>⚠ ${esc(P.erro)}</span></div>`
+    : `<div class="secao">Nova divisão · ${P.pend.length} vagão(ões) a revistar entre ${P.mud.filter(x => x.n).length} equipe(s), na ordem do trem</div>
+      <table class="tabela compacta"><thead><tr><th>Equipe</th><th>Hoje</th><th>Passa a</th><th class="num">A revistar</th></tr></thead><tbody>
+      ${P.mud.map(x => `<tr${x.igual ? '' : ' style="font-weight:700"'}><td>Equipe ${x.d.n}<br><span class="small muted">${esc(nomesEquipe(x.d.membros))}</span></td><td class="small">${pf(x.d.ini)} a ${pf(x.d.fim)}</td><td>${pf(x.ini)} a ${pf(x.fim)}</td><td class="num">${x.n}</td></tr>`).join('')}
+      </tbody></table>
+      <p class="small muted" style="margin:6px 0 8px">A divisão é refeita em sequência entre as equipes que ficam, dividindo igualmente o que falta. Cada equipe vê a faixa nova no celular. Se retirou por engano, use <b>↩ Reaplicar</b> no cartão do trem.</p>`}
     <label class="campo">Motivo<select data-act="eq-motivo">${MOTIVOS_TROCA_EQ.map(m => `<option ${m === M.motivo ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
-    <button class="btn primary big" data-act="confirmar-retirada" ${P.erro ? 'disabled' : ''}>Retirar a Equipe ${R.n}${P.mud.length ? ' e redividir' : ''}</button>
+    <button class="btn primary big" data-act="confirmar-retirada" ${P.erro ? 'disabled' : ''}>Retirar a Equipe ${R.n} e refazer a divisão</button>
     <button class="btn" style="width:100%;margin-top:8px" data-act="ret-voltar">Voltar</button>`;
 }
 function modalEditarEq(M) {
@@ -3258,15 +3282,19 @@ document.addEventListener('click', async e => {
     case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
     case 'finalizar-bloco': {
-      const t = tremQualquer(el.dataset.id), d = t && t.dist[eqDoTrem(t)]; if (!d) return;
+      // antes de registrar, busca a divisão e os registros atuais no banco (só se não houver nada pendente de envio,
+      // para não esconder registros deste celular que ainda não subiram)
+      if (navigator.onLine && !OFFLINE && !DEMO && !FILA.length && !enviando) { toast('Conferindo a faixa…'); try { await carregar(); } catch (e) {} render(); }
+      const t = tremQualquer(el.dataset.id), d = t && t.dist[eqDoTrem(t)]; if (!d || d.termino) { toast('A sua faixa neste trem mudou ou já foi encerrada. Confira a lista.'); return; }
       const livres = []; for (let p = d.ini; p <= d.fim; p++) if (!t.reg[p]) livres.push(p);
-      if (!livres.length) return;
+      if (!livres.length) { toast('Todos os vagões da faixa já estão registrados'); return; }
       // trava: nenhum plano especial da faixa pode ficar sem resposta (Realizado / Não realizado)
       const sr = planosAbertosFaixa(t, d);
       if (sr.length) { S.tecFiltro = 'atencao'; render(); toast(`📋 Plano especial sem resposta: ${sr.map(x => x.cod).join(', ')}. Responda para finalizar o bloco.`); return; }
-      if (!confirm(`Registrar ${livres.length} vagão(ões) sem apontamento como OK (revistado, sem intervenção)?\n\nOs vagões com defeito ou informação devem ser registrados antes.`)) return;
+      const lista = livres.map(p => `${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)} · ${t.vagoes[p - 1]}`), mostra = lista.slice(0, 25).join('\n') + (lista.length > 25 ? `\n… e mais ${lista.length - 25}` : '');
+      if (!confirm(`Registrar como OK (revistado, sem intervenção) estes ${livres.length} vagão(ões) da sua faixa?\n\n${mostra}\n\nConfira se todos foram revistados. Os vagões com defeito ou informação devem ser registrados antes.`)) return;
       const h = agora(), linhas = livres.map(p => ({ trem_id: t.id, posicao: p, vagao: t.vagoes[p - 1], equipe: d.n, hora: h, resultado: 'ok', materiais: [], ocorrencias: [], obs: null, motivo: null, falhas: [] }));
-      enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', dados: linhas, desc: `Bloco de ${livres.length} vagões (${t.prefixo})` });
+      enviar({ tabela: 'registros', acao: 'upsert', onConflict: 'trem_id,posicao', ignorar: true, dados: linhas, desc: `Bloco de ${livres.length} vagões (${t.prefixo})` });   // nunca grava por cima de um registro que já exista
       livres.forEach(p => t.reg[p] = { st: 'ok', h, mats: [], oc: [], obs: '', motivo: '', falhas: [], equipe: d.n });
       toast(`${livres.length} vagões registrados como OK`); window.scrollTo(0, 0); break;
     }
@@ -3458,30 +3486,21 @@ document.addEventListener('click', async e => {
     case 'ret-abrir': S.modal.retirar = true; renderModal(); return;
     case 'ret-voltar': S.modal.retirar = false; renderModal(); return;
     case 'confirmar-retirada': {
-      const M = S.modal, t = tremPorId(M.id), P = planoRetirada(t, M.i, M.modoRet), R = P.R, h = agora(); if (P.erro) return;
+      const M = S.modal, t = tremPorId(M.id), R = t.dist[M.i], P = redivisao(t, R, null), h = agora(); if (P.erro) return;
       R.termino = h; enviar({ tabela: 'trem_equipes', acao: 'update', dados: { termino: h }, filtro: [['id', 'eq', R.rowId]], desc: 'Equipe ' + R.n + ' retirada do trem ' + t.prefixo });
-      // faixa extra para cada equipe que recebe vagões (já começada: aparece no celular depois da própria faixa)
-      const extras = P.mud.map(x => ({ id: uuid(), trem_id: t.id, numero: x.d.n, membros: x.d.membros.slice(), ini: x.ini, fim: x.fim, inicio: h }));
-      if (extras.length) enviar({ tabela: 'trem_equipes', acao: 'insert', dados: extras, desc: 'Vagões da Equipe ' + R.n + ' redivididos (' + t.prefixo + ')' });
-      extras.forEach(e => t.dist.push({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, comeco: null, inicio: h, termino: null }));
-      registrarLog(`Trem ${t.prefixo} · Equipe ${R.n} (${nomesEquipe(R.membros)}) retirada (${M.motivo})` + (P.mud.length ? ': ' + P.mud.map(x => `Equipe ${x.d.n} +${x.n} vagão(ões)`).join(', ') : ''));
-      S.modal = null; toast(`Equipe ${R.n} retirada do ${t.prefixo}` + (P.mud.length ? ' · restante redividido' : '')); break;
+      aplicarRedivisao(t, P, h);
+      registrarLog(`Trem ${t.prefixo} · Equipe ${R.n} (${nomesEquipe(R.membros)}) retirada (${M.motivo}); nova divisão: ` + P.mud.map(x => `Equipe ${x.d.n} ${posF(t, x.ini)}–${posF(t, x.fim)}`).join(', '));
+      S.modal = null; toast(`Equipe ${R.n} retirada do ${t.prefixo} · divisão refeita`); break;
     }
     case 'reaplicar-eq': {
       const t = tremPorId(el.dataset.id), R = t && t.dist[+el.dataset.i]; if (!R) return;
-      const doTurno = x => x.membros.some(m => C(m).turno === t.turno), dentro = x => x.ini >= R.ini && x.fim <= R.fim;
-      const extras = t.dist.filter(x => x !== R && x.n !== R.n && doTurno(x) && !x.termino && dentro(x));                  // faixas extras com os vagões dela
-      const vizinhas = t.dist.filter(x => x !== R && x.n !== R.n && doTurno(x) && !dentro(x) && x.ini <= R.fim && x.fim >= R.ini);   // retirada antiga: faixa estendida
-      if (!confirm(`Reaplicar a Equipe ${R.n} (${nomesEquipe(R.membros)}) no ${t.prefixo}?\n\nOs vagões que ainda faltam na faixa dela (${posF(t, R.ini)} a ${posF(t, R.fim)}) voltam para ela. O que as outras equipes já registraram continua com elas.`)) return;
+      const P = redivisao(t, null, R);
+      if (!confirm(`Reaplicar a Equipe ${R.n} (${nomesEquipe(R.membros)}) no ${t.prefixo}?\n\nA divisão é refeita em sequência entre todas as equipes, incluindo a ${R.n}:\n` + P.mud.map(x => `Equipe ${x.d.n}: ${posF(t, x.ini)} a ${posF(t, x.fim)} · ${x.n} a revistar`).join('\n') + `\n\nO que as equipes já registraram continua com elas.`)) return;
       const h = agora();
       R.termino = null; enviar({ tabela: 'trem_equipes', acao: 'update', dados: { termino: null }, filtro: [['id', 'eq', R.rowId]], desc: 'Equipe ' + R.n + ' reaplicada no trem ' + t.prefixo });
-      extras.forEach(x => { x.termino = h; enviar({ tabela: 'trem_equipes', acao: 'update', dados: { termino: h }, filtro: [['id', 'eq', x.rowId]], desc: 'Faixa extra da Equipe ' + x.n + ' devolvida (' + t.prefixo + ')' }); });
-      vizinhas.forEach(x => { const dados = { ini: x.ini, fim: x.fim, comeco: x.comeco ?? null };
-        if (x.ini < R.ini) dados.fim = Math.min(x.fim, R.ini - 1); else dados.ini = Math.max(x.ini, R.fim + 1);
-        if (dados.comeco != null && (dados.comeco < dados.ini || dados.comeco > dados.fim)) dados.comeco = null;
-        Object.assign(x, dados); enviar({ tabela: 'trem_equipes', acao: 'update', dados, filtro: [['id', 'eq', x.rowId]], desc: 'Faixa da Equipe ' + x.n + ' do trem ' + t.prefixo }); });
-      registrarLog(`Trem ${t.prefixo} · Equipe ${R.n} (${nomesEquipe(R.membros)}) reaplicada` + (extras.length + vizinhas.length ? ': devolvidos os vagões das Equipes ' + [...new Set([...extras, ...vizinhas].map(x => x.n))].join(', ') : ''));
-      toast(`Equipe ${R.n} de volta ao ${t.prefixo}`); break;
+      aplicarRedivisao(t, P, h);
+      registrarLog(`Trem ${t.prefixo} · Equipe ${R.n} (${nomesEquipe(R.membros)}) reaplicada; nova divisão: ` + P.mud.map(x => `Equipe ${x.d.n} ${posF(t, x.ini)}–${posF(t, x.fim)}`).join(', '));
+      toast(`Equipe ${R.n} de volta ao ${t.prefixo} · divisão refeita`); break;
     }
     case 'salvar-eq-trem': {
       const M = S.modal, t = tremPorId(M.id), d = t.dist[M.i]; if (!M.membros.length) return;
