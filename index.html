@@ -1241,13 +1241,15 @@ function cardParadaTec(t, d) {
       <div class="parada-bts">${Object.entries(MOT_PARADA).map(([k, l]) => `<button class="btn big" data-act="parada-ini" data-id="${t.id}" data-v="${k}">▶ ${l}</button>`).join('')}</div>`}
     ${feitas.length ? `<ul class="feed parada-lista">${feitas.slice().reverse().map(x => `<li><span class="h">${horaDe(x.ini)}</span><span>${esc(MOT_PARADA[x.motivo])} · <b>${durMinS(minParada(x))}</b><br><span class="small muted">${horaDe(x.ini)}–${horaDe(x.fim)}</span></span></li>`).join('')}</ul>` : ''}</div>`;
 }
-// uma parada da composição = registros de técnicos no mesmo trem que começam até 30 s depois do primeiro do grupo.
+// uma parada da composição = registros de técnicos no mesmo trem que começam até 30 s depois do primeiro do grupo
+// ou enquanto alguma parada do grupo ainda está aberta (o técnico acionou o cronômetro mais tarde).
 // A duração dela é a MÉDIA dos cronômetros do grupo (não a soma); registros em outro momento são outra parada e somam.
 const JANELA_PARADA = 30e3;
 function eventosParada(t) {
   const ps = (t.paradas || []).slice().sort((a, b) => Date.parse(a.ini) - Date.parse(b.ini)), ev = [];
+  const fimDe = x => x.fim ? Date.parse(x.fim) : Date.now();
   ps.forEach(x => { const i = Date.parse(x.ini), e = ev[ev.length - 1];
-    if (e && i - e.t0 <= JANELA_PARADA) e.regs.push(x); else ev.push({ t0: i, regs: [x] }); });
+    if (e && (i - e.t0 <= JANELA_PARADA || i < e.fim)) { e.regs.push(x); e.fim = Math.max(e.fim, fimDe(x)); } else ev.push({ t0: i, fim: fimDe(x), regs: [x] }); });
   return ev.map((e, k) => { const cont = {}; e.regs.forEach(x => { cont[x.motivo] = (cont[x.motivo] || 0) + 1; });
     return { t, k: k + 1, ini: e.regs[0].ini, motivo: Object.entries(cont).sort((a, b) => b[1] - a[1])[0][0], min: e.regs.reduce((a, x) => a + minParada(x), 0) / e.regs.length, n: e.regs.length, regs: e.regs, aberta: e.regs.some(x => !x.fim) }; });
 }
@@ -1260,7 +1262,7 @@ function cardParadas(ts, vazio = 'neste período', cls = '') {
   const todas = ls.flatMap(x => x.ev), mg = media(todas.map(e => e.min));
   const mt = v => v == null ? '–' : `<b style="color:${v > 10 ? 'var(--bad)' : 'var(--ink)'}">${durMinS(v)}</b>`;
   return `<div class="card ${cls}"><h2>⏸ Paradas por fatores externos <span class="dir">${ls.length ? `${fmt(todas.length)} parada(s) em ${ls.length} trem(ns) · média ${durMinS(mg)}` : ''}</span></h2>
-  ${ls.length ? `<p class="small muted" style="margin:0 0 8px">Registradas pelos técnicos no cronômetro do Meu turno: movimentação na linha paralela e aguardando autorização para transpor. Técnicos que param juntos (início com até 30 s de diferença) contam como <b>uma parada</b>, com a média dos cronômetros. Toque no trem para ver os registros.</p>
+  ${ls.length ? `<p class="small muted" style="margin:0 0 8px">Registradas pelos técnicos no cronômetro do Meu turno: movimentação na linha paralela e aguardando autorização para transpor. Técnicos que param juntos (início com até 30 s de diferença, ou durante uma parada ainda aberta) contam como <b>uma parada</b>, com a média dos cronômetros. Toque no trem para ver os registros.</p>
   <div class="rolagem"><table class="tabela compacta"><thead><tr><th>Trem</th><th class="num">Paradas</th><th class="num">Tempo parado</th><th class="num">Tempo médio</th><th>Por motivo (média)</th></tr></thead><tbody>
   ${ls.map(x => `<tr class="nr-trem ${S.parAberto === x.t.id ? 'on' : ''}" data-act="par-abrir" data-id="${x.t.id}"><td><b>${S.parAberto === x.t.id ? '▾' : '▸'} ${esc(x.t.prefixo)}</b><br><span class="small muted">${diaRot(x.t.dataISO)} · turno ${x.t.turno} · ${esc(x.t.linha)}</span></td>
       <td class="num">${x.ev.length}<br><span class="small muted">${x.regs} registro(s) · ${x.tecs} técnico(s)</span>${x.abertas ? `<br><span class="tag info">${x.abertas} em andamento</span>` : ''}</td><td class="num">${mt(x.tot)}</td><td class="num">${mt(x.med)}</td>
@@ -1293,7 +1295,7 @@ function analiseParadas(ts) {
   const chip = (k, l) => `<button class="chip ${mot === k ? 'on' : ''}" data-act="par-mot" data-v="${k}">${l}</button>`;
   return `<div class="card larga"><h2>Análise das paradas por fatores externos <span class="dir">segue os filtros do topo · passe o mouse ou toque nos gráficos</span></h2>
     <div class="chips" style="margin:0 0 10px">${chip('', 'Todos os motivos')}${Object.entries(MOT_PARADA).map(([k, l]) => chip(k, l)).join('')}</div>
-    <p class="small muted" style="margin:0 0 10px">Técnicos que param juntos na mesma composição (início com até 30 s de diferença) contam como <b>uma parada</b>, com a média dos cronômetros. Paradas em outro momento somam.</p>
+    <p class="small muted" style="margin:0 0 10px">Técnicos que param juntos na mesma composição (início com até 30 s de diferença, ou durante uma parada ainda aberta) contam como <b>uma parada</b>, com a média dos cronômetros. Paradas em outro momento somam.</p>
     <div class="kpis">${kpi('Paradas', fmt(ev.length), `em ${trs.length} trem(ns) · ${pct1(trs.length, ts.length)}% dos trens do app`)}${kpi('Tempo parado', fmtM(soma(ev)), `${fmt(ev.reduce((a, e) => a + e.n, 0))} registro(s) de técnicos`)}
       ${kpi('Média por parada', fmtM(ev.length ? soma(ev) / ev.length : 0), 'mais longa: ' + fmtM(Math.max(0, ...ev.map(e => e.min))))}${kpi('Por trem com parada', fmtM(trs.length ? soma(ev) / trs.length : 0), 'atraso médio na liberação')}
       ${kpi('Impacto no tempo de revisão', revisao ? pct1(parado, revisao) + '%' : '–', revisao ? `${fmtM(parado)} parados em ${fmtM(revisao)} de revisão` : 'trens ainda sem término')}
