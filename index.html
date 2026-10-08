@@ -605,7 +605,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.38';
+const VERSAO = '1.39';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -909,13 +909,24 @@ const tremQualquer = id => DB.trens.find(x => x.id === id);
 const tremPorId = tremQualquer;
 
 // equipes do dia: cópia de trabalho em S.eq[turno]; salva em equipes_dia
-const dataOp = () => (SERVICO.turno === T() ? SERVICO.data : isoData(new Date()));
+// horário de serviço do turno tt: o atual ou, em hora extra, o que terminou há pouco (até HORA_EXTRA_H horas depois do fim).
+// Ex.: o líder do 22–06 fechando um trem às 07:30 continua vendo o turno dele (data de ontem), não o da manhã.
+const HORA_EXTRA_H = 6;
+function servicoDe(tt, agoraD = new Date()) {
+  if (SERVICO.turno === tt) return { ...SERVICO, extra: false };
+  for (const k of [-1, -2]) { const s = vizinhoSlot(SERVICO, k); if (s.turno !== tt) continue;
+    const fim = deISO(s.data).getTime() + (+s.h + 8) * 3600e3;
+    return agoraD.getTime() - fim < HORA_EXTRA_H * 3600e3 ? { ...s, extra: true } : null; }
+  return null;
+}
+const rotServico = sv => sv ? HORARIO[sv.h] + (sv.extra ? ' · hora extra' : '') : '';
+const dataOp = () => servicoDe(T())?.data || isoData(new Date());
 function montarEquipes(ids) { const n = ids.length, k = Math.max(1, Math.min(5, Math.floor(n / 2))), out = []; let i = 0;
   for (let e = 0; e < k; e++) { const tam = Math.floor(n / k) + (e < n % k ? 1 : 0); out.push({ n: e + 1, membros: ids.slice(i, i + tam) }); i += tam; } return out; }
 function sincronizarEquipes() {
   'ABCD'.split('').forEach(t => {
     if (S.eqSujo[t]) return;
-    const d = SERVICO.turno === t ? SERVICO.data : isoData(new Date());
+    const d = servicoDe(t)?.data || isoData(new Date());
     const rows = DB.equipesDia.filter(e => e.data === d && e.turno === t).sort((a, b) => a.numero - b.numero);
     S.eqSalvo[t] = rows.length > 0;
     S.eq[t] = rows.length ? rows.map(r => ({ n: r.numero, membros: r.membros.filter(id => C(id).status === 'ativo') })) : montarEquipes(ativos(t));
@@ -1176,7 +1187,7 @@ function render() {
   if (!DB.me) return;
   $('barra-prog').hidden = !ehProg(); $('barra-prog').innerHTML = barraProg();
   const t = T(), n = minhaEqN();
-  const quem = { sup: ['Turno ' + t + ' · ' + liderDe(t), 'Líder' + (SERVICO.turno === t ? ' · ' + HORARIO[SERVICO.h] : ' · fora do horário de serviço')],
+  const quem = { sup: ['Turno ' + t + ' · ' + liderDe(t), 'Líder' + (servicoDe(t) ? ' · ' + rotServico(servicoDe(t)) : ' · fora do horário de serviço')],
     tec: [(n ? 'Equipe ' + n : 'Sem equipe hoje') + ' · Turno ' + t, uidTec() ? nomeTec(uidTec()) : ''],
     esp: ['Validador técnico' + (ehProg() ? '' : ' · ' + curtoV(DB.me)), 'Turno ' + t],
     prog: ['Programador · ' + DB.me.nome.split(' ')[0], 'Acesso total'],
@@ -1375,7 +1386,7 @@ function supTurno() {
   }));
   eventos.sort((a, b) => b.h.localeCompare(a.h));
   const v = validadorDe(tt);
-  return `<div class="faixa-turno"><h2>Turno ${tt}${SERVICO.turno === tt ? ' · ' + HORARIO[SERVICO.h] : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(new Date())}/${new Date().getFullYear()} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
+  return `<div class="faixa-turno"><h2>Turno ${tt}${servicoDe(tt) ? ' · ' + rotServico(servicoDe(tt)) : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(deISO(dataOp()))}/${dataOp().slice(0, 4)} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
   ${!S.eqSalvo[tt] ? `<p class="nota">As equipes de hoje ainda não foram confirmadas. <button class="btn sm" data-act="aba" data-v="equipes">Montar equipes →</button></p>` : ''}
   <div class="retro-barra"><button class="btn" data-act="retro">📝 Lançar apontamento retroativo</button><span class="small muted">Para o vagão que o mecânico não conseguiu registrar na hora.</span></div>
   <div class="sup-layout">
@@ -2619,6 +2630,16 @@ function progTemporal() {
 }
 
 // ---------- Performance das equipes (turnos) ----------
+// trens do turno no período, com as mesmas colunas do resumo (abre ao tocar no líder)
+function trensDoTurno(rs, sapata) {
+  const l = rs.slice().sort((a, b) => b.dataISO.localeCompare(a.dataISO) || (b.ini || '').localeCompare(a.ini || ''));
+  return `<tr class="nr-ficha"><td colspan="11">${l.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Data</th><th>Trem</th><th>Líder</th><th class="num">Revistado</th><th class="num">Vagões insp.</th><th class="num">Aderência</th><th class="num">Tempo</th><th class="num">Desvio</th><th class="num">Retidos</th><th class="num">Sapatas</th></tr></thead><tbody>
+    ${l.map(r => `<tr><td>${diaRot(r.dataISO)}/${r.dataISO.slice(2, 4)}</td><td><b>${esc(r.prefixo)}</b><br><span class="small muted">${esc(r.linha || '')}</span></td><td class="small">${esc(r.lider || '')}${r.backup ? `<br><span class="muted">backup: ${esc(r.backup)}</span>` : ''}</td>
+      <td class="num">${r.rev ? 'Sim' : `<span class="tag warn">Não</span>${r.motivoNao ? `<br><span class="small muted">${esc(r.motivoNao)}</span>` : ''}`}</td><td class="num">${fmt(r.insp)} / ${fmt(r.total)}</td>
+      <td class="num">${r.total ? `<span class="tag ${r.insp / r.total * 100 >= META_ADER ? 'ok' : 'bad'}">${pct1(r.insp, r.total)}%</span>` : '–'}</td>
+      <td class="num">${r.durMin ? `<b style="color:${r.durMin > META_MIN ? 'var(--bad)' : 'var(--ink)'}">${dur(r.durMin)}</b>` : '–'}</td><td class="num">${r.nDesv ? dur(r.desvMin || 0) : '–'}</td><td class="num">${fmt(r.retidos || 0)}</td><td class="num">${fmt((r.mats || {})[sapata] || 0)}</td></tr>`).join('')}
+  </tbody></table></div>` : '<span class="muted small">Nenhum trem deste turno no período.</span>'}</td></tr>`;
+}
 function progEquipes() {
   const todas = linhasHist(), rows = filtrar(todas), A = agrega(rows), sapata = MAT.sapata?.nome;
   const TT = 'ABCD'.split('').map(t => { const rs = rows.filter(r => r.turno === t), rv = rs.filter(r => r.rev && r.durMin > 0);
@@ -2632,9 +2653,9 @@ function progEquipes() {
     <div class="card"><h2>Sem desvios · por turno</h2>${duo('sem', 'var(--s3)')}</div>
     <div class="card"><h2>Total de trens revistados · por turno</h2>${colunas(TT.map(x => ({ rot: 'Turno ' + x.t, v: x.A.nRev })), { alt: 130 })}</div>
     <div class="card larga"><h2>Resumo por turno</h2><div class="rolagem"><table class="tabela"><thead><tr><th>Turno</th><th>Líder</th><th class="num">Trens rev.</th><th class="num">Não rev.</th><th class="num">Vagões insp.</th><th class="num">Aderência</th><th class="num">Tempo médio</th><th class="num">C/ desvio</th><th class="num">S/ desvio</th><th class="num">Retidos</th><th class="num">Sapatas</th></tr></thead><tbody>
-      ${TT.filter(x => F.turno === 'todos' || x.t === F.turno).map(x => `<tr><td><b>${x.t}</b></td><td class="small">${esc(liderDe(x.t))}</td><td class="num">${fmt(x.A.nRev)}</td><td class="num">${fmt(x.A.nNao)}</td><td class="num">${fmt(x.A.insp)}</td>
+      ${TT.filter(x => F.turno === 'todos' || x.t === F.turno).map(x => `<tr class="nr-trem ${S.resTurno === x.t ? 'on' : ''}" data-act="res-turno" data-v="${x.t}" title="Ver os trens do turno no período"><td><b>${S.resTurno === x.t ? '▾' : '▸'} ${x.t}</b></td><td class="small"><b>${esc(liderDe(x.t))}</b><br><span class="muted">${S.resTurno === x.t ? 'fechar' : 'ver os ' + fmt(x.rs.length) + ' trens'}</span></td><td class="num">${fmt(x.A.nRev)}</td><td class="num">${fmt(x.A.nNao)}</td><td class="num">${fmt(x.A.insp)}</td>
         <td class="num">${x.A.total ? `<span class="tag ${x.A.ader >= META_ADER ? 'ok' : 'bad'}">${x.A.ader >= META_ADER ? '✓' : '▼'} ${pct1(x.A.insp, x.A.total)}%</span>` : '–'}</td>
-        <td class="num">${x.A.tMed ? dur(x.A.tMed) : '–'}</td><td class="num">${x.com.length ? dur(media(x.com)) : '–'}</td><td class="num">${x.sem.length ? dur(media(x.sem)) : '–'}</td><td class="num">${fmt(x.A.retidos)}</td><td class="num">${fmt(x.sap)}</td></tr>`).join('')}
+        <td class="num">${x.A.tMed ? dur(x.A.tMed) : '–'}</td><td class="num">${x.com.length ? dur(media(x.com)) : '–'}</td><td class="num">${x.sem.length ? dur(media(x.sem)) : '–'}</td><td class="num">${fmt(x.A.retidos)}</td><td class="num">${fmt(x.sap)}</td></tr>${S.resTurno === x.t ? trensDoTurno(x.rs, sapata) : ''}`).join('')}
     </tbody></table></div></div>
   </div>`;
 }
@@ -3297,6 +3318,7 @@ document.addEventListener('click', async e => {
       toast(os ? `OS ${os} gravada no ${t.prefixo}` : 'OS apagada'); break;
     }
     case 'par-mot': S.parMot = v || ''; break;
+    case 'res-turno': S.resTurno = S.resTurno === v ? null : v; break;
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-so': S.nrSo = v === '1'; break;
