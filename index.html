@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.46';
+const VERSAO = '1.47';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -791,6 +791,14 @@ const CARGA_COMPLETA_MS = 20 * 60e3;
 const RAW = { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, desde: null };
 const resetRaw = () => Object.assign(RAW, { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, desde: null });
 const vivoRaw = t => t.status === 'andamento' || t.validacao === 'pendente';
+// trem fechado/validado que recebeu lançamento neste aparelho (retroativo, correção…): entra nas recargas leves
+// por 30 min, senão a tela voltava a montar o trem com a cópia da última carga completa e o lançamento “sumia”.
+const TOCADOS = new Map();
+function marcarTocado(op) {
+  const id = op.dados?.trem_id || op.trem_id || (op.tabela === 'trens' && (op.filtro || []).find(f => f[0] === 'id')?.[2]);
+  if (id && !String(id).startsWith('demo-')) TOCADOS.set(id, Date.now() + 30 * 60e3);
+}
+const tocadosVivos = () => { const ag = Date.now(); [...TOCADOS].forEach(([id, ate]) => { if (ate < ag) TOCADOS.delete(id); }); return [...TOCADOS.keys()]; };
 const PLANO_ABERTO = ['aberta', 'feita', 'reaberta'];
 async function filhosDe(ids) {
   const [eqs, regs, dsv, pex, par] = ids.length ? await Promise.all([
@@ -830,7 +838,8 @@ async function carregarCompleto() {
 }
 async function carregarVivos() {
   const antes = [...RAW.trens.values()].filter(vivoRaw).map(t => t.id), abertos = [...RAW.planos.values()].filter(x => PLANO_ABERTO.includes(x.status)).map(x => x.id);
-  const filtroT = ['status.eq.andamento', 'validacao.eq.pendente', ...(antes.length ? [`id.in.(${antes.join(',')})`] : [])].join(',');
+  const busca = [...new Set([...antes, ...tocadosVivos().filter(id => RAW.trens.has(id))])];
+  const filtroT = ['status.eq.andamento', 'validacao.eq.pendente', ...(busca.length ? [`id.in.(${busca.join(',')})`] : [])].join(',');
   const filtroP = [`status.in.(${PLANO_ABERTO.join(',')})`, ...(abertos.length ? [`id.in.(${abertos.join(',')})`] : [])].join(',');
   const [trens, planos, eqd] = await Promise.all([
     tudo(() => sb.from('trens').select('*').or(filtroT).order('criado_em')),
@@ -839,7 +848,7 @@ async function carregarVivos() {
   ]);
   const ids = trens.map(t => t.id);
   await filhosDe(ids);
-  antes.filter(id => !ids.includes(id)).forEach(id => { RAW.trens.delete(id); delete RAW.filhos[id]; });        // apagado
+  busca.filter(id => !ids.includes(id)).forEach(id => { RAW.trens.delete(id); delete RAW.filhos[id]; });        // apagado
   trens.forEach(t => RAW.trens.set(t.id, t));
   abertos.filter(id => !planos.some(x => x.id === id)).forEach(id => RAW.planos.delete(id));
   planos.forEach(x => RAW.planos.set(x.id, x));
@@ -883,7 +892,7 @@ let FILA = lsLer('rzto_fila', []), enviando = false, semSinal = false, erroFila 
 // modo offline manual: o usuário desliga a comunicação com a nuvem (sinal oscilando); tudo fica guardado no aparelho
 let OFFLINE = lsLer('rzto_offline', false);
 const precisaNuvem = () => { if (DEMO) { toast('🎬 Demonstração: isso não é enviado ao sistema'); return false; } if (!OFFLINE) return true; toast('📴 Modo offline: toque no ☁ e religue a nuvem para isso'); return false; };
-function enviar(op) { if (DEMO) return; FILA.push({ ...op, quando: Date.now() }); lsGravar('rzto_fila', FILA); processarFila(); indicador(); }
+function enviar(op) { if (DEMO) return; marcarTocado(op); FILA.push({ ...op, quando: Date.now() }); lsGravar('rzto_fila', FILA); processarFila(); indicador(); }
 const ehRede = e => !e?.code && /fetch|network|Failed|Load failed|NetworkError/i.test(String(e?.message || e));
 async function executar(op) {
   if (op.acao === 'foto') {
