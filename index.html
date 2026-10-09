@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.48';
+const VERSAO = '1.49';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -2064,11 +2064,13 @@ function reduzirFoto(arquivo) {
     }; img.onerror = erro; img.src = URL.createObjectURL(arquivo);
   });
 }
-// lançamento depois da validação (SQL 15): só reabre se o vagão ganhou ocorrência/avaria nova ou tem plano especial
+// lançamento depois da validação (SQL 15): só reabre se o vagão ganhou ocorrência/avaria nova, apontamento de material ou tem plano especial
+const matsTxt = ms => ms.map(m => [m.id, m.nome, m.qtd, (m.pos || []).join(' ')].join('|')).sort().join(';');   // compara sem depender da ordem dos campos
 function reabreSePreciso(t, pos, r, antigo, planoAgora) {
   if (!['validado', 'pendente'].includes(t.validacao?.status) || t.status !== 'concluido') { if (antigo?.val) Object.assign(r, { val: antigo.val, valPor: antigo.valPor, valEm: antigo.valEm, antes: antigo.antes }); return false; }
-  const ocNova = (r.oc || []).some(o => !(antigo?.oc || []).includes(o)), plano = planoAgora || Object.keys(t.pexec?.[pos] || {}).length > 0;
-  if (!(ocNova || plano)) { if (antigo?.val) Object.assign(r, { val: antigo.val, valPor: antigo.valPor, valEm: antigo.valEm, antes: antigo.antes }); return false; }
+  const ocNova = (r.oc || []).some(o => !(antigo?.oc || []).includes(o)), plano = planoAgora || Object.keys(t.pexec?.[pos] || {}).length > 0,
+    matNovo = (r.mats || []).length > 0 && matsTxt(r.mats) !== matsTxt(antigo?.mats || []);
+  if (!(ocNova || matNovo || plano)) { if (antigo?.val) Object.assign(r, { val: antigo.val, valPor: antigo.valPor, valEm: antigo.valEm, antes: antigo.antes }); return false; }
   Object.assign(r, { val: null, valPor: '', valEm: null });
   if (t.validacao.status !== 'validado') return false;
   t.validacao = { status: 'pendente', corrigidos: t.validacao.corrigidos || 0 }; return true;
@@ -2099,7 +2101,7 @@ function salvarVagao(st) {
   Object.assign(r, { fotos: lista, foto: lista.length > 0, fotoUrl: lista[0] || null });
   const reaberto = !M.validando && reabreSePreciso(t, M.pos, r, antigo);
   t.reg[M.pos] = r; S.modal = null;
-  if (reaberto) toast('Trem ' + t.prefixo + ' volta para a validação técnica (ocorrência ou plano lançado depois)'); else toast(M.retro ? 'Apontamento retroativo lançado' : M.validando ? 'Correção salva' : r.st === 'ok' ? 'Vagão registrado' : r.st === 'pend' ? 'Vagão marcado como pendente' : r.oc.length ? 'Ocorrência registrada' : 'Intervenção registrada');
+  if (reaberto) toast('Trem ' + t.prefixo + ' volta para a validação técnica (ocorrência, material ou plano lançado depois)'); else toast(M.retro ? 'Apontamento retroativo lançado' : M.validando ? 'Correção salva' : r.st === 'ok' ? 'Vagão registrado' : r.st === 'pend' ? 'Vagão marcado como pendente' : r.oc.length ? 'Ocorrência registrada' : 'Intervenção registrada');
   render();
 }
 function modalFim(M) {
