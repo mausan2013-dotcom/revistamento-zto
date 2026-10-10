@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.51';
+const VERSAO = '1.52';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -643,6 +643,22 @@ const deISO = s => { const [y, m, d] = s.split('-').map(Number); return new Date
 const horaDe = ts => ts ? hhmm(new Date(ts).getHours() * 60 + new Date(ts).getMinutes()) : '';
 const uuid = () => crypto.randomUUID();
 const distribuir = (n, k) => { const base = Math.floor(n / k), extra = n % k; const r = []; let ini = 1; for (let i = 0; i < k; i++) { const q = base + (i < extra ? 1 : 0); r.push([ini, ini + q - 1]); ini += q; } return r; };
+// Trem grande com poucas equipes (mais de 85 vagões e até 3 equipes): o líder escolhe dividir o total ou só uma quantidade a vistoriar.
+const LIM_TREM_GRANDE = 85, LIM_EQ_GRANDE = 3;
+const selIdxNovo = () => { const N = S.novo, eqs = EQ(T()); return eqs.map((x, i) => N.sel[i] !== false ? i : -1).filter(i => i >= 0); };
+function dividirNovo() { const N = S.novo, sel = selIdxNovo(); N.dist = distribuir(N.qtdVist || N.lidos.length, sel.length).map((f, k) => ({ ei: sel[k], ini: f[0], fim: f[1] })); }
+function modalQtdVag(M) {
+  const N = S.novo, tot = N.lidos.length, k = selIdxNovo().length;
+  if (M.passo === 'valor') return `<div class="small muted">${tot} vagões na ficha · ${k} equipe(s)</div><h3>Quantos vagões serão vistoriados?</h3>
+    <p class="small muted">O app divide essa quantidade entre as ${k} equipe(s), começando pelo primeiro vagão da composição. Os demais ficam fora da divisão.</p>
+    <label class="campo">Vagões a vistoriar<input id="qtd-v" type="number" inputmode="numeric" min="${k}" max="${tot}" value="${N.qtdVist || ''}" placeholder="Ex.: 85"></label>
+    ${M.msg ? `<p class="small" style="color:var(--bad);font-weight:700">${esc(M.msg)}</p>` : ''}
+    <div class="acoes"><button class="btn primary" data-act="qtd-ok">Dividir</button><button class="btn" data-act="distribuir-volta">Voltar</button></div>`;
+  return `<div class="small muted">${tot} vagões na ficha · ${k} equipe(s)</div><h3>Trem grande: atribuir o total?</h3>
+    <p>O trem tem <b>${tot} vagões</b> e só ${k} equipe(s) vão atuar. Deseja atribuir o <b>total</b> de vagões às equipes?</p>
+    <p class="small muted">Sim: ${tot} vagões divididos igualmente (cerca de ${Math.ceil(tot / k)} por equipe). Não: você informa quantos serão vistoriados.</p>
+    <div class="acoes"><button class="btn primary" data-act="qtd-total">Sim, atribuir o total</button><button class="btn" data-act="qtd-nao">Não, informar a quantidade</button></div>`;
+}
 const $ = id => document.getElementById(id);
 const lsLer = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
 const lsGravar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
@@ -1087,7 +1103,7 @@ function salvarEquipes(t) {
   DB.equipesDia = DB.equipesDia.filter(e => !(e.data === d && e.turno === t)).concat(l.map(e => ({ data: d, turno: t, numero: e.n, membros: e.membros.slice() })));
   S.eqSalvo[t] = true; S.eqSujo[t] = false;
 }
-const novoVazio = () => ({ prefixo: '', os: '', linha: 'ZTO 1', chegada: '', texto: '', lidos: null, sel: EQ(T()).map(() => true), dist: null, naoRev: false, motivoNao: '', fichaNome: '', posFicha: null, restr: {}, ignorados: [], declarados: null, lendo: false, colar: false });
+const novoVazio = () => ({ prefixo: '', os: '', linha: 'ZTO 1', chegada: '', texto: '', lidos: null, sel: EQ(T()).map(() => true), dist: null, qtdVist: null, qtdOk: false, naoRev: false, motivoNao: '', fichaNome: '', posFicha: null, restr: {}, ignorados: [], declarados: null, lendo: false, colar: false });
 
 // ---------- posição na ficha e restrições ----------
 const posF = (t, p) => t.posFicha ? t.posFicha[p - 1] : p;
@@ -1188,7 +1204,7 @@ async function linhasDoPdf(arquivo) {
 function aplicarFicha(f, nome) {
   const N = S.novo;
   if (!f.vagoes.length) { toast('Não encontrei vagões nessa ficha'); return false; }
-  Object.assign(N, { lidos: f.vagoes.map(v => v.cod), posFicha: f.vagoes.map(v => v.pos), restr: f.restr, ignorados: f.ignorados, declarados: f.declarados, fichaNome: nome, dist: null });
+  Object.assign(N, { lidos: f.vagoes.map(v => v.cod), posFicha: f.vagoes.map(v => v.pos), restr: f.restr, ignorados: f.ignorados, declarados: f.declarados, fichaNome: nome, dist: null, qtdVist: null, qtdOk: false });
   if (f.prefixo && !N.prefixo) N.prefixo = f.prefixo;
   if (f.os) N.os = f.os;
   return true;
@@ -1584,8 +1600,9 @@ function supNovo() {
   const distHtml = !N.dist ? '' : `<div class="card larga"><h2>3 · Divisão entre as equipes <span class="dir">ajuste o último vagão de cada equipe, se precisar</span></h2>
     <div class="rolagem"><table class="tabela"><thead><tr><th>Equipe</th><th class="num">${N.posFicha ? 'Da posição' : 'Do nº'}</th><th class="num">${N.posFicha ? 'Até a posição' : 'Até o nº'}</th><th class="num">Vagões</th><th>Primeiro → último</th></tr></thead><tbody>
     ${N.dist.map((d, k) => `<tr><td><b>Equipe ${eqs[d.ei].n}</b><br><span class="small muted">${esc(nomesEquipe(eqs[d.ei].membros))}</span></td><td class="num">${pN(d.ini)}</td>
-      <td class="num">${k === N.dist.length - 1 ? pN(d.fim) : `<input type="number" min="${pN(d.ini)}" max="${pN(N.lidos.length)}" value="${pN(d.fim)}" data-act="dist-fim" data-k="${k}">`}</td><td class="num">${d.fim - d.ini + 1}</td>
+      <td class="num">${k === N.dist.length - 1 ? pN(d.fim) : `<input type="number" min="${pN(d.ini)}" max="${pN(N.qtdVist || N.lidos.length)}" value="${pN(d.fim)}" data-act="dist-fim" data-k="${k}">`}</td><td class="num">${d.fim - d.ini + 1}</td>
       <td class="small">${esc(N.lidos[d.ini - 1])}${N.posFicha ? ` (pos. ${N.posFicha[d.ini - 1]})` : ''} → ${esc(N.lidos[d.fim - 1])}${N.posFicha ? ` (pos. ${N.posFicha[d.fim - 1]})` : ''}</td></tr>`).join('')}</tbody></table></div>
+    ${N.qtdVist ? `<p class="small" style="margin:8px 0 0;color:var(--warn);font-weight:700">⚠ Vistoria de ${N.qtdVist} dos ${N.lidos.length} vagões: ${N.lidos.length - N.qtdVist} vagão(ões) (pos. ${pN(N.qtdVist + 1)} a ${pN(N.lidos.length)}) ficam fora da divisão e contam como não revisados.</p>` : ''}
     <div class="acoes"><button class="btn primary" data-act="enviar-trem" ${N.prefixo.trim() ? '' : 'disabled'}>Enviar para as equipes</button>${N.prefixo.trim() ? '' : '<span class="small muted" style="align-self:center">Preencha o prefixo do trem.</span>'}</div>
     <p class="small muted" style="margin:8px 0 0">Cada equipe recebe no celular só a sua faixa de vagões, na ordem da composição.</p></div>`;
   return `<p class="nota">Envie o PDF da ficha do trem (impressão do Translogic). O app lê os vagões na ordem da composição, ignora as locomotivas (mais de 4 eixos), traz as restrições da ficha e divide entre as equipes.</p>
@@ -2102,7 +2119,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -3658,12 +3675,23 @@ document.addEventListener('click', async e => {
       const f = lerFichaTexto(N.texto.split(/\n/));
       if (f.vagoes.length) { aplicarFicha(f, 'Texto colado'); break; }
       const achados = [...N.texto.toUpperCase().matchAll(/\b([A-Z]{3})\s*-?\s*(\d{6})\s*-?\s*(\d)\b/g)].map(m => `${m[1]} ${m[2]}-${m[3]}`);
-      Object.assign(N, { lidos: achados.length ? achados : null, posFicha: null, restr: {}, ignorados: [], declarados: null, fichaNome: achados.length ? 'Texto colado' : '', dist: null });
+      Object.assign(N, { lidos: achados.length ? achados : null, posFicha: null, restr: {}, ignorados: [], declarados: null, fichaNome: achados.length ? 'Texto colado' : '', dist: null, qtdVist: null, qtdOk: false });
       if (!achados.length) toast('Nenhum vagão encontrado no texto');
       break;
     }
-    case 'novo-sel': N.sel[+el.dataset.i] = el.checked; N.dist = null; break;
-    case 'distribuir': { const eqs = EQ(T()), sel = eqs.map((x, i) => N.sel[i] !== false ? i : -1).filter(i => i >= 0); N.dist = distribuir(N.lidos.length, sel.length).map((f, k) => ({ ei: sel[k], ini: f[0], fim: f[1] })); break; }
+    case 'novo-sel': N.sel[+el.dataset.i] = el.checked; N.dist = null; N.qtdVist = null; N.qtdOk = false; break;
+    case 'distribuir': {
+      if (!N.qtdOk && N.lidos.length > LIM_TREM_GRANDE && selIdxNovo().length <= LIM_EQ_GRANDE) { S.modal = { tipo: 'qtdvag', passo: 'pergunta', msg: '' }; renderModal(); return; }
+      dividirNovo(); break;
+    }
+    case 'qtd-total': N.qtdVist = null; N.qtdOk = true; S.modal = null; dividirNovo(); break;
+    case 'distribuir-volta': M.passo = 'pergunta'; renderModal(); return;
+    case 'qtd-nao': M.passo = 'valor'; M.msg = ''; renderModal(); setTimeout(() => $('qtd-v')?.focus(), 50); return;
+    case 'qtd-ok': {
+      const v = Math.floor(+($('qtd-v')?.value || 0)), k = selIdxNovo().length;
+      if (!(v >= k && v <= N.lidos.length)) { M.msg = `Digite um número de ${k} a ${N.lidos.length}.`; renderModal(); return; }
+      N.qtdVist = v >= N.lidos.length ? null : v; N.qtdOk = true; S.modal = null; dividirNovo(); break;
+    }
     case 'enviar-trem': {
       const tt = T(), eqs = EQ(tt);
       if (!S.eqSalvo[tt] || S.eqSujo[tt]) salvarEquipes(tt);
@@ -3802,10 +3830,10 @@ document.addEventListener('change', async e => {
   else if (a === 'plano-turno') { S.planoTurno = el.value; render(); }
   else if (a === 'novo-campo') { N[el.dataset.k] = el.value; if (el.dataset.k === 'texto') { N.lidos = null; N.dist = null; } render(); }
   else if (a === 'dist-fim') {
-    const k = +el.dataset.k, d = N.dist;
-    let v = +el.value || 0; if (N.posFicha) { const i = N.posFicha.findIndex(x => x >= v); v = i < 0 ? N.lidos.length : i + 1; }
-    d[k].fim = Math.max(d[k].ini, Math.min(v || d[k].ini, N.lidos.length - (d.length - 1 - k)));
-    for (let j = k + 1; j < d.length; j++) { d[j].ini = d[j - 1].fim + 1; d[j].fim = j < d.length - 1 ? Math.max(d[j].ini, d[j].fim) : N.lidos.length; }
+    const k = +el.dataset.k, d = N.dist, L = N.qtdVist || N.lidos.length;
+    let v = +el.value || 0; if (N.posFicha) { const i = N.posFicha.findIndex(x => x >= v); v = i < 0 ? L : i + 1; }
+    d[k].fim = Math.max(d[k].ini, Math.min(v || d[k].ini, L - (d.length - 1 - k)));
+    for (let j = k + 1; j < d.length; j++) { d[j].ini = d[j - 1].fim + 1; d[j].fim = j < d.length - 1 ? Math.max(d[j].ini, d[j].fim) : L; }
     render();
   }
   else if (a === 'membro') { const tt = T(), eq = EQ(tt)[+el.dataset.i], j = +el.dataset.j; if (el.value) eq.membros[j] = el.value; else eq.membros.splice(j, 1); eq.membros = eq.membros.filter(Boolean); S.eqSujo[tt] = true; S.novo = novoVazio(); render(); }
