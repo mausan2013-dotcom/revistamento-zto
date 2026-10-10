@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.50';
+const VERSAO = '1.51';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -785,16 +785,44 @@ async function carregarPendentes(forcar) {
 const planosPend = cod => PEND.mapa[cod] || [];
 const txtPlanos = l => l.map(x => x.plano).join(', ');
 
-// Carga dos dados. Para economizar tráfego (Supabase), há dois tipos:
-//  · completa (período do perfil, colaboradores, planos, histórico): ao entrar, a cada 20 min e em "Atualizar agora";
-//  · leve (a cada 60 s e ao voltar para o app): só os trens vivos (em revista ou aguardando validação), os planos em aberto e as equipes do dia.
-// Os dados ficam em RAW (linhas do banco) e a tela é montada a partir dele; a leve só troca o que mudou.
-const CARGA_COMPLETA_MS = 20 * 60e3;
-const RAW = { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, desde: null };
-const resetRaw = () => Object.assign(RAW, { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, desde: null });
+// Carga dos dados. Para economizar tráfego (Supabase, plano grátis: 5 GB/mês de saída), três níveis (v1.51):
+//  · do zero: ao entrar sem cópia no aparelho, em "Atualizar agora" e a cada 12 h;
+//  · conferência da janela (a cada 20 min): lista id + carimbo dos trens do período do perfil e baixa só os que
+//    mudaram (os que sumiram foram apagados ou saíram do período); colaboradores, planos e log vêm inteiros (são pequenos);
+//  · leve (a cada 60 s e ao voltar para o app): trens vivos + os carimbados desde a última vez, e baixa só os que mudaram.
+// O carimbo (trens.atualizado_em) muda com qualquer gravação no trem, nos vagões, equipes, desvios, paradas e planos
+// do vagão (16-carimbo-alteracoes.sql). Sem o SQL 16, a leve volta ao jeito antigo (baixa os vivos inteiros).
+// RAW (linhas do banco) fica guardado no aparelho (IndexedDB): abrir o app não baixa tudo de novo.
+const CARGA_COMPLETA_MS = 20 * 60e3, CARGA_ZERO_MS = 12 * 3600e3;
+const RAW = { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, zeroEm: 0, desde: null, marca: '', sujo: false };
+const resetRaw = () => Object.assign(RAW, { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, zeroEm: 0, desde: null, marca: '', sujo: false });
 const vivoRaw = t => t.status === 'andamento' || t.validacao === 'pendente';
+let TEM_CARIMBO = null;                                   // 16-carimbo-alteracoes.sql rodado?
+// guarda no aparelho (IndexedDB: cabe muito mais que o localStorage e não disputa espaço com a fila de envio)
+const IDB = (() => {
+  let p = null;
+  const abrir = () => p ||= new Promise((ok, erro) => { const r = indexedDB.open('rzto', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => ok(r.result); r.onerror = () => erro(r.error); });
+  const tx = async (modo, f) => { const db = await abrir(); return new Promise((ok, erro) => { const t = db.transaction('kv', modo), req = f(t.objectStore('kv')); t.oncomplete = () => ok(req.result); t.onerror = () => erro(t.error); }); };
+  return { ler: k => tx('readonly', s => s.get(k)).catch(() => null), gravar: (k, v) => tx('readwrite', s => s.put(v, k)).catch(() => {}), apagar: k => tx('readwrite', s => s.delete(k)).catch(() => {}) };
+})();
+const diasPerfil = () => ehGestao() ? 35 : DB.me.perfil === 'supervisor' ? 7 : DB.me.perfil === 'especializado' ? 15 : 3;
+const desdePerfil = () => { const d = new Date(); d.setDate(d.getDate() - diasPerfil()); return d; };
+const filtroJanela = desde => `data.gte.${isoData(desde)},status.eq.andamento,validacao.eq.pendente`;
+function marcar(rows) { rows.forEach(t => { if (t.atualizado_em && t.atualizado_em > RAW.marca) RAW.marca = t.atualizado_em; }); }
+function guardarRaw() {
+  if (!RAW.sujo || DEMO) return; RAW.sujo = false;
+  IDB.gravar('raw', { v: 1, me: DB.me.id, perfil: DB.me.perfil, desde: RAW.desde && RAW.desde.toISOString(), zeroEm: RAW.zeroEm, completaEm: RAW.completaEm, marca: RAW.marca,
+    trens: [...RAW.trens.values()], filhos: RAW.filhos, planos: [...RAW.planos.values()], colab: RAW.colab, eqd: RAW.eqd, log: RAW.log });
+}
+async function restaurarRaw() {
+  const c = await IDB.ler('raw');
+  if (!c || c.v !== 1 || c.me !== DB.me.id || c.perfil !== DB.me.perfil || Date.now() - c.zeroEm > CARGA_ZERO_MS) return false;
+  Object.assign(RAW, { trens: new Map(c.trens.map(t => [t.id, t])), filhos: c.filhos || {}, planos: new Map(c.planos.map(x => [x.id, x])), colab: c.colab, eqd: c.eqd, log: c.log || [],
+    desde: c.desde ? new Date(c.desde) : null, zeroEm: c.zeroEm, completaEm: c.completaEm, marca: c.marca || '', sujo: false });
+  return true;
+}
 // trem fechado/validado que recebeu lançamento neste aparelho (retroativo, correção…): entra nas recargas leves
-// por 30 min, senão a tela voltava a montar o trem com a cópia da última carga completa e o lançamento “sumia”.
+// por 30 min (garantia para quando o SQL 16 ainda não foi rodado).
 const TOCADOS = new Map();
 function marcarTocado(op) {
   const id = op.dados?.trem_id || op.trem_id || (op.tabela === 'trens' && (op.filtro || []).find(f => f[0] === 'id')?.[2]);
@@ -814,18 +842,42 @@ async function filhosDe(ids) {
   const pe = por(eqs, 'trem_id'), pr = por(regs, 'trem_id'), pd = por(dsv, 'trem_id'), px = por(pex, 'trem_id'), pp = por(par, 'trem_id');
   ids.forEach(id => { RAW.filhos[id] = { eqs: pe[id] || [], regs: pr[id] || [], dsv: pd[id] || [], pex: px[id] || [], par: pp[id] || [] }; });
 }
-// completa = true força a completa; sem argumento, decide pelo tempo desde a última completa
+// baixa inteiros (linha + filhos) só os trens indicados
+async function buscarTrens(ids) {
+  if (!ids.length) return;
+  const rows = await emLotes(ids, l => sb.from('trens').select('*').in('id', l).order('id'));
+  await filhosDe(rows.map(t => t.id));
+  ids.filter(id => !rows.some(t => t.id === id)).forEach(id => { RAW.trens.delete(id); delete RAW.filhos[id]; });   // apagado
+  rows.forEach(t => RAW.trens.set(t.id, t)); marcar(rows); RAW.sujo = true;
+}
+// equipes do dia: com o SQL 16 confere id + carimbo e baixa só as que mudaram
+async function sincEquipesDia() {
+  const desde = isoData(new Date(Date.now() - 2 * 864e5));
+  if (!TEM_CARIMBO) { RAW.eqd = await tudo(() => sb.from('equipes_dia').select('*').gte('data', desde).order('id')); RAW.sujo = true; return; }
+  const lista = await tudo(() => sb.from('equipes_dia').select('id,atualizado_em').gte('data', desde).order('id'));
+  const tinha = new Map(RAW.eqd.map(x => [x.id, x])), mudou = lista.filter(x => tinha.get(x.id)?.atualizado_em !== x.atualizado_em).map(x => x.id);
+  if (!mudou.length && lista.length === RAW.eqd.length) return;
+  const novas = mudou.length ? await emLotes(mudou, l => sb.from('equipes_dia').select('*').in('id', l).order('id')) : [];
+  const nv = new Map(novas.map(x => [x.id, x]));
+  RAW.eqd = lista.map(x => nv.get(x.id) || tinha.get(x.id)).filter(Boolean); RAW.sujo = true;
+}
+async function conferirCarimbo() {
+  if (TEM_CARIMBO === null) TEM_CARIMBO = !(await sb.from('equipes_dia').select('atualizado_em').limit(1)).error;   // 16-carimbo-alteracoes.sql
+}
+// completa = true força a carga do zero; sem argumento, decide pelo tempo
 async function carregar(completa) {
   if (DEMO) return;
-  if (completa || !RAW.completaEm || Date.now() - RAW.completaEm > CARGA_COMPLETA_MS) return carregarCompleto();
+  await conferirCarimbo();
+  if (completa || !RAW.zeroEm || Date.now() - RAW.zeroEm > CARGA_ZERO_MS || !TEM_CARIMBO && Date.now() - RAW.completaEm > CARGA_COMPLETA_MS) return carregarCompleto();
+  if (Date.now() - RAW.completaEm > CARGA_COMPLETA_MS || isoData(desdePerfil()) !== isoData(RAW.desde || new Date(0))) return conferirJanela();
+  if (ehGestao() && !HIST.ok) await carregarHist();                  // reabriu o app: histórico guardado no aparelho
   return carregarVivos();
 }
 async function carregarCompleto() {
-  const prog = ehGestao(), dias = prog ? 35 : DB.me.perfil === 'supervisor' ? 7 : DB.me.perfil === 'especializado' ? 15 : 3;
-  const desde = new Date(); desde.setDate(desde.getDate() - dias);
+  const prog = ehGestao(), desde = desdePerfil();
   const [colab, trens, planos, eqd, log] = await Promise.all([
     tudo(() => sb.from('colaboradores').select('*').order('nome').order('id')),
-    tudo(() => sb.from('trens').select('*').or(`data.gte.${isoData(desde)},status.eq.andamento,validacao.eq.pendente`).order('criado_em').order('id')),
+    tudo(() => sb.from('trens').select('*').or(filtroJanela(desde)).order('criado_em').order('id')),
     tudo(() => sb.from('planos').select('*').order('criado_em', { ascending: false }).order('id')),
     tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5))).order('id')),
     ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve([])
@@ -834,15 +886,47 @@ async function carregarCompleto() {
   if (!TEM_OS) TEM_OS = !(await sb.from('trens').select('os').limit(1)).error;                    // 12-pcm-apontamentos.sql (confere de novo até existir)
   const filhos = RAW.filhos; RAW.filhos = {};
   try { await filhosDe(trens.map(t => t.id)); } catch (e) { RAW.filhos = filhos; throw e; }
-  Object.assign(RAW, { trens: new Map(trens.map(t => [t.id, t])), planos: new Map(planos.map(x => [x.id, x])), colab, eqd, log, desde, completaEm: Date.now() });
+  Object.assign(RAW, { trens: new Map(trens.map(t => [t.id, t])), planos: new Map(planos.map(x => [x.id, x])), colab, eqd, log, desde, completaEm: Date.now(), zeroEm: Date.now(), marca: '', sujo: true });
+  marcar(trens);
+  if (prog) await carregarHist();
+  await montarDados();
+}
+// a cada 20 min: confere a lista de trens do período (id + carimbo) e baixa só o que mudou
+async function conferirJanela() {
+  const prog = ehGestao(), desde = desdePerfil();
+  const [lista, colab, planos, log] = await Promise.all([
+    tudo(() => sb.from('trens').select('id,atualizado_em').or(filtroJanela(desde)).order('id')),
+    tudo(() => sb.from('colaboradores').select('*').order('nome').order('id')),
+    tudo(() => sb.from('planos').select('*').order('criado_em', { ascending: false }).order('id')),
+    ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve(RAW.log)
+  ]);
+  const vistos = new Set(lista.map(x => x.id));
+  [...RAW.trens.keys()].filter(id => !vistos.has(id)).forEach(id => { RAW.trens.delete(id); delete RAW.filhos[id]; RAW.sujo = true; });   // apagado ou fora do período
+  await buscarTrens(lista.filter(x => RAW.trens.get(x.id)?.atualizado_em !== x.atualizado_em).map(x => x.id));
+  await sincEquipesDia();
+  Object.assign(RAW, { planos: new Map(planos.map(x => [x.id, x])), colab, log, desde, completaEm: Date.now(), sujo: true });
   if (prog) await carregarHist();
   await montarDados();
 }
 async function carregarVivos() {
   const antes = [...RAW.trens.values()].filter(vivoRaw).map(t => t.id), abertos = [...RAW.planos.values()].filter(x => PLANO_ABERTO.includes(x.status)).map(x => x.id);
   const busca = [...new Set([...antes, ...tocadosVivos().filter(id => RAW.trens.has(id))])];
-  const filtroT = ['status.eq.andamento', 'validacao.eq.pendente', ...(busca.length ? [`id.in.(${busca.join(',')})`] : [])].join(',');
   const filtroP = [`status.in.(${PLANO_ABERTO.join(',')})`, ...(abertos.length ? [`id.in.(${abertos.join(',')})`] : [])].join(',');
+  if (TEM_CARIMBO) {
+    // vivos + carimbados desde a última vez (3 min de folga) + os tocados aqui; baixa inteiros só os que mudaram
+    const desde = RAW.marca ? new Date(Date.parse(RAW.marca) - 3 * 60e3).toISOString() : null;
+    const filtroT = ['status.eq.andamento', 'validacao.eq.pendente', ...(desde ? [`and(data.gte.${isoData(RAW.desde || desdePerfil())},atualizado_em.gt."${desde}")`] : []), ...(busca.length ? [`id.in.(${busca.join(',')})`] : [])].join(',');
+    const [lista, planos] = await Promise.all([tudo(() => sb.from('trens').select('id,atualizado_em').or(filtroT).order('id')), tudo(() => sb.from('planos').select('*').or(filtroP).order('id'))]);
+    const vistos = new Set(lista.map(x => x.id));
+    antes.filter(id => !vistos.has(id)).forEach(id => { RAW.trens.delete(id); delete RAW.filhos[id]; RAW.sujo = true; });   // vivo que sumiu: apagado
+    await buscarTrens(lista.filter(x => RAW.trens.get(x.id)?.atualizado_em !== x.atualizado_em).map(x => x.id));
+    await sincEquipesDia();
+    const n0 = RAW.planos.size; abertos.filter(id => !planos.some(x => x.id === id)).forEach(id => RAW.planos.delete(id));
+    planos.forEach(x => { if (JSON.stringify(RAW.planos.get(x.id)) !== JSON.stringify(x)) { RAW.planos.set(x.id, x); RAW.sujo = true; } }); if (RAW.planos.size !== n0) RAW.sujo = true;
+    await montarDados(); return;
+  }
+  // sem o SQL 16: baixa os vivos inteiros (jeito antigo)
+  const filtroT = ['status.eq.andamento', 'validacao.eq.pendente', ...(busca.length ? [`id.in.(${busca.join(',')})`] : [])].join(',');
   const [trens, planos, eqd] = await Promise.all([
     tudo(() => sb.from('trens').select('*').or(filtroT).order('criado_em').order('id')),
     tudo(() => sb.from('planos').select('*').or(filtroP).order('id')),
@@ -854,7 +938,7 @@ async function carregarVivos() {
   trens.forEach(t => RAW.trens.set(t.id, t));
   abertos.filter(id => !planos.some(x => x.id === id)).forEach(id => RAW.planos.delete(id));
   planos.forEach(x => RAW.planos.set(x.id, x));
-  RAW.eqd = eqd;
+  RAW.eqd = eqd; RAW.sujo = true;
   await montarDados();
 }
 // monta DB a partir de RAW (vale para as duas cargas)
@@ -872,8 +956,11 @@ async function montarDados() {
   DB.log = RAW.log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
   sincronizarEquipes();
   DB.carregado = true; DB.atualizadoEm = new Date();
-  if (!prog) { const fs = trens.map(t => RAW.filhos[t.id] || F0), junta = k => fs.flatMap(f => f[k]);
-    lsGravar('rzto_cache', { me: DB.me.id, colab: RAW.colab, trens, planos, eqd: RAW.eqd, eqs: junta('eqs'), regs: junta('regs'), dsv: junta('dsv'), pex: junta('pex'), par: junta('par'), em: Date.now() }); }
+  if (RAW.sujo) {                                         // só grava as cópias do aparelho quando algo mudou
+    if (!prog) { const fs = trens.map(t => RAW.filhos[t.id] || F0), junta = k => fs.flatMap(f => f[k]);
+      lsGravar('rzto_cache', { me: DB.me.id, colab: RAW.colab, trens, planos, eqd: RAW.eqd, eqs: junta('eqs'), regs: junta('regs'), dsv: junta('dsv'), pex: junta('pex'), par: junta('par'), em: Date.now() }); }
+    guardarRaw();
+  }
 }
 function usarCache() {
   const c = lsLer('rzto_cache', null);
@@ -2331,22 +2418,28 @@ const META_MIN = 30, META_ADER = 85;                     // metas: tempo de revi
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const MESES_L = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const F = { per: 'mes:' + isoData(new Date()).slice(0, 7), turno: 'todos', linha: 'todas', prefixo: 'todos', rev: 'todos' };
-const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, ok: false, planos: null };
+const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, pesadoEm: 0, ok: false, planos: null }, HIST_PESADO_MS = 2 * 3600e3;
 
 // histórico resumido: uma linha por trem, somada no servidor (03-indicadores.sql); renova a cada 5 min
 async function carregarHist() {
   if (DEMO) return;
   if (OFFLINE || Date.now() - HIST.em < 5 * 60e3) return;
   try {
+    // a parte pesada (resumos e materiais do Forms, ~850 KB) muda pouco: baixa no máximo a cada 2 h e fica guardada no aparelho
+    // (os trens do período do perfil vêm sempre de DB.trens, atualizados a cada minuto)
+    if (!HIST.lidoAparelho) { HIST.lidoAparelho = true; const c = await IDB.ler('hist'); if (c && c.me === DB.me.id && Date.now() - c.pesadoEm < HIST_PESADO_MS) { Object.assign(HIST, { trens: c.trens, mats: c.mats, det: c.det, pesadoEm: c.pesadoEm, planos: c.planos || null }); if (c.ap) Object.assign(AP, c.ap); } }
+    const pesado = !HIST.pesadoEm || Date.now() - HIST.pesadoEm > HIST_PESADO_MS;
     const [trens, mats, ret, det] = await Promise.all([
-      tudo(() => sb.from('resumo_trens').select('*').order('data').order('id')),
-      tudo(() => sb.from('resumo_materiais').select('*').order('trem_id').order('material').order('nome')),
+      pesado ? tudo(() => sb.from('resumo_trens').select('*').order('data').order('id')) : null,
+      pesado ? tudo(() => sb.from('resumo_materiais').select('*').order('trem_id').order('material').order('nome')) : null,
       tudo(() => sb.from('registros').select('trem_id,vagao,obs').contains('ocorrencias', ['Retenção de vagão']).order('trem_id').order('posicao')),
-      tudo(() => sb.from('trens_historico').select('id,materiais').order('id')).catch(() => [])          // vagões e posições lidos do Forms
+      pesado ? tudo(() => sb.from('trens_historico').select('id,materiais').order('id')).catch(() => []) : null          // vagões e posições lidos do Forms
     ]);
-    Object.assign(HIST, { trens, mats, ret, det: Object.fromEntries(det.map(x => [x.id, x.materiais])), em: Date.now(), ok: true });
+    if (pesado) Object.assign(HIST, { trens, mats, det: Object.fromEntries(det.map(x => [x.id, x.materiais])), pesadoEm: Date.now() });
+    Object.assign(HIST, { ret, em: Date.now(), ok: true });
     HIST.planos = await carregarPlanosExt();
     await carregarApont();
+    IDB.gravar('hist', { me: DB.me.id, pesadoEm: HIST.pesadoEm, trens: HIST.trens, mats: HIST.mats, det: HIST.det, planos: HIST.planos, ap: { carga: AP.carga, dias: AP.dias, erro: AP.erro } });
   } catch (e) {
     if (ehRede(e)) throw e;
     Object.assign(HIST, { trens: [], mats: [], ret: [], det: {}, em: Date.now(), ok: false });   // 03 ainda não rodado: usa só os 35 dias
@@ -2359,6 +2452,7 @@ async function carregarPlanosExt() {
   try {
     const { data: c, error } = await sb.from('planos_cargas').select('*').order('quando', { ascending: false }).limit(1);
     if (error || !c?.length) return error ? null : { carga: null, rows: [] };
+    if (HIST.planos?.carga?.id === c[0].id) return { ...HIST.planos, carga: c[0] };          // mesma planilha: não baixa de novo
     const rows = await tudo(() => sb.from('planos_vagoes').select('vagao,plano,data_inspecao,prioridade,trem,os,posicao,local,previsao').eq('carga_id', c[0].id).order('id'));
     return { carga: c[0], rows };
   } catch { return null; }
@@ -2374,7 +2468,9 @@ async function carregarApont() {
   try {
     const { data: c, error } = await sb.from('apont_cargas').select('*').order('quando', { ascending: false }).limit(1);
     if (error) { AP.erro = error.message; return; }
+    const mesma = AP.carga && c[0] && AP.carga.id === c[0].id && AP.dias.length;       // mesma planilha: não baixa de novo
     AP.erro = null; AP.carga = c[0] || null;
+    if (mesma) return;
     AP.dias = AP.carga ? await tudo(() => sb.from('apont_dia').select('data,sistema,qtd,brutos').eq('carga_id', AP.carga.id).order('data').order('sistema')) : [];
   } catch (e) { AP.erro = e.message; }
 }
@@ -3242,8 +3338,9 @@ async function entrar() {
   $('main').innerHTML = '<div class="card muted">Carregando…</div>';
   resetRaw();
   if (OFFLINE) { if (!usarCache()) { OFFLINE = false; lsGravar('rzto_offline', false); toast('Sem dados guardados neste aparelho: a nuvem foi religada'); } }
-  if (!OFFLINE) try { await carregar(true); } catch (e) {
-    if (!usarCache()) { $('main').innerHTML = `<div class="card"><p>Não consegui carregar os dados${ehRede(e) ? ' (sem internet)' : ': ' + esc(e.message)}.</p><button class="btn primary" data-act="recarregar">Tentar de novo</button></div>`; return; }
+  if (!OFFLINE) try { if (!DEMO && await restaurarRaw()) { await montarDados(); render(); } await carregar(); } catch (e) {
+    if (DB.carregado) semSinal = ehRede(e);                                    // ficou com a cópia do aparelho
+    else if (!usarCache()) { $('main').innerHTML = `<div class="card"><p>Não consegui carregar os dados${ehRede(e) ? ' (sem internet)' : ': ' + esc(e.message)}.</p><button class="btn primary" data-act="recarregar">Tentar de novo</button></div>`; return; }
     semSinal = ehRede(e); toast('Sem internet: mostrando os últimos dados guardados');
   }
   if (!S.novo) S.novo = novoVazio();
@@ -3288,7 +3385,7 @@ document.addEventListener('click', async e => {
     case 'sair': {
       if (OFFLINE && FILA.length) { toast(`Religue a nuvem antes de sair: ${FILA.length} alteração(ões) guardada(s) no aparelho`); return; }
       if (FILA.length && !confirm(`Há ${FILA.length} alteração(ões) ainda não enviada(s). Se sair agora, elas se perdem. Sair mesmo assim?`)) return;
-      await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
+      await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); IDB.apagar('raw'); IDB.apagar('hist'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
     }
     case 'recarregar': entrar(); return;
     case 'atualizar-app': if (FILA.length && !confirm(`Ainda há ${FILA.length} alteração(ões) para enviar. Elas ficam guardadas no aparelho. Atualizar mesmo assim?`)) return; location.reload(); return;
@@ -3300,7 +3397,7 @@ document.addEventListener('click', async e => {
       await processarFila(); HIST.em = 0; await atualizar(true);
       if (!FILA.length && n) toast('☁ Tudo enviado'); return;
     }
-    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; await processarFila(); await atualizar(true); return;
+    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; HIST.pesadoEm = 0; await processarFila(); await atualizar(true); return;
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
     case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
@@ -3378,7 +3475,7 @@ document.addEventListener('click', async e => {
         if (error) { toast('⚠ Não apaguei: ' + (/fetch|network/i.test(error.message) ? 'sem internet' : error.message)); return; }
         if (!data?.length) { toast('⚠ O banco não permitiu apagar. Peça ao programador para liberar (14-supervisor-apaga-trem.sql).'); return; }
       }
-      DB.trens = DB.trens.filter(x => x.id !== id); HIST.trens = HIST.trens.filter(x => x.id !== id);
+      DB.trens = DB.trens.filter(x => x.id !== id); HIST.trens = HIST.trens.filter(x => x.id !== id); HIST.pesadoEm = 0; IDB.apagar('hist');
       if (S.valTrem === id) S.valTrem = null;
       registrarLog('Apagou o trem ' + nome); toast('Trem ' + nome + ' apagado'); break;
     }
@@ -3478,7 +3575,7 @@ document.addEventListener('click', async e => {
       if (!novo || !motivo) { toast('Informe o novo término e o motivo'); return; }
       enviar({ tabela: 'trens', acao: 'update', dados: { fim: novo }, filtro: [['id', 'eq', M.id]], desc: 'Término do trem ' + M.prefixo });
       const t = tremQualquer(M.id); if (t) { t.fim = novo; t.durMin = t.inicio ? difMin(t.inicio, novo) : 0; }
-      const h = HIST.trens.find(x => x.id === M.id); if (h) h.fim = novo + ':00';
+      const h = HIST.trens.find(x => x.id === M.id); if (h) h.fim = novo + ':00'; HIST.pesadoEm = 0; IDB.apagar('hist');
       registrarLog(`Editou o término do trem ${M.prefixo} (${diaRot(M.data)}) de ${M.fim || '–'} para ${novo}. Motivo: ${motivo}`);
       S.modal = null; toast('Término do ' + M.prefixo + ' alterado para ' + novo); break;
     }
