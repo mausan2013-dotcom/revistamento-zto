@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.49';
+const VERSAO = '1.50';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -749,6 +749,8 @@ function montarTrem(t, eqs, regs, dsv, pex = [], par = []) {
 const planoDe = p => ({ id: p.id, titulo: p.titulo, desc: p.descricao || '', turno: p.turno, eq: p.equipe, por: p.criado_por ? C(p.criado_por).nome : '—', criada: horaDe(p.criado_em), criadaData: p.criado_em, status: p.status, feitaEm: horaDe(p.feito_em), obs: p.obs_equipe || '', validadaEm: horaDe(p.validado_em), coment: p.comentario || '' });
 
 // busca paginada (o servidor entrega no máximo 1000 linhas por vez)
+// paginação de 1000 em 1000: a ordem precisa ser ÚNICA (ex.: trem_id + posicao, ou id). Com ordem que empata
+// (só posicao, só data) o banco devolve os empates em ordem diferente a cada página e linhas somem/repetem (v1.50).
 async function tudo(montar) {
   const out = [];
   for (let i = 0; ; i += 1000) {
@@ -774,7 +776,7 @@ async function carregarPendentes(forcar) {
     PEND.em = Date.now();
     if (!c?.length) { Object.assign(PEND, { mapa: {}, carga: null, quando: null }); return; }
     if (PEND.carga === c[0].id) return;
-    const rows = await tudo(() => sb.from('planos_vagoes').select('vagao,plano,prioridade').eq('carga_id', c[0].id).is('data_inspecao', null));
+    const rows = await tudo(() => sb.from('planos_vagoes').select('vagao,plano,prioridade').eq('carga_id', c[0].id).is('data_inspecao', null).order('id'));
     const mapa = {}; rows.forEach(r => (mapa[r.vagao] ||= []).push({ plano: r.plano, prioridade: r.prioridade || '' }));
     Object.assign(PEND, { mapa, carga: c[0].id, quando: c[0].quando });
     lsGravar('rzto_pend', { mapa, carga: PEND.carga, quando: PEND.quando });
@@ -802,11 +804,11 @@ const tocadosVivos = () => { const ag = Date.now(); [...TOCADOS].forEach(([id, a
 const PLANO_ABERTO = ['aberta', 'feita', 'reaberta'];
 async function filhosDe(ids) {
   const [eqs, regs, dsv, pex, par] = ids.length ? await Promise.all([
-    emLotes(ids, l => sb.from('trem_equipes').select('*').in('trem_id', l)),
-    emLotes(ids, l => sb.from('registros').select('*').in('trem_id', l).order('posicao')),
-    emLotes(ids, l => sb.from('desvios').select('*').in('trem_id', l)),
-    emLotes(ids, l => sb.from('planos_execucao').select('trem_id,posicao,plano,realizado,quando,por').in('trem_id', l)).catch(() => []),  // 06-planos-execucao.sql
-    emLotes(ids, l => sb.from('paradas').select('*').in('trem_id', l)).catch(() => [])                                                    // 13-paradas.sql
+    emLotes(ids, l => sb.from('trem_equipes').select('*').in('trem_id', l).order('id')),
+    emLotes(ids, l => sb.from('registros').select('*').in('trem_id', l).order('trem_id').order('posicao')),
+    emLotes(ids, l => sb.from('desvios').select('*').in('trem_id', l).order('id')),
+    emLotes(ids, l => sb.from('planos_execucao').select('trem_id,posicao,plano,realizado,quando,por').in('trem_id', l).order('trem_id').order('posicao').order('plano')).catch(() => []),  // 06-planos-execucao.sql
+    emLotes(ids, l => sb.from('paradas').select('*').in('trem_id', l).order('id')).catch(() => [])                                                    // 13-paradas.sql
   ]) : [[], [], [], [], []];
   const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
   const pe = por(eqs, 'trem_id'), pr = por(regs, 'trem_id'), pd = por(dsv, 'trem_id'), px = por(pex, 'trem_id'), pp = por(par, 'trem_id');
@@ -822,10 +824,10 @@ async function carregarCompleto() {
   const prog = ehGestao(), dias = prog ? 35 : DB.me.perfil === 'supervisor' ? 7 : DB.me.perfil === 'especializado' ? 15 : 3;
   const desde = new Date(); desde.setDate(desde.getDate() - dias);
   const [colab, trens, planos, eqd, log] = await Promise.all([
-    tudo(() => sb.from('colaboradores').select('*').order('nome')),
-    tudo(() => sb.from('trens').select('*').or(`data.gte.${isoData(desde)},status.eq.andamento,validacao.eq.pendente`).order('criado_em')),
-    tudo(() => sb.from('planos').select('*').order('criado_em', { ascending: false })),
-    tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5)))),
+    tudo(() => sb.from('colaboradores').select('*').order('nome').order('id')),
+    tudo(() => sb.from('trens').select('*').or(`data.gte.${isoData(desde)},status.eq.andamento,validacao.eq.pendente`).order('criado_em').order('id')),
+    tudo(() => sb.from('planos').select('*').order('criado_em', { ascending: false }).order('id')),
+    tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5))).order('id')),
     ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve([])
   ]);
   if (!TEM_ORDEM) TEM_ORDEM = !(await sb.from('trens').select('ordem').limit(1)).error;           // 07-ordem-trens.sql
@@ -842,9 +844,9 @@ async function carregarVivos() {
   const filtroT = ['status.eq.andamento', 'validacao.eq.pendente', ...(busca.length ? [`id.in.(${busca.join(',')})`] : [])].join(',');
   const filtroP = [`status.in.(${PLANO_ABERTO.join(',')})`, ...(abertos.length ? [`id.in.(${abertos.join(',')})`] : [])].join(',');
   const [trens, planos, eqd] = await Promise.all([
-    tudo(() => sb.from('trens').select('*').or(filtroT).order('criado_em')),
-    tudo(() => sb.from('planos').select('*').or(filtroP)),
-    tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5))))
+    tudo(() => sb.from('trens').select('*').or(filtroT).order('criado_em').order('id')),
+    tudo(() => sb.from('planos').select('*').or(filtroP).order('id')),
+    tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5))).order('id'))
   ]);
   const ids = trens.map(t => t.id);
   await filhosDe(ids);
@@ -2337,10 +2339,10 @@ async function carregarHist() {
   if (OFFLINE || Date.now() - HIST.em < 5 * 60e3) return;
   try {
     const [trens, mats, ret, det] = await Promise.all([
-      tudo(() => sb.from('resumo_trens').select('*').order('data')),
-      tudo(() => sb.from('resumo_materiais').select('*')),
-      tudo(() => sb.from('registros').select('trem_id,vagao,obs').contains('ocorrencias', ['Retenção de vagão'])),
-      tudo(() => sb.from('trens_historico').select('id,materiais')).catch(() => [])          // vagões e posições lidos do Forms
+      tudo(() => sb.from('resumo_trens').select('*').order('data').order('id')),
+      tudo(() => sb.from('resumo_materiais').select('*').order('trem_id').order('material').order('nome')),
+      tudo(() => sb.from('registros').select('trem_id,vagao,obs').contains('ocorrencias', ['Retenção de vagão']).order('trem_id').order('posicao')),
+      tudo(() => sb.from('trens_historico').select('id,materiais').order('id')).catch(() => [])          // vagões e posições lidos do Forms
     ]);
     Object.assign(HIST, { trens, mats, ret, det: Object.fromEntries(det.map(x => [x.id, x.materiais])), em: Date.now(), ok: true });
     HIST.planos = await carregarPlanosExt();
@@ -2373,7 +2375,7 @@ async function carregarApont() {
     const { data: c, error } = await sb.from('apont_cargas').select('*').order('quando', { ascending: false }).limit(1);
     if (error) { AP.erro = error.message; return; }
     AP.erro = null; AP.carga = c[0] || null;
-    AP.dias = AP.carga ? await tudo(() => sb.from('apont_dia').select('data,sistema,qtd,brutos').eq('carga_id', AP.carga.id).order('data')) : [];
+    AP.dias = AP.carga ? await tudo(() => sb.from('apont_dia').select('data,sistema,qtd,brutos').eq('carga_id', AP.carga.id).order('data').order('sistema')) : [];
   } catch (e) { AP.erro = e.message; }
 }
 // leitor leve de .xlsx: o arquivo tem ~35 MB e 140 mil linhas; lê em partes, sem abrir tudo na memória
