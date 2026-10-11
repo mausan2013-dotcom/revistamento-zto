@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.52';
+const VERSAO = '1.53';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -881,8 +881,18 @@ async function conferirCarimbo() {
   if (TEM_CARIMBO === null) TEM_CARIMBO = !(await sb.from('equipes_dia').select('atualizado_em').limit(1)).error;   // 16-carimbo-alteracoes.sql
 }
 // completa = true força a carga do zero; sem argumento, decide pelo tempo
+// Confere se os SQL 07 (ordem da fila) e 12 (OS do trem) já rodaram. Roda em toda carga (v1.53): a abertura pela cópia do
+// aparelho não passa pela carga do zero. Só marca "não existe" quando o banco diz que a coluna falta; erro de rede não conta.
+async function conferirColunas() {
+  for (const [col, chave, set] of [['ordem', 'rzto_tem_ordem', v => TEM_ORDEM = v], ['os', 'rzto_tem_os', v => TEM_OS = v]]) {
+    if ((col === 'ordem' ? TEM_ORDEM : TEM_OS) === true) continue;
+    try { const { error } = await sb.from('trens').select(col).limit(1);
+      if (!error) { set(true); lsGravar(chave, true); } else if (/column|42703/i.test((error.code || '') + (error.message || ''))) set(false); } catch {}
+  }
+}
 async function carregar(completa) {
   if (DEMO) return;
+  await conferirColunas();
   await conferirCarimbo();
   if (completa || !RAW.zeroEm || Date.now() - RAW.zeroEm > CARGA_ZERO_MS || !TEM_CARIMBO && Date.now() - RAW.completaEm > CARGA_COMPLETA_MS) return carregarCompleto();
   if (Date.now() - RAW.completaEm > CARGA_COMPLETA_MS || isoData(desdePerfil()) !== isoData(RAW.desde || new Date(0))) return conferirJanela();
@@ -898,8 +908,6 @@ async function carregarCompleto() {
     tudo(() => sb.from('equipes_dia').select('*').gte('data', isoData(new Date(Date.now() - 2 * 864e5))).order('id')),
     ['programador', 'supervisor'].includes(DB.me.perfil) ? sb.from('gestao_log').select('*').order('quando', { ascending: false }).limit(60).then(r => r.data || []) : Promise.resolve([])
   ]);
-  if (!TEM_ORDEM) TEM_ORDEM = !(await sb.from('trens').select('ordem').limit(1)).error;           // 07-ordem-trens.sql
-  if (!TEM_OS) TEM_OS = !(await sb.from('trens').select('os').limit(1)).error;                    // 12-pcm-apontamentos.sql (confere de novo até existir)
   const filhos = RAW.filhos; RAW.filhos = {};
   try { await filhosDe(trens.map(t => t.id)); } catch (e) { RAW.filhos = filhos; throw e; }
   Object.assign(RAW, { trens: new Map(trens.map(t => [t.id, t])), planos: new Map(planos.map(x => [x.id, x])), colab, eqd, log, desde, completaEm: Date.now(), zeroEm: Date.now(), marca: '', sujo: true });
@@ -1050,7 +1058,7 @@ const T = () => ehGestao() ? S.turnoVer : DB.me.turno;                  // turno
 const meuTurnoV = () => T();
 const uidTec = () => DB.me.perfil === 'tecnico' ? DB.me.id : S.verTec;
 const atuais = () => DB.trens.filter(t => t.status === 'andamento');
-let TEM_ORDEM = null, TEM_OS = null;
+let TEM_ORDEM = lsLer('rzto_tem_ordem', null), TEM_OS = lsLer('rzto_tem_os', null);   // lembrados no aparelho: a coluna não some depois de criada
 // fila do turno: ordem definida pelo líder; sem ordem, pela chegada e pela criação
 // turno que assume depois do turno de serviço atual (pela escala)
 const ORDEM_H = ['6', '14', '22'];
@@ -1565,7 +1573,7 @@ function cardFila(tt) {
   if (f.length < 1) return '';
   const st = t => t.dist.every(d => d.termino) ? '<span class="tag ok">equipes terminaram</span>' : t.dist.some(d => d.inicio) ? '<span class="tag info">em revista</span>' : '<span class="tag neu">aguardando</span>';
   return `<div class="card fila"><h2>Fila de trens do turno <span class="dir">as equipes recebem nesta ordem</span></h2>
-    ${!TEM_ORDEM && f.length > 1 ? '<p class="nota" style="margin:0 0 8px">Para guardar a ordem, rode o <b>07-ordem-trens.sql</b> no Supabase. Até lá vale a hora de chegada.</p>' : ''}
+    ${TEM_ORDEM === false && f.length > 1 ? '<p class="nota" style="margin:0 0 8px">Para guardar a ordem, rode o <b>07-ordem-trens.sql</b> no Supabase. Até lá vale a hora de chegada.</p>' : ''}
     ${f.map((t, k) => `<div class="fila-item"><span class="fila-n">${k + 1}º</span><div class="fila-txt"><b>${esc(t.prefixo)}</b> <span class="small muted">${esc(t.linha)} · ${t.vagoes.length} vagões</span><br>${st(t)}</div>
       <div class="fila-mov"><button class="btn sm" data-act="fila-mover" data-id="${t.id}" data-v="-1" ${k === 0 || !TEM_ORDEM ? 'disabled' : ''} aria-label="Subir">▲</button><button class="btn sm" data-act="fila-mover" data-id="${t.id}" data-v="1" ${k === f.length - 1 || !TEM_ORDEM ? 'disabled' : ''} aria-label="Descer">▼</button></div></div>`).join('')}
   </div><div style="height:12px"></div>`;
@@ -3556,7 +3564,7 @@ document.addEventListener('click', async e => {
     }
     case 'editar-os': {
       const t = tremQualquer(el.dataset.id); if (!t) return;
-      if (!TEM_OS) { toast('Rode o 12-pcm-apontamentos.sql no Supabase'); return; }
+      if (TEM_OS === false) { toast('Rode o 12-pcm-apontamentos.sql no Supabase'); return; }
       const v2 = prompt(`OS do trem ${t.prefixo} (está na ficha, ao lado do prefixo):`, t.os || ''); if (v2 == null) return;
       const os = v2.replace(/\D/g, ''); if (v2.trim() && !os) { toast('Digite só os números da OS'); return; }
       t.os = os; enviar({ tabela: 'trens', acao: 'update', dados: { os: os || null }, filtro: [['id', 'eq', t.id]], desc: 'OS do trem ' + t.prefixo });
