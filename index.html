@@ -190,6 +190,8 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 
 .tt { position: fixed; z-index: 30; pointer-events: none; background: var(--card); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.18); border-radius: var(--radius-sm); padding: 6px 9px; font-size: 13px; max-width: 260px; }
 .tt[hidden] { display: none; }
+/* marca d'água com a versão: aparece em todas as telas (inclusive login), não atrapalha cliques e se vê em fundo claro e escuro */
+#marca-versao { position: fixed; right: 10px; bottom: 6px; z-index: 60; pointer-events: none; user-select: none; font: 700 11px/1 var(--font, system-ui, sans-serif); letter-spacing: .5px; color: #fff; mix-blend-mode: difference; opacity: .5; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(120px); background: var(--primary); color: var(--primary-ink); padding: 12px 18px; border-radius: var(--radius); font-weight: 700; z-index: 40; transition: transform .25s, opacity .25s; opacity: 0; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.on { transform: translateX(-50%) translateY(0); opacity: 1; }
 
@@ -430,6 +432,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .para-print .rcard .rv { font-size: 30px; } .para-print .rcard { padding: 12px 16px; }
 .obs-tec { margin-top: 4px; font-size: 12px; color: var(--ink); background: var(--bg); border-left: 3px solid var(--info); padding: 3px 6px; border-radius: 3px; white-space: normal; }
 </style>
+<div id="marca-versao" aria-hidden="true"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -606,7 +609,8 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.55';
+const VERSAO = '1.56';
+{ const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
