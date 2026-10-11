@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.53';
+const VERSAO = '1.54';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -878,7 +878,9 @@ async function sincEquipesDia() {
   RAW.eqd = lista.map(x => nv.get(x.id) || tinha.get(x.id)).filter(Boolean); RAW.sujo = true;
 }
 async function conferirCarimbo() {
-  if (TEM_CARIMBO === null) TEM_CARIMBO = !(await sb.from('equipes_dia').select('atualizado_em').limit(1)).error;   // 16-carimbo-alteracoes.sql
+  if (TEM_CARIMBO) return;                                  // 16-carimbo-alteracoes.sql; erro de rede não conta como "SQL não rodado"
+  try { const { error } = await sb.from('equipes_dia').select('atualizado_em').limit(1);
+    if (!error) TEM_CARIMBO = true; else if (/column|42703/i.test((error.code || '') + (error.message || ''))) TEM_CARIMBO = false; } catch {}
 }
 // completa = true força a carga do zero; sem argumento, decide pelo tempo
 // Confere se os SQL 07 (ordem da fila) e 12 (OS do trem) já rodaram. Roda em toda carga (v1.53): a abertura pela cópia do
