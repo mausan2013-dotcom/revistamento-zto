@@ -606,7 +606,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.54';
+const VERSAO = '1.55';
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
 const DOMINIO = 'revistamento.app';
@@ -809,7 +809,7 @@ const txtPlanos = l => l.map(x => x.plano).join(', ');
 // O carimbo (trens.atualizado_em) muda com qualquer gravação no trem, nos vagões, equipes, desvios, paradas e planos
 // do vagão (16-carimbo-alteracoes.sql). Sem o SQL 16, a leve volta ao jeito antigo (baixa os vivos inteiros).
 // RAW (linhas do banco) fica guardado no aparelho (IndexedDB): abrir o app não baixa tudo de novo.
-const CARGA_COMPLETA_MS = 20 * 60e3, CARGA_ZERO_MS = 12 * 3600e3;
+const CARGA_COMPLETA_MS = 10 * 60e3, CARGA_ZERO_MS = 12 * 3600e3;
 const RAW = { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, zeroEm: 0, desde: null, marca: '', sujo: false };
 const resetRaw = () => Object.assign(RAW, { trens: new Map(), filhos: {}, planos: new Map(), colab: [], eqd: [], log: [], completaEm: 0, zeroEm: 0, desde: null, marca: '', sujo: false });
 const vivoRaw = t => t.status === 'andamento' || t.validacao === 'pendente';
@@ -2445,7 +2445,7 @@ const META_MIN = 30, META_ADER = 85;                     // metas: tempo de revi
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const MESES_L = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const F = { per: 'mes:' + isoData(new Date()).slice(0, 7), turno: 'todos', linha: 'todas', prefixo: 'todos', rev: 'todos' };
-const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, pesadoEm: 0, ok: false, planos: null }, HIST_PESADO_MS = 2 * 3600e3;
+const HIST = { trens: [], mats: [], ret: [], det: {}, em: 0, pesadoEm: 0, ok: false, planos: null }, HIST_PESADO_MS = 15 * 60e3;
 
 // histórico resumido: uma linha por trem, somada no servidor (03-indicadores.sql); renova a cada 5 min
 async function carregarHist() {
@@ -3380,7 +3380,7 @@ async function atualizar(forcar) {
   if (ocupado && !forcar) return;
   try { await carregar(forcar); semSinal = false; render(); } catch (e) { if (ehRede(e)) { semSinal = true; indicador(); } }
 }
-const RECARGA_MS = 60e3;                                  // recarga leve (o app também atualiza ao voltar para a tela)
+const RECARGA_MS = 30e3;                                  // recarga leve (o app também atualiza ao voltar para a tela)
 setInterval(() => atualizar(false), RECARGA_MS);
 // versão nova publicada: avisa e, quando o app volta para a tela sem nada pendente, recarrega sozinho
 let NOVA = null;
