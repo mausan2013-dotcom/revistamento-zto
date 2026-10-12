@@ -350,6 +350,12 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .tabela tr.tot td { border-top: 2px solid var(--line); font-weight: 700; }
 .upload.plan-up { margin: 0; padding: 10px 12px; border-radius: 14px; }
 .upload.plan-up .ic { font-size: 22px; }
+.notas-busca { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
+.notas-busca label.campo { margin: 0; } .notas-busca .bts { display: flex; gap: 6px; }
+@media (max-width: 760px) { .notas-busca { grid-template-columns: 1fr 1fr; } .notas-busca .vag, .notas-busca .tipo, .notas-busca .bts { grid-column: 1 / -1; } }
+.nsap { padding: 10px 0; border-bottom: 1px solid var(--line); } .nsap:last-child { border-bottom: 0; }
+.nsap .topo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; } .nsap .topo a { font-weight: 800; color: var(--title); }
+.nsap .desc { margin: 4px 0 2px; font-weight: 600; } .nsap .det { font-size: 13px; color: var(--muted); }
 .aviso-plano { display: flex; gap: 8px; align-items: flex-start; background: var(--info-bg); color: var(--info); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 2px; font-size: 14px; }
 .aviso-plano b { color: var(--info); }
 .tag.plano { background: var(--info-bg); color: var(--info); white-space: normal; }
@@ -612,7 +618,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.58';
+const VERSAO = '1.59';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1366,11 +1372,11 @@ function entrarDemo() {
 // ---------- render geral ----------
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
-  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos']],
-  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos']],
-  tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos']],
-  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos']]
+  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
+  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
+  tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
+  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP'], ['cadastros', 'Cadastros']],
+  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']]
 };
 // apagar trem: programador, ou o líder (supervisor) nos trens do próprio turno
 const podeApagar = t => ehProg() || (DB.me?.perfil === 'supervisor' && t.turno === DB.me.turno);
@@ -2726,6 +2732,113 @@ async function enviarPlanilhaPlanos(arq) {
   return dados.length;
 }
 
+// ---------- Notas Abertas SAP (planilha Z369, notas M1/M2/M8) · 19-notas-sap.sql ----------
+// A gestão envia a planilha (cada envio substitui o anterior); todos os perfis buscam por vagão, tipo de nota e período.
+// A busca roda no servidor, 100 notas por vez: o celular não baixa as ~27 mil linhas.
+const NS = { carga: undefined, erro: null, lista: [], total: 0, buscando: false, carregando: false, feita: false, em: 0, q: { vag: '', tipo: '', de: '', ate: '' } };
+const NOTAS_PAG = 100;
+const erroNotas = m => /relation|does not exist|schema cache/i.test(m || '') ? 'Rode o 19-notas-sap.sql no Supabase' : m;
+async function carregarNotasCarga() {
+  if (DEMO) { NS.carga = null; NS.erro = 'Indisponível no modo demonstração'; return; }
+  try { const { data, error } = await sb.from('notas_cargas').select('*').order('quando', { ascending: false }).limit(1); if (error) throw error; NS.carga = data[0] || null; NS.erro = null; }
+  catch (e) { NS.carga = null; NS.erro = erroNotas(e.message); }
+}
+async function abrirNotas() {
+  NS.carregando = true; const antes = NS.carga?.id;
+  await carregarNotasCarga(); NS.em = Date.now(); NS.carregando = false;
+  if (NS.carga && (NS.carga.id !== antes || !NS.feita)) await buscarNotas(); else render();
+}
+async function buscarNotas(mais) {
+  if (!NS.carga) return;
+  const q = NS.q, dig = q.vag.replace(/\D/g, ''), ser = q.vag.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+  NS.buscando = true; render();
+  try {
+    let r = sb.from('notas_sap').select('*', { count: 'exact' }).eq('carga_id', NS.carga.id);
+    if (dig) r = r.ilike('vag_num', '%' + dig + '%');
+    if (ser) r = r.ilike('vagao', ser + '%');
+    if (q.tipo) r = r.eq('tp_nota', q.tipo);
+    if (q.de) r = r.gte('data_nota', q.de);
+    if (q.ate) r = r.lte('data_nota', q.ate);
+    const ini = mais ? NS.lista.length : 0;
+    const { data, error, count } = await r.order('data_nota', { ascending: false }).order('hora_nota', { ascending: false }).order('id').range(ini, ini + NOTAS_PAG - 1);
+    if (error) throw error;
+    NS.lista = mais ? NS.lista.concat(data) : data; NS.total = count ?? NS.lista.length; NS.erro = null; NS.feita = true;
+  } catch (e) { NS.erro = erroNotas(e.message); toast('⚠ ' + NS.erro); }
+  NS.buscando = false; render();
+}
+async function enviarPlanilhaNotas(arq) {
+  if (OFFLINE) throw new Error('Modo offline: toque no ☁ e religue a nuvem');
+  if (DEMO) throw new Error('Modo demonstração: nada é gravado');
+  await carregarXlsx();
+  const wb = XLSX.read(await arq.arrayBuffer(), { type: 'array', cellDates: true });
+  const k = x => semAcento(String(x ?? '')).replace(/[^a-z0-9]/g, '');
+  const cabDe = n => (XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, range: 0 })[0] || []).map(k);
+  const nomeAba = wb.SheetNames.find(n => { const c = cabDe(n); return c.includes('tpnota') && c.includes('nota') && c.some(x => x.startsWith('loc')); });
+  if (!nomeAba) throw new Error('Não achei a planilha Z369 (colunas Loc., TpNota e Nota)');
+  const aoa = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { header: 1, defval: null, raw: true }), cab = aoa[0].map(k);
+  const ix = (...nomes) => { for (const n of nomes) { const i = cab.indexOf(n); if (i >= 0) return i; } for (const n of nomes) { const i = cab.findIndex(c => c.startsWith(n)); if (i >= 0) return i; } return -1; };
+  const C = { data: ix('datadanota', 'data'), hora: ix('horadanota', 'hora'), loc: ix('loc'), resp: ix('resp'), parada: ix('parada'), tipo: ix('tpnota'), falha: ix('codfalha'), desc: ix('descricao'),
+    texto: ix('texto'), causa: ix('textodacausa'), status: ix('statussistema', 'status'), nota: ix('nota'), centrab: ix('centrab'), ordem: ix('ordem'), encerr: ix('dataencermto', 'dataenc') };
+  const v = (l, c) => c < 0 || l[c] == null ? null : (String(l[c] instanceof Date ? '' : l[c]).trim() || null);
+  const dia = x => { if (x == null || x === '') return null;
+    if (x instanceof Date) return isNaN(x) ? null : isoData(new Date(x.getTime() + 12 * 3600e3));        // meio-dia: evita virar o dia pelo fuso
+    const s = String(x).trim(); let m;
+    if ((m = s.match(/^(\d{4})(\d{2})(\d{2})$/))) return `${m[1]}-${m[2]}-${m[3]}`;                       // 20261009 (SAP)
+    if ((m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/))) return `${m[3]}-${pad(m[2])}-${pad(m[1])}`;
+    if ((m = s.match(/^\d{4}-\d{2}-\d{2}/))) return m[0];
+    if (/^\d{5}(\.\d+)?$/.test(s)) return isoData(new Date(Math.round((+s - 25569) * 864e5) + 12 * 3600e3));  // número de série do Excel
+    return null; };
+  const hora = x => { if (x == null || x === '') return null; if (x instanceof Date) return pad(x.getHours()) + ':' + pad(x.getMinutes()) + ':' + pad(x.getSeconds());
+    const s = String(x).trim(); if (/^0?\.\d+$/.test(s)) { const t = Math.round(+s * 86400); return pad(Math.floor(t / 3600)) + ':' + pad(Math.floor(t / 60) % 60) + ':' + pad(t % 60); } return s.slice(0, 8); };
+  const dados = [], tipos = {}; let fechadas = 0, de = null, ate = null;
+  aoa.slice(1).forEach(l => {
+    const loc = v(l, C.loc); if (!loc) return;
+    if (C.encerr >= 0 && dia(l[C.encerr])) { fechadas++; return; }                                  // nota encerrada não entra
+    const d = { data_nota: C.data >= 0 ? dia(l[C.data]) : null, hora_nota: C.hora >= 0 ? hora(l[C.hora]) : null, vagao: codVagaoPlanilha(loc), vag_num: loc.replace(/\D/g, ''), loc,
+      resp: v(l, C.resp), parada: !!v(l, C.parada), tp_nota: (v(l, C.tipo) || '').toUpperCase() || null, cod_falha: v(l, C.falha), descricao: v(l, C.desc), texto: v(l, C.texto),
+      texto_causa: v(l, C.causa), status_sis: v(l, C.status), nota: v(l, C.nota), centrab: v(l, C.centrab), ordem: v(l, C.ordem), data_encerr: null };
+    dados.push(d); if (d.tp_nota) tipos[d.tp_nota] = (tipos[d.tp_nota] || 0) + 1;
+    if (d.data_nota) { if (!de || d.data_nota < de) de = d.data_nota; if (!ate || d.data_nota > ate) ate = d.data_nota; }
+  });
+  if (!dados.length) throw new Error('A planilha não tem notas abertas com vagão (coluna Loc.)');
+  const { data: c, error: e1 } = await sb.from('notas_cargas').insert({ arquivo: arq.name, linhas: dados.length, resumo: { tipos, de, ate } }).select().single();
+  if (e1) throw new Error(erroNotas(e1.message));
+  for (let i = 0; i < dados.length; i += 1000) {
+    toast(`Enviando notas… ${fmt(Math.min(i + 1000, dados.length))} de ${fmt(dados.length)}`);
+    const { error } = await sb.from('notas_sap').insert(dados.slice(i, i + 1000).map(d => ({ ...d, carga_id: c.id })));
+    if (error) { await sb.from('notas_cargas').delete().eq('id', c.id); throw new Error(error.message); }
+  }
+  await sb.from('notas_cargas').delete().neq('id', c.id);                          // fica só a carga nova (as notas antigas saem junto)
+  Object.assign(NS, { carga: c, em: Date.now(), lista: [], total: 0, feita: false });
+  return { n: dados.length, fechadas };
+}
+const upNotas = () => { if (NS.carga === undefined && !NS.carregando && ehGestao()) { NS.carregando = true; setTimeout(async () => { await carregarNotasCarga(); NS.carregando = false; render(); }); }
+  return ehGestao() ? `<label class="upload plan-up ${S.enviandoNotas ? 'lendo' : ''}"><input type="file" accept=".xlsx,.xls" data-act="notas-xlsx"><span class="ic">📄</span><span><b>${S.enviandoNotas ? 'Enviando…' : 'Enviar planilha Z369'}</b><br><span class="small muted">${NS.carga ? 'Atualizada ' + dataBR(new Date(NS.carga.quando)) + ' ' + horaDe(NS.carga.quando) + ' · ' + fmt(NS.carga.linhas) + ' notas' : NS.erro && /19-notas/.test(NS.erro) ? 'Rode o 19-notas-sap.sql' : 'Z369 Notas (M1, M2 e M8)'}</span></span></label>` : ''; };
+const dBR = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4) : '–';
+const partesSap = s => String(s || '').split('|').map(x => x.replace(/\*/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · ');
+function vistaNotas() {
+  if (!NS.carregando && Date.now() - NS.em > 10 * 60e3) { NS.carregando = true; setTimeout(abrirNotas); }    // carga nova a cada 10 min
+  const c = NS.carga, tipos = c?.resumo?.tipos || {}, q = NS.q;
+  const cab = `<div class="card"><h2>Notas Abertas SAP <span class="dir">${c ? `${fmt(c.linhas)} notas · atualizada ${dataBR(new Date(c.quando))} ${horaDe(c.quando)}` : ''}</span></h2>
+    <p class="small muted" style="margin:0 0 10px">Notas M1, M2 e M8 abertas no SAP (planilha Z369)${c?.resumo?.de ? `, de ${dBR(c.resumo.de)} a ${dBR(c.resumo.ate)}` : ''}${Object.keys(tipos).length ? ': ' + Object.entries(tipos).sort().map(([t, n]) => `<b>${esc(t)}</b> ${fmt(n)}`).join(' · ') : ''}.${ehGestao() ? ' A planilha nova substitui a anterior.' : ''}</p>
+    ${ehGestao() ? `<div style="max-width:420px;margin-bottom:12px">${upNotas()}</div>` : ''}
+    <div class="notas-busca">
+      <label class="campo vag">Vagão<input id="notas-vag" data-nq="vag" value="${esc(q.vag)}" placeholder="ex.: 350552 ou HTT 350552-9" inputmode="search" autocomplete="off"></label>
+      <label class="campo tipo">Tipo de nota<select data-nq="tipo"><option value="">Todos</option>${Object.keys(tipos).sort().map(t => `<option ${q.tipo === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+      <label class="campo">De<input type="date" data-nq="de" value="${esc(q.de)}"></label>
+      <label class="campo">Até<input type="date" data-nq="ate" value="${esc(q.ate)}"></label>
+      <span class="bts"><button class="btn primary" data-act="notas-buscar">🔍 Buscar</button>${q.vag || q.tipo || q.de || q.ate ? '<button class="btn" data-act="notas-limpar">✕ Limpar</button>' : ''}</span>
+    </div></div>`;
+  if (NS.carga === undefined || (NS.carregando && !NS.feita)) return cab + '<div class="card muted">Carregando as notas do SAP…</div>';
+  if (!c) return cab + `<div class="card muted">${NS.erro ? esc(NS.erro) : ehGestao() ? 'Nenhuma planilha enviada ainda. Envie a Z369 no campo acima.' : 'Nenhuma planilha de notas enviada ainda. A gestão (Programador ou PCM) envia a Z369.'}</div>`;
+  const lista = NS.lista.map(n => `<div class="nsap"><div class="topo"><a href="#" data-act="notas-vag" data-v="${esc(n.vagao)}">${esc(n.vagao)}</a><span class="tag info">${esc(n.tp_nota || '–')}</span><span class="small muted">${dBR(n.data_nota)}${n.hora_nota ? ' ' + esc(n.hora_nota.slice(0, 5)) : ''} · Nota ${esc(n.nota || '–')}</span>${n.status_sis ? `<span class="tag neu">${esc(n.status_sis)}</span>` : ''}${n.parada ? '<span class="tag warn">Parada</span>' : ''}</div>
+    <div class="desc">${esc(partesSap(n.descricao) || partesSap(n.texto) || '–')}</div>
+    <div class="det">${[n.texto_causa && 'Causa: ' + partesSap(n.texto_causa), n.cod_falha && 'Falha ' + n.cod_falha, n.resp && 'Resp. ' + n.resp, n.ordem && 'Ordem ' + n.ordem, n.centrab && 'CenTrab ' + n.centrab].filter(Boolean).map(esc).join(' · ')}</div></div>`).join('');
+  return cab + `<div class="card"><h2>${NS.buscando && !NS.lista.length ? 'Buscando…' : `${fmt(NS.total)} nota(s)`} <span class="dir">${NS.total > NS.lista.length ? `mostrando ${fmt(NS.lista.length)}` : ''}${NS.buscando ? ' · buscando…' : ''}</span></h2>
+    ${lista || `<p class="muted small" style="margin:0">${NS.buscando ? 'Buscando…' : 'Nenhuma nota aberta com esse filtro.'}</p>`}
+    ${NS.total > NS.lista.length ? `<button class="btn" style="margin-top:10px" data-act="notas-mais" ${NS.buscando ? 'disabled' : ''}>Mostrar mais ${fmt(Math.min(NOTAS_PAG, NS.total - NS.lista.length))}</button>` : ''}</div>`;
+}
+
 // junta o histórico (trens antigos) com os trens carregados em detalhe (mais recentes e sempre atualizados)
 function linhasHist() {
   const vistos = new Set(DB.trens.map(t => t.id)), mats = {}, ret = {};
@@ -3056,6 +3169,8 @@ function progAderencia() {
       ${planos.length ? '' : '<div class="rcard plano"><span class="muted small">Nenhum plano especial ainda.</span></div>'}
       <h3 style="margin-top:6px">Apontamentos</h3>
       <label class="upload plan-up"><input type="file" accept=".xlsx" data-act="apont-xlsx"><span class="ic">📈</span><span><b>${S.enviandoApont ? 'Lendo a planilha…' : 'Enviar planilha do dia'}</b><br><span class="small muted">${AP.carga ? 'Atualizada ' + dataBR(new Date(AP.carga.quando)) + ' ' + horaDe(AP.carga.quando) + ' · ' + fmt(AP.carga.contadas) + ' apontamentos' : 'app_revistamento.xlsx'}</span></span></label>
+      <h3 style="margin-top:6px">Notas Abertas SAP</h3>
+      ${upNotas()}
       ${planos.some(p => p.ritmo) ? `<p class="small muted leg-planos">✓ em linha ou no ritmo de fechar até ${PRAZO_PLANOS.split('-').reverse().slice(0, 2).join('/')} · ⚠ atrasado. Toque no ícone para ver o cálculo.</p>` : ''}
     </aside>
   </div>`;
@@ -3320,11 +3435,11 @@ function exportar(tipo) {
 }
 
 const VIEWS = {
-  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont },
-  tec: { meu: tecMeu, apont: vistaApont },
-  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont },
-  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, cadastros: progCadastros },
-  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont }
+  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, notas: vistaNotas },
+  tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
+  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, notas: vistaNotas },
+  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, notas: vistaNotas, cadastros: progCadastros },
+  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, notas: vistaNotas }
 };
 
 // ---------- login, troca de senha, entrada ----------
@@ -3821,6 +3936,10 @@ document.addEventListener('click', async e => {
     case 'exportar-mat': exportarMaterial(); return;
     case 'ver-vagao': e.preventDefault(); S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.aba[S.papel] = 'vagao'; break;
     case 'buscar': S.busca = $('busca').value; break;
+    case 'notas-buscar': buscarNotas(); return;
+    case 'notas-mais': buscarNotas(true); return;
+    case 'notas-limpar': NS.q = { vag: '', tipo: '', de: '', ate: '' }; buscarNotas(); return;
+    case 'notas-vag': e.preventDefault(); NS.q.vag = v; buscarNotas(); return;
     default: return;
   }
   render();
@@ -3866,6 +3985,13 @@ document.addEventListener('change', async e => {
     catch (err) { toast('⚠ ' + err.message); }
     S.enviandoPlanos = false; render();
   }
+  else if (a === 'notas-xlsx') {
+    const arq = el.files[0]; if (!arq) return;
+    S.enviandoNotas = true; render();
+    try { const r = await enviarPlanilhaNotas(arq); toast(`Notas SAP atualizadas: ${fmt(r.n)} notas abertas` + (r.fechadas ? ` (${fmt(r.fechadas)} encerradas ficaram de fora)` : '')); S.enviandoNotas = false; await buscarNotas(); }
+    catch (err) { toast('⚠ ' + err.message); }
+    S.enviandoNotas = false; render();
+  }
   else if (a === 'turno-ver') { S.turnoVer = el.value; S.planoTurno = el.value; S.novo = novoVazio(); S.valTrem = null; render(); }
   else if (a === 'ver-tec') { S.verTec = el.value; S.tecTrem = null; S.supLanca = false; render(); }
   else if (a === 'sup-data') { S.supData = el.value || dataOp(); S.supTrem = null; S.supLanca = false; render(); }
@@ -3900,6 +4026,7 @@ document.addEventListener('change', async e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.dataset?.nq) { NS.q[e.target.dataset.nq] = e.target.value.trim(); return; }
   if (e.target.id === 'retro-busca' && S.modal?.tipo === 'retro') { S.modal.q = e.target.value; $('retro-res').innerHTML = retroLista(S.modal); return; }
   if (e.target.id !== 'busca-falha') return;
   const q = semAcento(e.target.value.trim());
@@ -3908,6 +4035,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'busca') { S.busca = e.target.value; render(); }
+  if (e.key === 'Enter' && e.target.id === 'notas-vag') { NS.q.vag = e.target.value.trim(); buscarNotas(); }
   if (e.key === 'Escape' && S.modal) { S.modal = null; renderModal(); }
 });
 document.addEventListener('mousemove', e => {
