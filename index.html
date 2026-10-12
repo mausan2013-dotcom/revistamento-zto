@@ -350,6 +350,7 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .tabela tr.tot td { border-top: 2px solid var(--line); font-weight: 700; }
 .upload.plan-up { margin: 0; padding: 10px 12px; border-radius: 14px; }
 .upload.plan-up .ic { font-size: 22px; }
+.so-leitura .plan-up, .so-leitura .so-envio { display: none !important; }   /* visualizador: sem envio de planilhas (o banco também recusa) */
 .notas-busca { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
 .notas-busca label.campo { margin: 0; } .notas-busca .bts { display: flex; gap: 6px; }
 @media (max-width: 760px) { .notas-busca { grid-template-columns: 1fr 1fr; } .notas-busca .vag, .notas-busca .tipo, .notas-busca .bts { grid-column: 1 / -1; } }
@@ -618,7 +619,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.61';
+const VERSAO = '1.62';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -719,7 +720,7 @@ const MAX_REV = 12 * 60;                                     // acima disso a ho
 const horaFutura = h => difMin(h, agora()) > MAX_REV;      // "23:50" digitado às 23:40 daria 23 h 50 de revisão
 const MOTIVOS_DESVIO = ['Aguardando partida / entrada de trem', 'Sem autorização para transpor linha', 'Intervenção mecânica em vagão', 'Equipe em intervalo', 'Falha de comunicação', 'Manobra da composição', 'Outro'];
 const MOTIVOS_AFAST = ['Atestado médico', 'Férias', 'Licença', 'Afastamento INSS', 'Treinamento', 'Outro'];
-const PERFIS = { tecnico: 'Técnico', supervisor: 'Supervisor', especializado: 'Especializado', programador: 'Programador', pcm: 'PCM/Eng' };
+const PERFIS = { tecnico: 'Técnico', supervisor: 'Supervisor', especializado: 'Especializado', programador: 'Programador', pcm: 'PCM/Eng', visualizador: 'Visualizador' };
 
 // ---------- escala 8 horas (ciclo de 8 dias) ----------
 const CICLO = ['6', '6', '14', '14', '22', '22', 'R', 'F'];
@@ -884,7 +885,7 @@ const IDB = (() => {
   const tx = async (modo, f) => { const db = await abrir(); return new Promise((ok, erro) => { const t = db.transaction('kv', modo), req = f(t.objectStore('kv')); t.oncomplete = () => ok(req.result); t.onerror = () => erro(t.error); }); };
   return { ler: k => tx('readonly', s => s.get(k)).catch(() => null), gravar: (k, v) => tx('readwrite', s => s.put(v, k)).catch(() => {}), apagar: k => tx('readwrite', s => s.delete(k)).catch(() => {}) };
 })();
-const diasPerfil = () => ehGestao() ? 35 : DB.me.perfil === 'supervisor' ? 7 : DB.me.perfil === 'especializado' ? 15 : 3;
+const diasPerfil = () => veIndic() ? 35 : DB.me.perfil === 'supervisor' ? 7 : DB.me.perfil === 'especializado' ? 15 : 3;
 const desdePerfil = () => { const d = new Date(); d.setDate(d.getDate() - diasPerfil()); return d; };
 const filtroJanela = desde => `data.gte.${isoData(desde)},status.eq.andamento,validacao.eq.pendente`;
 function marcar(rows) { rows.forEach(t => { if (t.atualizado_em && t.atualizado_em > RAW.marca) RAW.marca = t.atualizado_em; }); }
@@ -961,11 +962,11 @@ async function carregar(completa) {
   await conferirCarimbo();
   if (completa || !RAW.zeroEm || Date.now() - RAW.zeroEm > CARGA_ZERO_MS || !TEM_CARIMBO && Date.now() - RAW.completaEm > CARGA_COMPLETA_MS) return carregarCompleto();
   if (Date.now() - RAW.completaEm > CARGA_COMPLETA_MS || isoData(desdePerfil()) !== isoData(RAW.desde || new Date(0))) return conferirJanela();
-  if (ehGestao() && !HIST.ok) await carregarHist();                  // reabriu o app: histórico guardado no aparelho
+  if (veIndic() && !HIST.ok) await carregarHist();                  // reabriu o app: histórico guardado no aparelho
   return carregarVivos();
 }
 async function carregarCompleto() {
-  const prog = ehGestao(), desde = desdePerfil();
+  const prog = veIndic(), desde = desdePerfil();
   const [colab, trens, planos, eqd, log] = await Promise.all([
     tudo(() => sb.from('colaboradores').select('*').order('nome').order('id')),
     tudo(() => sb.from('trens').select('*').or(filtroJanela(desde)).order('criado_em').order('id')),
@@ -982,7 +983,7 @@ async function carregarCompleto() {
 }
 // a cada 20 min: confere a lista de trens do período (id + carimbo) e baixa só o que mudou
 async function conferirJanela() {
-  const prog = ehGestao(), desde = desdePerfil();
+  const prog = veIndic(), desde = desdePerfil();
   const [lista, colab, planos, log] = await Promise.all([
     tudo(() => sb.from('trens').select('id,atualizado_em').or(filtroJanela(desde)).order('id')),
     tudo(() => sb.from('colaboradores').select('*').order('nome').order('id')),
@@ -1032,7 +1033,7 @@ async function carregarVivos() {
 }
 // monta DB a partir de RAW (vale para as duas cargas)
 async function montarDados() {
-  const prog = ehGestao(), desde = RAW.desde || new Date(0);
+  const prog = veIndic(), desde = RAW.desde || new Date(0);
   DB.colab = RAW.colab; recalcCurto();
   DB.me = RAW.colab.find(x => x.id === DB.me.id) || DB.me;
   const trens = [...RAW.trens.values()].sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em))), F0 = { eqs: [], regs: [], dsv: [], pex: [], par: [] };
@@ -1140,10 +1141,13 @@ const S = {
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
   novo: null, busca: '', relData: null, relPref: 'todos', relTurno: 'todos', supLanca: false, supData: null, supTrem: null, apDia: '', apTurno: '', apPref: '', apBusca: '', apTipo: '', tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
-const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog', pcm: 'pcm' };
+const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog', pcm: 'pcm', visualizador: 'vis' };
 const ehProg = () => DB.me?.perfil === 'programador';
 const ehGestao = () => ['programador', 'pcm'].includes(DB.me?.perfil);     // programador e PCM: indicadores de todos os turnos
-const T = () => ehGestao() ? S.turnoVer : DB.me.turno;                  // turno da tela atual
+// visualizador (v1.62, SQL 20): só lê Painel geral e Aderência; carrega os dados como a gestão, sem nenhum envio
+const ehVis = () => DB.me?.perfil === 'visualizador';
+const veIndic = () => ehGestao() || ehVis();
+const T = () => veIndic() ? S.turnoVer : DB.me.turno;                  // turno da tela atual
 const meuTurnoV = () => T();
 const uidTec = () => DB.me.perfil === 'tecnico' ? DB.me.id : S.verTec;
 const atuais = () => DB.trens.filter(t => t.status === 'andamento');
@@ -1438,20 +1442,21 @@ const ABAS = {
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
   prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']]
+  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
+  vis: [['geral', 'Painel geral'], ['aderencia', 'Aderência']]
 };
 // apagar trem: programador, ou o líder (supervisor) nos trens do próprio turno
 const podeApagar = t => ehProg() || (DB.me?.perfil === 'supervisor' && t.turno === DB.me.turno);
 const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
 function barraProg() {
   if (!ehProg()) return '';
-  const papeis = [['prog', 'Programador'], ['pcm', 'PCM/Eng'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico']];
+  const papeis = [['prog', 'Programador'], ['pcm', 'PCM/Eng'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico'], ['vis', 'Visualizador']];
   const tecs = ativos(S.turnoVer);
   if (S.papel === 'tec' && !tecs.includes(S.verTec)) S.verTec = tecs[0] || null;
   const demo = DEMO ? '<span class="demo-tag">🎬 DEMONSTRAÇÃO · dados fictícios, nada é gravado</span><button class="btn sm" data-act="demo-sair">Sair da demonstração</button>'
     : podeDemo() ? '<button class="btn sm" data-act="demo-entrar" title="Dados fictícios; nada é gravado">🎬 Modo demonstração</button>' : '';
   return `${demo}<b>Acesso total</b><span>ver como:</span><span class="seg">${papeis.map(([k, l]) => `<button data-act="papel" data-v="${k}" class="${S.papel === k ? 'on' : ''}">${l}</button>`).join('')}</span>
-    ${!['prog', 'pcm'].includes(S.papel) ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
+    ${!['prog', 'pcm', 'vis'].includes(S.papel) ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
     ${S.papel === 'tec' ? `<span>mecânico <select data-act="ver-tec">${tecs.map(id => `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select></span>` : ''}`;
 }
 function render() {
@@ -1462,9 +1467,10 @@ function render() {
     tec: [(n ? 'Equipe ' + n : 'Sem equipe hoje') + ' · Turno ' + t, uidTec() ? nomeTec(uidTec()) : ''],
     esp: ['Validador técnico' + (ehProg() ? '' : ' · ' + curtoV(DB.me)), 'Turno ' + t],
     prog: ['Programador · ' + DB.me.nome.split(' ')[0], 'Acesso total'],
-    pcm: ['PCM/Eng · ' + DB.me.nome.split(' ')[0], 'Indicadores e planilhas'] }[S.papel];
+    pcm: ['PCM/Eng · ' + DB.me.nome.split(' ')[0], 'Indicadores e planilhas'],
+    vis: ['Visualizador' + (ehVis() ? ' · ' + DB.me.nome.split(' ')[0] : ''), 'Somente leitura'] }[S.papel];
   $('quem').innerHTML = `<b>${esc(quem[0])}</b>${esc(quem[1])}`;
-  $('sub').textContent = { sup: 'Liderança do turno', tec: 'Revista de vagões', esp: 'Validação técnica', prog: 'Análise de dados', pcm: 'PCM/Eng · indicadores' }[S.papel];
+  $('sub').textContent = { sup: 'Liderança do turno', tec: 'Revista de vagões', esp: 'Validação técnica', prog: 'Análise de dados', pcm: 'PCM/Eng · indicadores', vis: 'Indicadores · somente leitura' }[S.papel];
   if (!VIEWS[S.papel][S.aba[S.papel]]) S.aba[S.papel] = ABAS[S.papel][0][0];
   const aba = S.aba[S.papel];
   const pendTec = S.papel === 'tec' ? DB.planos.filter(p => p.turno === t && (n == null || p.eq === n) && ['aberta', 'reaberta'].includes(p.status)).length : 0;
@@ -1473,7 +1479,7 @@ function render() {
   // programador: muitas abas, então vira lista suspensa
   if (S.papel === 'prog') $('tabs').innerHTML = `<label class="aba-sel"><span>Tela</span><select data-act="aba-sel" aria-label="Escolher a tela">${ABAS.prog.map(([k, l]) => `<option value="${k}" ${k === aba ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
   else $('tabs').innerHTML = ABAS[S.papel].map(([k, l]) => `<button data-act="aba" data-v="${k}" class="${k === aba ? 'on' : ''}">${l}${k === 'tarefas' && pendTec ? `<span class="n">${pendTec}</span>` : ''}${k === 'validacao' && nVal ? `<span class="n">${nVal}</span>` : ''}${k === 'planos' && nPlan ? `<span class="n">${nPlan}</span>` : ''}${k === 'turno' && prontos ? `<span class="n">${prontos}</span>` : ''}</button>`).join('');
-  $('main').className = S.papel === 'tec' ? 'estreito' : '';
+  $('main').className = S.papel === 'tec' ? 'estreito' : ''; document.body.classList.toggle('so-leitura', S.papel === 'vis');
   $('main').innerHTML = VIEWS[S.papel][aba]();
   document.querySelectorAll('.rol-x').forEach(e => e.scrollLeft = e.scrollWidth);
   arrumarGrid(); renderModal(); indicador(); mostrarRejeitados();
@@ -3231,9 +3237,9 @@ function progAderencia() {
       <label class="upload plan-up"><input type="file" accept=".xlsx,.xls" data-act="planos-xlsx"><span class="ic">📊</span><span><b>${S.enviandoPlanos ? 'Enviando…' : 'Enviar planilha do dia'}</b><br><span class="small muted">${HIST.planos?.carga ? 'Atualizada ' + dataBR(new Date(HIST.planos.carga.quando)) + ' ' + horaDe(HIST.planos.carga.quando) + ' · ' + fmt(HIST.planos.carga.linhas) + ' vagões' : HIST.planos === null ? 'Rode o 05-planos-especiais.sql' : 'Planos Especiais 2026.xlsx'}</span></span></label>
       ${planos.map(p => `<div class="rcard plano"><div class="rr">${esc(p.titulo)}</div><div class="fr"><div><span>Faltam:</span><b>${fmt(p.faltam)}</b></div><i></i><div><span>Realizados:</span><b>${fmt(p.realizados)}</b></div>${p.ritmo ? `<span class="st-plano" data-tip="${esc(p.ritmo.txt)}" aria-label="${p.ritmo.st === 'ok' ? 'Em dia' : 'Atrasado'}">${p.ritmo.st === 'ok' ? icoOk : icoAlerta}</span>` : ''}</div></div>`).join('')}
       ${planos.length ? '' : '<div class="rcard plano"><span class="muted small">Nenhum plano especial ainda.</span></div>'}
-      <h3 style="margin-top:6px">Apontamentos</h3>
+      <h3 class="so-envio" style="margin-top:6px">Apontamentos</h3>
       <label class="upload plan-up"><input type="file" accept=".xlsx" data-act="apont-xlsx"><span class="ic">📈</span><span><b>${S.enviandoApont ? 'Lendo a planilha…' : 'Enviar planilha do dia'}</b><br><span class="small muted">${AP.carga ? 'Atualizada ' + dataBR(new Date(AP.carga.quando)) + ' ' + horaDe(AP.carga.quando) + ' · ' + fmt(AP.carga.contadas) + ' apontamentos' : 'app_revistamento.xlsx'}</span></span></label>
-      <h3 style="margin-top:6px">Notas Abertas SAP</h3>
+      <h3 class="so-envio" style="margin-top:6px">Notas Abertas SAP</h3>
       ${upNotas()}
       ${planos.some(p => p.ritmo) ? `<p class="small muted leg-planos">✓ em linha ou no ritmo de fechar até ${PRAZO_PLANOS.split('-').reverse().slice(0, 2).join('/')} · ⚠ atrasado. Toque no ícone para ver o cálculo.</p>` : ''}
     </aside>
@@ -3503,7 +3509,8 @@ const VIEWS = {
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
   esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, notas: vistaNotas },
   prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, notas: vistaNotas, cadastros: progCadastros },
-  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, notas: vistaNotas }
+  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, notas: vistaNotas },
+  vis: { geral: progGeral, aderencia: progAderencia }
 };
 
 // ---------- login, troca de senha, entrada ----------
@@ -3568,7 +3575,7 @@ async function entrar() {
   DB.me = me; lsGravar('rzto_me', me);
   if (me.trocar_senha && !offline) return telaTrocarSenha();
   S.papel = PAPEL[me.perfil];
-  if (!['programador', 'pcm'].includes(me.perfil)) S.turnoVer = me.turno;
+  if (!['programador', 'pcm', 'visualizador'].includes(me.perfil)) S.turnoVer = me.turno;
   S.planoTurno = me.turno || SERVICO.turno;
   mostrarTela('tela-app');
   $('main').innerHTML = '<div class="card muted">Carregando…</div>';
@@ -4000,7 +4007,7 @@ document.addEventListener('click', async e => {
     case 'exportar': exportar(v); return;
     case 'mat-sel': S.matSel = S.matSel === v ? null : v; render(); if (S.matSel) setTimeout(() => $('mat-vagoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return;
     case 'exportar-mat': exportarMaterial(); return;
-    case 'ver-vagao': e.preventDefault(); S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.aba[S.papel] = 'vagao'; break;
+    case 'ver-vagao': e.preventDefault(); if (S.papel === 'vis' || (!VIEWS[S.papel].vagao && !ehProg())) return; S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.aba[S.papel] = 'vagao'; break;
     case 'buscar': S.busca = $('busca').value; break;
     case 'notas-buscar': buscarNotas(); return;
     case 'notas-mais': buscarNotas(true); return;
