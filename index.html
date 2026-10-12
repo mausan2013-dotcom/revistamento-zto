@@ -655,7 +655,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.65';
+const VERSAO = '1.66';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -868,6 +868,7 @@ const GRUPOS_NOTA = [
   ['Parafuso retentor engate F', d => /engate\|pino f\|/.test(d), () => false],
   ['Haste de manobra', d => /haste (de )?manobra/.test(d), t => /haste de manobra/.test(t)],
   ['Freio isolado', d => /\|freio\|isolado|freio isolado/.test(d) || /(^|\|)(fr|freio)\|timo(neria)?\|/.test(d) && /isol/.test(d), t => /freio:isolado/.test(t)],
+  ['Tirante quebrado', d => /(^|\|)(fr|freio)\|timo(neria)?\|tirante\|quebr/.test(d), () => false],
   ['Válvula de freio', d => /(^|\|)(fr|freio)\|/.test(d) && /valv|vlv/.test(d), () => false]
 ];
 function grupoNota(n) {
