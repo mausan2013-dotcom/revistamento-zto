@@ -192,6 +192,8 @@ label.campo textarea { min-height: 120px; font-family: ui-monospace, Menlo, mono
 .tt[hidden] { display: none; }
 /* marca d'água com a versão: aparece em todas as telas (inclusive login), não atrapalha cliques e se vê em fundo claro e escuro */
 #marca-versao { position: fixed; right: 10px; bottom: 6px; z-index: 60; pointer-events: none; user-select: none; font: 700 11px/1 var(--font, system-ui, sans-serif); letter-spacing: .5px; color: #fff; mix-blend-mode: difference; opacity: .5; }
+.rejeitados { position: fixed; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 44; width: min(560px, calc(100% - 32px)); background: #fff4e5; color: #5a3200; border: 2px solid var(--warn); border-radius: 10px; padding: 10px 12px; box-shadow: 0 6px 20px rgba(0,0,0,.25); font-size: 14px; }
+.rejeitados ul { margin: 4px 0 8px; padding-left: 18px; font-size: 12.5px; } .rejeitados .acoes { margin: 0; }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(120px); background: var(--primary); color: var(--primary-ink); padding: 12px 18px; border-radius: var(--radius); font-weight: 700; z-index: 40; transition: transform .25s, opacity .25s; opacity: 0; pointer-events: none; max-width: calc(100% - 32px); }
 .toast.on { transform: translateX(-50%) translateY(0); opacity: 1; }
 
@@ -459,6 +461,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 <div id="tt" class="tt" hidden></div>
 <div id="toast" class="toast"></div>
 <button id="nova-versao" class="nova-versao" data-act="atualizar-app" hidden></button>
+<div id="rejeitados" class="rejeitados" role="alert" hidden></div>
 <script>
 // Logo da Rumo (uso autorizado pela empresa, igual à Ferramentaria)
 const LOGO_RUMO = '<svg class="logo" role="img" aria-label="Rumo" viewBox="0 0 114 27" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#rumoClip)"><path fill-rule="evenodd" clip-rule="evenodd" d="M-0.000109514 25.8154H6.38353V16.8099C6.38353 13.2851 6.38368 6.80642 11.575 6.80642C12.555 6.76208 13.5326 6.94121 14.4332 7.33025V0.898625C13.7942 0.744051 13.1365 0.680374 12.4797 0.7095C8.66906 0.7095 6.0482 4.56636 5.76143 6.85348H5.66735V1.28217H-0.000976562L-0.000109514 25.8154Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M40.9186 1.28235H34.5323V13.2853C34.5323 16.431 33.5334 21.4332 28.9121 21.4332C24.8164 21.4332 24.7668 17.3827 24.7668 14.3809V1.28235H18.3831V16.7639C18.3831 22.2882 20.907 26.3856 26.7181 26.3856C28.2686 26.3872 29.7996 26.0364 31.1946 25.3596C32.5897 24.6828 33.8127 23.6978 34.7712 22.479H34.8679V25.8156H40.9194L40.9186 1.28235Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M47.3903 25.8154H53.7748V13.9039C53.7748 10.7129 54.2971 5.66188 58.5357 5.66188C62.2061 5.66188 62.206 8.90079 62.206 11.1906V25.8154H68.5896V13.9039C68.5896 10.7129 69.111 5.66188 73.3523 5.66188C77.0191 5.66188 77.019 8.90079 77.019 11.1906V25.8154H83.4035V10.332C83.4035 4.85394 81.6837 0.709413 75.6374 0.709413C74.0833 0.652283 72.5441 1.02725 71.1903 1.79261C69.8365 2.55798 68.7215 3.68376 67.9692 5.04483C66.5851 1.99415 64.1566 0.709413 60.7268 0.709413C59.2736 0.709517 57.844 1.0762 56.5701 1.7755C55.2963 2.47481 54.2194 3.48415 53.4392 4.71011H53.3434V1.28208H47.3894L47.3903 25.8154Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M104.735 6.86688L103.078 8.27591C101.777 7.69466 100.368 7.39511 98.9428 7.39693C97.4051 7.41166 95.8906 7.76951 94.5087 8.44435C93.1269 9.11918 91.9127 10.094 90.9556 11.2976C89.9985 12.5013 89.3223 13.9034 88.9761 15.4018C88.6299 16.9001 88.6224 18.4568 88.9544 19.9583C87.8765 18.0161 87.3174 15.8288 87.3313 13.6075C87.3313 7.29306 91.1497 2.17456 96.9607 2.17456C98.551 2.22071 100.102 2.67695 101.464 3.49907C102.826 4.32119 103.953 5.48128 104.735 6.86688Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M114 12.5331C114 16.3287 111.822 19.2223 108.368 20.7955L105.437 16.5507C106.492 14.934 107.054 13.045 107.054 11.1143C106.997 8.33273 105.839 5.6874 103.833 3.75969C101.827 1.83198 99.1373 0.779604 96.3556 0.833838H96.2724C97.6492 0.408752 99.077 0.173962 100.517 0.135986C107.965 0.136874 114 6.27818 114 12.5331Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M112.813 19.1024C111.15 23.1706 106.369 26.9324 100.43 26.9324C94.1115 26.9324 89.9313 22.6707 89.9313 17.4199C89.9329 16.1601 90.2278 14.918 90.7931 13.7921L95.157 14.7617C95.7785 19.3501 100.474 22.7834 105.139 22.7834C106.599 22.7133 108.031 22.3515 109.349 21.7193C110.667 21.087 111.844 20.1972 112.813 19.1024Z" fill="currentColor"/></g><defs><clipPath id="rumoClip"><rect width="114" height="26.7955" fill="white" transform="translate(0 0.136963)"/></clipPath></defs></svg>';
@@ -609,7 +612,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.56';
+const VERSAO = '1.57';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -978,6 +981,7 @@ async function montarDados() {
   DB.me = RAW.colab.find(x => x.id === DB.me.id) || DB.me;
   const trens = [...RAW.trens.values()].sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em))), F0 = { eqs: [], regs: [], dsv: [], pex: [], par: [] };
   DB.trens = trens.map(t => { const f = RAW.filhos[t.id] || F0; return montarTrem(t, f.eqs, f.regs, f.dsv, f.pex, f.par); });
+  somarPendentes();
   const planos = [...RAW.planos.values()].sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
   DB.planos = planos.filter(p => PLANO_ABERTO.includes(p.status) || new Date(p.criado_em) > desde).map(planoDe);
   DB.equipesDia = RAW.eqd;
@@ -999,6 +1003,7 @@ function usarCache() {
   const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
   const pe = por(c.eqs, 'trem_id'), pr = por(c.regs, 'trem_id'), pd = por(c.dsv, 'trem_id'), px = por(c.pex || [], 'trem_id'), pp = por(c.par || [], 'trem_id');
   DB.trens = c.trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || [], px[t.id] || [], pp[t.id] || []));
+  somarPendentes();
   DB.planos = c.planos.map(planoDe); DB.equipesDia = c.eqd; DB.carregado = true; DB.atualizadoEm = new Date(c.em);
   resetRaw(); c.trens.forEach(t => RAW.trens.set(t.id, t)); c.planos.forEach(x => RAW.planos.set(x.id, x)); Object.assign(RAW, { colab: c.colab, eqd: c.eqd });
   c.trens.forEach(t => { RAW.filhos[t.id] = { eqs: pe[t.id] || [], regs: pr[t.id] || [], dsv: pd[t.id] || [], pex: px[t.id] || [], par: pp[t.id] || [] }; });
@@ -1008,6 +1013,26 @@ function usarCache() {
 
 // ---------- fila de envio (funciona sem sinal: guarda no aparelho e envia quando voltar) ----------
 let FILA = lsLer('rzto_fila', []), enviando = false, semSinal = false, erroFila = '';
+// Lançamento recusado pelo banco (v1.57): não é mais descartado. Fica guardado no aparelho com o motivo, e um aviso fixo
+// oferece "Tentar de novo" ou "Descartar". Trem novo ainda não aceito continua na tela (ver somarPendentes).
+let REJ = lsLer('rzto_rejeitados', []);
+function mostrarRejeitados() {
+  const el = $('rejeitados'); if (!el) return;
+  if (!REJ.length || DEMO) { el.hidden = true; el.innerHTML = ''; return; }
+  const grupos = REJ.reduce((m, o) => { const k = o.desc || 'Alteração'; (m[k] ||= { n: 0, erro: o.erro }).n++; return m; }, {});
+  el.innerHTML = `<b>⚠ ${REJ.length} lançamento(s) não aceito(s) pelo sistema</b> (guardados neste aparelho)<ul>${Object.entries(grupos).map(([k, g]) => `<li><b>${esc(k)}</b>${g.n > 1 ? ' (' + g.n + ')' : ''}: ${esc(g.erro || '')}</li>`).join('')}</ul>
+    <div class="acoes"><button class="btn sm primary" data-act="rej-tentar">Tentar de novo</button><button class="btn sm" data-act="rej-descartar">Descartar</button></div>`;
+  el.hidden = false;
+}
+// trens criados neste aparelho que o banco ainda não tem (na fila ou recusados): continuam na tela
+function somarPendentes() {
+  const ops = [...REJ, ...FILA], tem = new Set(DB.trens.map(t => t.id));
+  ops.filter(o => o.tabela === 'trens' && o.acao === 'insert' && o.dados && !tem.has(o.dados.id)).forEach(o => {
+    const teq = ops.filter(x => x.tabela === 'trem_equipes' && x.acao === 'insert').flatMap(x => [].concat(x.dados)).filter(e => e.trem_id === o.dados.id);
+    const t = montarTrem({ validacao: 'pendente', ...o.dados, criado_em: new Date(o.quando || Date.now()).toISOString() }, teq, [], []);
+    t.naoEnviado = true; DB.trens.push(t); tem.add(t.id);
+  });
+}
 // modo offline manual: o usuário desliga a comunicação com a nuvem (sinal oscilando); tudo fica guardado no aparelho
 let OFFLINE = lsLer('rzto_offline', false);
 const precisaNuvem = () => { if (DEMO) { toast('🎬 Demonstração: isso não é enviado ao sistema'); return false; } if (!OFFLINE) return true; toast('📴 Modo offline: toque no ☁ e religue a nuvem para isso'); return false; };
@@ -1036,7 +1061,8 @@ async function processarFila() {
     try { erro = await executar(FILA[0]); } catch (e) { erro = e; }
     if (erro && ehRede(erro)) { semSinal = true; break; }
     semSinal = false;
-    if (erro) { erroFila = (FILA[0].desc || 'Alteração') + ' não foi aceita: ' + (erro.message || erro); toast('⚠ ' + erroFila); console.warn(erro, FILA[0]); }
+    if (erro) { erroFila = (FILA[0].desc || 'Alteração') + ' não foi aceita: ' + (erro.message || erro); toast('⚠ ' + erroFila); console.warn(erro, FILA[0]);
+      REJ.push({ ...FILA[0], erro: String(erro.message || erro), recusadoEm: Date.now() }); lsGravar('rzto_rejeitados', REJ); mostrarRejeitados(); }
     FILA.shift(); lsGravar('rzto_fila', FILA);
   }
   enviando = false; indicador();
@@ -1382,7 +1408,7 @@ function render() {
   $('main').className = S.papel === 'tec' ? 'estreito' : '';
   $('main').innerHTML = VIEWS[S.papel][aba]();
   document.querySelectorAll('.rol-x').forEach(e => e.scrollLeft = e.scrollWidth);
-  arrumarGrid(); renderModal(); indicador();
+  arrumarGrid(); renderModal(); indicador(); mostrarRejeitados();
 }
 // em telas largas, completa cada linha da grade: os cartões da linha dividem as colunas que sobrariam vazias
 function arrumarGrid() {
@@ -1522,7 +1548,7 @@ function cardTrem(t) {
       : d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
     return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span>${extra ? ' <span class="tag info">faixa extra</span>' : ''} <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}${txApoio ? `<br><b style="color:var(--info)">${txApoio}</b>` : ''}</span></div><div>${st}${t.status === 'andamento' && !d.termino ? ` <button class="btn sm" data-act="editar-eq" data-id="${t.id}" data-i="${i}" title="Trocar integrantes só neste trem">✏ Editar</button>` : ''}</div>${barra(p.n / p.total * 100)}${retirada && t.status === 'andamento' && doTurnoD && pendR ? `<button class="btn sm reaplicar" data-act="reaplicar-eq" data-id="${t.id}" data-i="${i}" title="Retirou por engano? Devolve os vagões que faltam para esta equipe">↩ Reaplicar a Equipe ${d.n} · ${pendR} vagão(ões) voltam para ela</button>` : ''}</div>`; }).join('');
   return `<div class="card">
-    <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} <span class="dir">${esc(t.linha)}</span></h2>
+    <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} ${t.naoEnviado ? '<span class="tag warn">⏳ ainda não está no sistema</span>' : ''}<span class="dir">${esc(t.linha)}</span></h2>
     <div class="os-linha">${t.os ? `<span class="os-tag">OS <b>${esc(t.os)}</b></span>` : '<span class="small muted">OS não informada</span>'}<button class="btn sm" data-act="editar-os" data-id="${t.id}">✏ ${t.os ? 'Corrigir' : 'Informar'} OS</button></div>
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px"><span class="grande">${Math.round(pct)}%</span><span class="muted small">inspecionado · ${ins} de ${t.vagoes.length} vagões${t.desvios.length ? ` · desvio ${dur(tempoDesvio(t))}` : ''}${(n => n ? ` · <b style="color:var(--info)">📋 ${n} com plano especial</b>` : '')(t.vagoes.filter(c => planosPend(c).length).length)}</span></div>
     ${barra(pct)}
@@ -3415,12 +3441,14 @@ document.addEventListener('click', async e => {
   switch (a) {
     case 'sair': {
       if (OFFLINE && FILA.length) { toast(`Religue a nuvem antes de sair: ${FILA.length} alteração(ões) guardada(s) no aparelho`); return; }
-      if (FILA.length && !confirm(`Há ${FILA.length} alteração(ões) ainda não enviada(s). Se sair agora, elas se perdem. Sair mesmo assim?`)) return;
-      await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); IDB.apagar('raw'); IDB.apagar('hist'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
+      if ((FILA.length || REJ.length) && !confirm(`Há ${FILA.length + REJ.length} alteração(ões) ainda não enviada(s) ou não aceita(s). Se sair agora, elas se perdem. Sair mesmo assim?`)) return;
+      await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); REJ = []; lsGravar('rzto_rejeitados', []); mostrarRejeitados(); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); IDB.apagar('raw'); IDB.apagar('hist'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
     }
     case 'recarregar': entrar(); return;
     case 'atualizar-app': if (FILA.length && !confirm(`Ainda há ${FILA.length} alteração(ões) para enviar. Elas ficam guardadas no aparelho. Atualizar mesmo assim?`)) return; location.reload(); return;
     case 'nuvem': S.modal = { tipo: 'nuvem' }; renderModal(); return;
+    case 'rej-tentar': if (!precisaNuvem()) return; FILA = REJ.map(({ erro, recusadoEm, ...o }) => o).concat(FILA); REJ = []; lsGravar('rzto_fila', FILA); lsGravar('rzto_rejeitados', REJ); erroFila = ''; mostrarRejeitados(); toast('Enviando de novo…'); await processarFila(); render(); return;
+    case 'rej-descartar': if (!confirm('Descartar ' + REJ.length + ' lançamento(s) não aceito(s)? Eles serão apagados deste aparelho e não poderão ser recuperados.')) return; REJ = []; lsGravar('rzto_rejeitados', REJ); erroFila = ''; mostrarRejeitados(); indicador(); render(); return;
     case 'nuvem-off': OFFLINE = true; lsGravar('rzto_offline', true); semSinal = false; S.modal = null; renderModal(); indicador(); toast('📴 Modo offline: seus lançamentos ficam guardados no aparelho'); return;
     case 'nuvem-on': {
       OFFLINE = false; lsGravar('rzto_offline', false); S.modal = null; renderModal(); indicador();
