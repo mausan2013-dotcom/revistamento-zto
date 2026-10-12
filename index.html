@@ -357,6 +357,42 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .nsap { padding: 10px 0; border-bottom: 1px solid var(--line); } .nsap:last-child { border-bottom: 0; }
 .nsap .topo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; } .nsap .topo a { font-weight: 800; color: var(--title); }
 .nsap .desc { margin: 4px 0 2px; font-weight: 600; } .nsap .det { font-size: 13px; color: var(--muted); }
+/* Portal de Câmeras (v1.63): cor própria (roxo) para não confundir com plano especial e nota SAP */
+:root { --cam: #6a3fb5; --cam-bg: #f1ebfb; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --cam: #c3a6f5; --cam-bg: #2c2045; } }
+.vg .det.av.cam { color: var(--cam); }
+.pl-acoes.cam-acoes { border-left-color: var(--cam); background: var(--cam-bg); }
+.pl-acoes.cam-acoes + .pl-acoes, .pl-acoes + .pl-acoes.cam-acoes { border-radius: 0; }
+.cam-ret { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; align-items: start; font-size: 13px; color: var(--ink); }
+.cam-ret + .cam-ret { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.cam-ret b { color: var(--cam); }
+.cam-mini, .cam-foto { width: 64px; height: 64px; border-radius: var(--radius-sm); overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--bg); border: 1px solid var(--line); font-size: 24px; flex: none; }
+.cam-mini img, .cam-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-bts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cam-bts .btn.on-ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+.cam-bts .btn.on-bad { background: var(--bad); border-color: var(--bad); color: #fff; }
+.cam-bts .btn.on-warn { background: var(--warn); border-color: var(--warn); color: #fff; }
+.cam-bts .btn.on-neu { background: var(--muted); border-color: var(--muted); color: var(--card); }
+.aviso-cam { display: grid; gap: 8px; background: var(--cam-bg); border-left: 4px solid var(--cam); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 2px; font-size: 14px; }
+.aviso-cam > b { color: var(--cam); }
+.cam-grade { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 12px; }
+@media (max-width: 760px) { .cam-grade { grid-template-columns: minmax(0, 1fr); } }
+.upload.cam-drop { flex-direction: column; text-align: center; justify-content: center; min-height: 230px; margin: 0; position: relative; }
+.cam-drop img { width: 100%; max-height: 260px; object-fit: contain; border-radius: var(--radius-sm); }
+.cam-drop .ic { font-size: 44px; }
+.cam-drop.sobre { background: var(--info-bg); }
+.cam-form label.campo textarea { font-family: inherit; font-size: 16px; min-height: 84px; }
+.cam-chips { margin: -4px 0 10px; } .cam-chips .chip { font-size: 12px; padding: 4px 10px; }
+.cam-busca { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; margin-bottom: 10px; }
+.cam-busca label.campo { margin: 0; } .cam-busca .bts { display: flex; gap: 6px; flex-wrap: wrap; }
+.cam-item { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.cam-item:first-child { padding-top: 0; } .cam-item:last-of-type { border-bottom: 0; }
+.cam-item .cam-foto { width: 96px; height: 96px; }
+.cam-item .topo { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; } .cam-item .vg-cod { color: var(--title); font-size: 16px; }
+.cam-item .desc { margin: 4px 0 2px; font-weight: 700; color: var(--title); }
+.cam-item .det { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+.cam-obs { font-size: 13px; background: var(--bg); border-radius: var(--radius-sm); padding: 4px 8px; margin: 4px 0; }
+@media (max-width: 420px) { .cam-item { grid-template-columns: 72px minmax(0, 1fr); } .cam-item .cam-foto { width: 72px; height: 72px; } }
 .aviso-plano { display: flex; gap: 8px; align-items: flex-start; background: var(--info-bg); color: var(--info); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 2px; font-size: 14px; }
 .aviso-plano b { color: var(--info); }
 .tag.plano { background: var(--info-bg); color: var(--info); white-space: normal; }
@@ -619,7 +655,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.62';
+const VERSAO = '1.63';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -720,7 +756,7 @@ const MAX_REV = 12 * 60;                                     // acima disso a ho
 const horaFutura = h => difMin(h, agora()) > MAX_REV;      // "23:50" digitado às 23:40 daria 23 h 50 de revisão
 const MOTIVOS_DESVIO = ['Aguardando partida / entrada de trem', 'Sem autorização para transpor linha', 'Intervenção mecânica em vagão', 'Equipe em intervalo', 'Falha de comunicação', 'Manobra da composição', 'Outro'];
 const MOTIVOS_AFAST = ['Atestado médico', 'Férias', 'Licença', 'Afastamento INSS', 'Treinamento', 'Outro'];
-const PERFIS = { tecnico: 'Técnico', supervisor: 'Supervisor', especializado: 'Especializado', programador: 'Programador', pcm: 'PCM/Eng', visualizador: 'Visualizador' };
+const PERFIS = { tecnico: 'Técnico', supervisor: 'Supervisor', especializado: 'Especializado', programador: 'Programador', pcm: 'PCM/Eng', visualizador: 'Visualizador', camera: 'Assistente Câmeras', camera_sup: 'Supervisor Câmeras' };
 
 // ---------- escala 8 horas (ciclo de 8 dias) ----------
 const CICLO = ['6', '6', '14', '14', '22', '22', 'R', 'F'];
@@ -958,12 +994,22 @@ async function conferirColunas() {
 }
 async function carregar(completa) {
   if (DEMO) return;
+  if (ehCam()) return carregarCam(completa);
   await conferirColunas();
   await conferirCarimbo();
   if (completa || !RAW.zeroEm || Date.now() - RAW.zeroEm > CARGA_ZERO_MS || !TEM_CARIMBO && Date.now() - RAW.completaEm > CARGA_COMPLETA_MS) return carregarCompleto();
   if (Date.now() - RAW.completaEm > CARGA_COMPLETA_MS || isoData(desdePerfil()) !== isoData(RAW.desde || new Date(0))) return conferirJanela();
   if (veIndic() && !HIST.ok) await carregarHist();                  // reabriu o app: histórico guardado no aparelho
   return carregarVivos();
+}
+// equipe de câmeras (v1.63): não baixa trens; só os colaboradores (nomes) e os apontamentos do período
+async function carregarCam(completa) {
+  if (completa || !DB.colab?.length || Date.now() - (CAM.colabEm || 0) > 10 * 60e3) {
+    DB.colab = await tudo(() => sb.from('colaboradores').select('*').order('nome').order('id')); recalcCurto(); CAM.colabEm = Date.now();
+    DB.me = DB.colab.find(x => x.id === DB.me.id) || DB.me;
+  }
+  Object.assign(DB, { trens: [], planos: [], equipesDia: [], log: [], carregado: true, atualizadoEm: new Date() });
+  await camCarregar(completa);
 }
 async function carregarCompleto() {
   const prog = veIndic(), desde = desdePerfil();
@@ -1045,6 +1091,7 @@ async function montarDados() {
   if (prog) DB.planosTodos = planos.map(planoDe);
   await carregarPendentes();
   await carregarNotasTec();
+  await carregarCamTec();
   DB.log = RAW.log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
   sincronizarEquipes();
   DB.carregado = true; DB.atualizadoEm = new Date();
@@ -1097,6 +1144,7 @@ const precisaNuvem = () => { if (DEMO) { toast('🎬 Demonstração: isso não �
 function enviar(op) { if (DEMO) return; marcarTocado(op); FILA.push({ ...op, quando: Date.now() }); lsGravar('rzto_fila', FILA); processarFila(); indicador(); }
 const ehRede = e => !e?.code && /fetch|network|Failed|Load failed|NetworkError/i.test(String(e?.message || e));
 async function executar(op) {
+  if (op.acao === 'rpc') return (await sb.rpc(op.fn, op.args)).error;
   if (op.acao === 'foto') {
     const blob = await (await fetch(op.dataURL)).blob();
     const up = await sb.storage.from('fotos').upload(op.path, blob, { contentType: 'image/jpeg', upsert: true });
@@ -1141,7 +1189,7 @@ const S = {
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
   novo: null, busca: '', relData: null, relPref: 'todos', relTurno: 'todos', supLanca: false, supData: null, supTrem: null, apDia: '', apTurno: '', apPref: '', apBusca: '', apTipo: '', tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
 };
-const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog', pcm: 'pcm', visualizador: 'vis' };
+const PAPEL = { tecnico: 'tec', supervisor: 'sup', especializado: 'esp', programador: 'prog', pcm: 'pcm', visualizador: 'vis', camera: 'cam', camera_sup: 'camsup' };
 const ehProg = () => DB.me?.perfil === 'programador';
 const ehGestao = () => ['programador', 'pcm'].includes(DB.me?.perfil);     // programador e PCM: indicadores de todos os turnos
 // visualizador (v1.62, SQL 20): só lê Painel geral e Aderência; carrega os dados como a gestão, sem nenhum envio
@@ -1441,22 +1489,24 @@ const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  vis: [['geral', 'Painel geral'], ['aderencia', 'Aderência']]
+  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['cadastros', 'Cadastros']],
+  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
+  vis: [['geral', 'Painel geral'], ['aderencia', 'Aderência']],
+  cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard']],
+  camsup: [['camnovo', 'Novo apontamento'], ['camhist', 'Ocorrências da equipe'], ['cammeus', 'Minhas ocorrências'], ['camdash', 'Dashboard']]
 };
 // apagar trem: programador, ou o líder (supervisor) nos trens do próprio turno
 const podeApagar = t => ehProg() || (DB.me?.perfil === 'supervisor' && t.turno === DB.me.turno);
 const minhaEqN = () => EQ(T()).find(e => e.membros.includes(uidTec()))?.n ?? null;
 function barraProg() {
   if (!ehProg()) return '';
-  const papeis = [['prog', 'Programador'], ['pcm', 'PCM/Eng'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico'], ['vis', 'Visualizador']];
+  const papeis = [['prog', 'Programador'], ['pcm', 'PCM/Eng'], ['sup', 'Supervisor'], ['esp', 'Especializado'], ['tec', 'Técnico'], ['vis', 'Visualizador'], ['cam', 'Assist. Câmeras'], ['camsup', 'Sup. Câmeras']];
   const tecs = ativos(S.turnoVer);
   if (S.papel === 'tec' && !tecs.includes(S.verTec)) S.verTec = tecs[0] || null;
   const demo = DEMO ? '<span class="demo-tag">🎬 DEMONSTRAÇÃO · dados fictícios, nada é gravado</span><button class="btn sm" data-act="demo-sair">Sair da demonstração</button>'
     : podeDemo() ? '<button class="btn sm" data-act="demo-entrar" title="Dados fictícios; nada é gravado">🎬 Modo demonstração</button>' : '';
   return `${demo}<b>Acesso total</b><span>ver como:</span><span class="seg">${papeis.map(([k, l]) => `<button data-act="papel" data-v="${k}" class="${S.papel === k ? 'on' : ''}">${l}</button>`).join('')}</span>
-    ${!['prog', 'pcm', 'vis'].includes(S.papel) ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
+    ${!['prog', 'pcm', 'vis', 'cam', 'camsup'].includes(S.papel) ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
     ${S.papel === 'tec' ? `<span>mecânico <select data-act="ver-tec">${tecs.map(id => `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select></span>` : ''}`;
 }
 function render() {
@@ -1468,9 +1518,11 @@ function render() {
     esp: ['Validador técnico' + (ehProg() ? '' : ' · ' + curtoV(DB.me)), 'Turno ' + t],
     prog: ['Programador · ' + DB.me.nome.split(' ')[0], 'Acesso total'],
     pcm: ['PCM/Eng · ' + DB.me.nome.split(' ')[0], 'Indicadores e planilhas'],
-    vis: ['Visualizador' + (ehVis() ? ' · ' + DB.me.nome.split(' ')[0] : ''), 'Somente leitura'] }[S.papel];
+    vis: ['Visualizador' + (ehVis() ? ' · ' + DB.me.nome.split(' ')[0] : ''), 'Somente leitura'],
+    cam: ['Portal de Câmeras' + (ehCam() ? ' · ' + DB.me.nome.split(' ')[0] : ''), 'Assistente de monitoramento'],
+    camsup: ['Portal de Câmeras' + (ehCam() ? ' · ' + DB.me.nome.split(' ')[0] : ''), 'Supervisor de monitoramento'] }[S.papel];
   $('quem').innerHTML = `<b>${esc(quem[0])}</b>${esc(quem[1])}`;
-  $('sub').textContent = { sup: 'Liderança do turno', tec: 'Revista de vagões', esp: 'Validação técnica', prog: 'Análise de dados', pcm: 'PCM/Eng · indicadores', vis: 'Indicadores · somente leitura' }[S.papel];
+  $('sub').textContent = { sup: 'Liderança do turno', tec: 'Revista de vagões', esp: 'Validação técnica', prog: 'Análise de dados', pcm: 'PCM/Eng · indicadores', vis: 'Indicadores · somente leitura', cam: 'Portal de Câmeras', camsup: 'Portal de Câmeras' }[S.papel];
   if (!VIEWS[S.papel][S.aba[S.papel]]) S.aba[S.papel] = ABAS[S.papel][0][0];
   const aba = S.aba[S.papel];
   const pendTec = S.papel === 'tec' ? DB.planos.filter(p => p.turno === t && (n == null || p.eq === n) && ['aberta', 'reaberta'].includes(p.status)).length : 0;
@@ -2081,7 +2133,7 @@ function vistaApont() {
 // ---------- TÉCNICO ----------
 function atencaoFaixa(t, d) {
   const out = [];
-  for (let pos = d.ini; pos <= d.fim; pos++) { const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), nn = notasPend(t.vagoes[pos - 1]); if (rf || pp.length || nn.length) out.push({ pos, cod: t.vagoes[pos - 1], rf, pp, nn, r: t.reg[pos] }); }
+  for (let pos = d.ini; pos <= d.fim; pos++) { const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), nn = notasPend(t.vagoes[pos - 1]), cc = camDe(t, pos); if (rf || pp.length || nn.length || cc.length) out.push({ pos, cod: t.vagoes[pos - 1], rf, pp, nn, cc, r: t.reg[pos] }); }
   return out;
 }
 // faixa do técnico no trem: a primeira ainda aberta (a própria vem antes; depois as faixas extras recebidas de uma
@@ -2091,13 +2143,14 @@ const ehExtra = (t, d) => t.dist.findIndex(x => x.n === d.n) !== t.dist.indexOf(
 // linha de um vagão na lista do técnico (d = equipe dona da faixa); vagão feito por outra equipe mostra quem fez
 function itemVagao(t, pos, d, escolhido) {
   const r = t.reg[pos];
-    const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), nn = notasPend(t.vagoes[pos - 1]), reg = r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : '', outra = r && r.equipe != null && r.equipe !== d.n ? r.equipe : null;
+    const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), nn = notasPend(t.vagoes[pos - 1]), cc = camDe(t, pos), reg = r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : '', outra = r && r.equipe != null && r.equipe !== d.n ? r.equipe : null;
     const pex = (t.pexec || {})[pos] || {};
     const botoesPlano = pp.length && (!d.termino || escolhido) ? `<div class="pl-acoes">${pp.map(x => { const e = pex[x.plano]; return `<div class="pl-linha"><span>📋 ${esc(x.plano)}</span>
       <button class="btn sm ${e?.ok === true ? 'ok' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="1">✓ Realizado</button>
       <button class="btn sm ${e?.ok === false ? 'nao' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="0">✗ Não realizado</button></div>`; }).join('')}</div>` : '';
-  return `${botoesPlano ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length || nn.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
-      ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${nn.length ? `<span class="det av plano">📝 Nota SAP aberta: ${esc(txtNotas(nn))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}${outra ? `<span class="det apoio">🤝 feito pela Equipe ${outra} (apoio)</span>` : ''}</span>${tagReg(r)}</button>${botoesPlano ? botoesPlano + '</div>' : ''}`;
+    const botoesCam = cc.length && (!d.termino || escolhido) ? `<div class="pl-acoes cam-acoes">${cc.map(a => camRetorno(a)).join('')}</div>` : '', extras = botoesPlano + botoesCam;
+  return `${extras ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length || nn.length || cc.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
+      ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${nn.length ? `<span class="det av plano">📝 Nota SAP aberta: ${esc(txtNotas(nn))}</span>` : ''}${cc.length ? `<span class="det av cam">📷 Câmeras: ${esc(txtCam(cc))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}${outra ? `<span class="det apoio">🤝 feito pela Equipe ${outra} (apoio)</span>` : ''}</span>${tagReg(r)}</button>${extras ? extras + '</div>' : ''}`;
 }
 // ---------- apoio entre equipes ----------
 // Quem já encerrou a sua parte pode ajudar uma equipe do mesmo trem que ainda tem vagões (ex.: travou numa avaria).
@@ -2154,7 +2207,7 @@ function tecMeu() {
   for (const pos of ordemFaixa(d)) {
     const r = t.reg[pos];
     if (S.tecFiltro === 'faltam' && r) continue;
-    if (S.tecFiltro === 'atencao' && !restrDe(t, pos) && !planosPend(t.vagoes[pos - 1]).length && !notasPend(t.vagoes[pos - 1]).length) continue;
+    if (S.tecFiltro === 'atencao' && !restrDe(t, pos) && !planosPend(t.vagoes[pos - 1]).length && !notasPend(t.vagoes[pos - 1]).length && !camDe(t, pos).length) continue;
     if (S.tecFiltro === 'feitos' && !r) continue;
     lista.push(itemVagao(t, pos, d, escolhido));
   }
@@ -2166,11 +2219,11 @@ function tecMeu() {
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões${ehExtra(t, d) ? ' (faixa extra)' : ''}: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
     ${d.comeco > d.ini ? `<div class="small" style="color:var(--info);font-weight:700">↪ Começando no ${esc(t.vagoes[d.comeco - 1])} (${t.posFicha ? 'pos.' : 'nº'} ${posF(t, d.comeco)}); no fim, os vagões antes dele</div>` : ''}<div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
     ${barra(p.n / p.total * 100)}
-    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length, nt = a.filter(x => x.nn.length).length, ab = S.tecAten === t.id + ':' + d.n;
-      return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''}${(iso || pl) && nt ? ' · ' : ''}${nt ? `<b style="color:var(--info)">📝 ${nt} com nota SAP</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
+    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length, nt = a.filter(x => x.nn.length).length, cm = a.filter(x => x.cc.length).length, ab = S.tecAten === t.id + ':' + d.n;
+      return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''}${(iso || pl) && nt ? ' · ' : ''}${nt ? `<b style="color:var(--info)">📝 ${nt} com nota SAP</b>` : ''}${(iso || pl || nt) && cm ? ' · ' : ''}${cm ? `<b style="color:var(--cam)">📷 ${cm} apontado(s) pelas câmeras</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
       ${ab ? `<ul class="aten-lista">${a.map(x => `<li><span class="pos">${posF(t, x.pos)}</span><span><b>${esc(x.cod)}</b>${x.r ? ' <span class="tag ok">registrado</span>' : ''}
         ${x.rf ? `<br><span style="color:var(--warn)">⚠ Na ficha: ${esc(x.rf.motivo)}${x.rf.data ? ` <span class="muted">(desde ${esc(x.rf.data)})</span>` : ''}</span>` : ''}
-        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${linhasNotas(x.nn)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
+        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${linhasNotas(x.nn)}${linhasCam(x.cc)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
       : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
@@ -2235,7 +2288,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -2248,7 +2301,7 @@ function blocoArvore(M) {
     ${N.falha ? '<button class="btn" style="width:100%;margin-bottom:12px" data-act="add-falha">+ Adicionar falha</button>' : ''}`;
 }
 function modalVagao(M) {
-  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}${notasPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📝 <span><b>Nota(s) aberta(s) no SAP:</b>${linhasNotas(notasPend(t.vagoes[M.pos - 1]))}<br><span class="small">Confira o componente na revista. Se achar o defeito, registre no vagão.</span></span></div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
+  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}${notasPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📝 <span><b>Nota(s) aberta(s) no SAP:</b>${linhasNotas(notasPend(t.vagoes[M.pos - 1]))}<br><span class="small">Confira o componente na revista. Se achar o defeito, registre no vagão.</span></span></div>` : ''}${camDe(t, M.pos).length ? `<div class="aviso-cam"><b>📷 Defeito apontado pelo Portal de Câmeras</b><span class="small">Confira na revista e dê o retorno. Se o defeito existir, registre também no vagão.</span>${camDe(t, M.pos).map(a => camRetorno(a, true)).join('')}</div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
   if (!M.modo) return cab + `<div class="escolhas">
     <button class="btn ok big" data-act="salvar-ok">✓ Revistado, sem intervenção</button>
     <button class="btn big" style="color:var(--title);border-color:var(--title)" data-act="modo" data-v="int">🔧 Troca de material / ocorrência</button>
@@ -3504,13 +3557,272 @@ function exportar(tipo) {
   baixarCSV(L, 'revistamento-zto-vagoes.csv');
 }
 
+// ---------- Portal de Câmeras (v1.63, SQL 21) ----------
+// O assistente de monitoramento registra o defeito visto na câmera (foto, vagão, descrição). Quando o trem com esse
+// vagão é gravado com a ficha lida (Novo trem, aqui em Tutoia), o banco liga sozinho o apontamento ao trem e à
+// posição: o técnico dono da faixa vê no vagão e dá o retorno, que volta ao assistente. Sem fila de imagens aqui.
+const ehCam = () => ['camera', 'camera_sup'].includes(DB.me?.perfil);
+const CAM_DIAS = 7;                                   // apontamento espera até 7 dias o vagão passar por uma ficha
+const CAM_ST = { apontado: ['Apontado', 'neu'], enviado: ['Enviado ao revisor', 'info'], retornado: ['Retornado pelo revisor', 'ok'], concluido: ['Concluído', 'ok'], expirado: ['Expirado', 'warn'] };
+const CAM_RET = { realizado: ['✓ Realizado', 'ok'], nao_existia: ['✗ Defeito não existia', 'bad'], cortado: ['🔧 Vagão cortado / oficina', 'warn'], nao_localizado: ['? Não localizado / sem acesso', 'neu'] };
+const CAM_COMP = [...GRUPOS_NOTA.map(g => g[0]), 'Sapata', 'Engate', 'Mangueira de freio', 'Torneira angular'];
+const camStatus = a => a.status === 'apontado' && Date.now() - Date.parse(a.criado_em) > CAM_DIAS * 864e5 ? 'expirado' : a.status;
+const vagNum = s => String(s || '').replace(/\D/g, '');
+// '3019519HPT', 'hpt3019519' ou 'HPT 301951-9' -> 'HPT 301951-9' (formato da ficha); sem a série, fica como veio
+const vagFmt = s => { const n = vagNum(s), l = String(s || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+  return n.length === 7 && l.length === 3 ? `${l} ${n.slice(0, 6)}-${n.slice(6)}` : String(s || '').trim().toUpperCase(); };
+const quandoCam = ts => ts ? dataBR(new Date(ts)) + '/' + String(new Date(ts).getFullYear()).slice(2) + ' ' + horaDe(ts) : '–';
+const CAM = { lista: [], em: 0, marca: '', completaEm: 0, carregando: false, erro: '', de: isoData(new Date(Date.now() - 29 * 864e5)), ate: isoData(new Date()),
+  f: { st: '', vag: '', por: '', ret: '', turno: '' }, ver: 30, urls: {}, form: { vagao: '', desc: '', prefixo: '', posicao: '', nota: '', foto: null }, edit: null, salvando: false };
+const camCampos = 'id,criado_em,por,turno,vagao,vag_num,descricao,foto,prefixo,posicao,nota_sap,status,editado_em,editado_por,enviado_em,trem_id,trem_pos,trem_prefixo,trem_pos_ficha,retorno,retorno_obs,retorno_em,retorno_por,concluido_em,atualizado_em';
+const camErro = e => /cam_apontamentos|does not exist|schema cache|42P01/i.test(e?.message || '') ? 'O Portal de Câmeras ainda não está no banco: rode o 21-portal-cameras.sql no Supabase.' : (e?.message || String(e));
+// período inteiro a cada 10 min (ou quando muda o período); no meio, só o que mudou desde a última vez (carimbo)
+async function camCarregar(completa) {
+  if (DEMO || CAM.carregando) return;
+  CAM.carregando = true;
+  try {
+    const ini = new Date(CAM.de + 'T00:00:00'), fim = new Date(CAM.ate + 'T00:00:00'); fim.setDate(fim.getDate() + 1);
+    const base = () => sb.from('cam_apontamentos').select(camCampos).gte('criado_em', ini.toISOString()).lt('criado_em', fim.toISOString());
+    if (completa || !CAM.marca || Date.now() - CAM.completaEm > 10 * 60e3) {
+      const l = await tudo(() => base().order('criado_em', { ascending: false }).order('id'));
+      Object.assign(CAM, { lista: l, completaEm: Date.now() });
+    } else {
+      const novos = await tudo(() => base().gt('atualizado_em', new Date(Date.parse(CAM.marca) - 60e3).toISOString()).order('id'));
+      novos.forEach(a => { const i = CAM.lista.findIndex(x => x.id === a.id); if (i >= 0) CAM.lista[i] = a; else CAM.lista.push(a); });
+      CAM.lista.sort((a, b) => b.criado_em.localeCompare(a.criado_em));
+    }
+    CAM.marca = CAM.lista.reduce((m, a) => a.atualizado_em > m ? a.atualizado_em : m, CAM.marca || '');
+    CAM.erro = '';
+  } catch (e) { CAM.erro = camErro(e); }
+  CAM.em = Date.now(); CAM.carregando = false;
+}
+// as telas pedem a carga; não redesenha enquanto alguém digita no formulário
+const digitando = () => document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && $('main').contains(document.activeElement);
+const camRender = () => { if (!digitando()) render(); };
+function camGarantir() {
+  if (!CAM.carregando && Date.now() - CAM.em > 60e3) setTimeout(async () => { await camCarregar(); camRender(); });
+}
+// fotos: links assinados de 1 h, pedidos em lote só para o que está na tela
+const camUrl = p => { const u = CAM.urls[p]; return u && Date.now() - u.em < 50 * 60e3 ? u.u : null; };
+let camFotosPend = false;
+function camFotos(lista) {
+  const falta = [...new Set(lista.map(a => a.foto).filter(p => p && !camUrl(p)))];
+  if (!falta.length || DEMO || camFotosPend) return;
+  camFotosPend = true;
+  setTimeout(async () => {
+    try { const { data } = await sb.storage.from('fotos').createSignedUrls(falta, 3600); (data || []).forEach(x => { if (x.signedUrl) CAM.urls[x.path] = { u: x.signedUrl, em: Date.now() }; }); } catch {}
+    camFotosPend = false; camRender();
+  });
+}
+const camThumb = a => { const u = camUrl(a.foto); return u ? `<a class="cam-foto" href="${esc(u)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="${esc(u)}" alt="Foto do defeito no ${esc(a.vagao)}" loading="lazy"></a>` : '<span class="cam-foto vazia" aria-hidden="true">📷</span>'; };
+const camPodeEditar = a => camStatus(a) === 'apontado' && (a.por === DB.me.id || ['camera_sup', 'programador'].includes(DB.me.perfil));
+function camCartao(a) {
+  const st = camStatus(a), [stl, stc] = CAM_ST[st], r = a.retorno && CAM_RET[a.retorno];
+  const passos = [
+    `📷 Apontado ${quandoCam(a.criado_em)} por <b>${esc(C(a.por).nome)}</b>${a.turno ? ' · Turno ' + esc(a.turno) : ''}${a.editado_em ? ` · editado ${quandoCam(a.editado_em)}${a.editado_por && a.editado_por !== a.por ? ' por ' + esc(C(a.editado_por).nome) : ''}` : ''}`,
+    a.enviado_em && `🚆 Enviado ao revisor ${quandoCam(a.enviado_em)} · trem <b>${esc(a.trem_prefixo || '–')}</b>, posição ${esc(a.trem_pos_ficha ?? '–')} da ficha`,
+    a.retorno_em && `↩ Retorno ${quandoCam(a.retorno_em)} por ${esc(C(a.retorno_por).nome)}`,
+    a.concluido_em && `✔ Concluído ${quandoCam(a.concluido_em)} (validação do trem fechada)`,
+    st === 'enviado' && '<span style="color:var(--info)">Aguardando o retorno do técnico revisor</span>',
+    st === 'expirado' && `<span style="color:var(--warn)">O vagão não passou por uma ficha em ${CAM_DIAS} dias</span>`,
+    a.status === 'concluido' && !a.retorno && '<span class="muted">O trem foi validado sem retorno do revisor</span>'
+  ].filter(Boolean);
+  return `<div class="cam-item">${camThumb(a)}<div class="cam-corpo">
+    <div class="topo"><b class="vg-cod">${esc(a.vagao)}</b><span class="tag ${stc}">${stl}</span>${r ? `<span class="tag ${r[1]}">${r[0]}</span>` : ''}</div>
+    <div class="desc">${esc(a.descricao)}</div>
+    ${a.prefixo || a.posicao || a.nota_sap != null ? `<div class="det">${[a.prefixo && 'Prefixo ' + a.prefixo, a.posicao && 'Posição ' + a.posicao, a.nota_sap != null && 'Nota SAP: ' + (a.nota_sap ? 'sim' : 'não')].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+    ${a.retorno_obs ? `<div class="cam-obs">💬 ${esc(a.retorno_obs)}</div>` : ''}
+    <div class="det">${passos.join('<br>')}</div>
+    <div class="acoes" style="margin-top:6px">${camPodeEditar(a) ? `<button class="btn sm" data-act="cam-editar" data-id="${a.id}">✏ Editar</button>` : ''}<button class="btn sm" data-act="cam-eventos" data-id="${a.id}">🕓 Auditoria</button></div>
+  </div></div>`;
+}
+const camFiltros = (l, f = CAM.f) => l.filter(a => (!f.st || camStatus(a) === f.st) && (!f.vag || a.vag_num.includes(vagNum(f.vag)) || (!vagNum(f.vag) && semAcento(a.vagao).includes(semAcento(f.vag))))
+  && (!f.por || a.por === f.por) && (!f.turno || a.turno === f.turno) && (!f.ret || (f.ret === 'sem' ? !a.retorno : a.retorno === f.ret)));
+const camPeriodo = () => `<label class="campo">De<input type="date" data-cam="de" value="${esc(CAM.de)}"></label><label class="campo">Até<input type="date" data-cam="ate" value="${esc(CAM.ate)}"></label>`;
+const camAviso = () => CAM.erro ? `<div class="card"><div class="alerta" style="margin:0"><span>⚠ ${esc(CAM.erro)}</span></div></div>` : '';
+function camLista(l, vazio) {
+  const vis = l.slice(0, CAM.ver); camFotos(vis);
+  return (vis.map(camCartao).join('') || `<p class="muted small" style="margin:0">${CAM.carregando && !CAM.em ? 'Carregando…' : vazio}</p>`)
+    + (l.length > vis.length ? `<button class="btn" style="margin-top:10px" data-act="cam-mais">Mostrar mais ${Math.min(30, l.length - vis.length)} de ${l.length - vis.length}</button>` : '');
+}
+
+// 1. formulário: foto + vagão + descrição (obrigatórios); data, hora, turno e assistente entram sozinhos
+const camFormOk = () => { const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit); return !!((fm.foto || ed) && vagNum(fm.vagao).length >= 6 && fm.desc.trim()); };
+const camVagDica = () => { const v = CAM.form.vagao; if (!v.trim()) return ''; const n = vagNum(v).length;
+  return n < 6 ? '<span style="color:var(--bad)">número incompleto</span>' : `→ ${esc(vagFmt(v))}${n !== 7 ? ' <span style="color:var(--warn)">(confira: a ficha usa 7 dígitos)</span>' : ''}`; };
+function camNovo() {
+  if (!ehCam() && !ehProg()) return '<div class="card muted">Só a equipe de câmeras registra apontamentos.</div>';
+  camGarantir();
+  const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit), img = fm.foto || (ed && camUrl(ed.foto)), sv = emServico();
+  if (ed) camFotos([ed]);
+  const meus = CAM.lista.filter(a => a.por === DB.me.id).slice(0, 5);
+  return camAviso() + `<div class="grid"><div class="card larga cam-form">
+    <h2>${ed ? 'Editar apontamento' : 'Novo apontamento'} <span class="dir">${ed ? 'apontado ' + quandoCam(ed.criado_em) : 'agora'} · ${esc(DB.me.nome)}${!ed && sv.turno ? ' · Turno ' + esc(sv.turno) : ''}</span></h2>
+    <div class="cam-grade">
+      <label class="upload cam-drop ${img ? 'tem' : ''}" id="cam-drop">
+        <input type="file" accept="image/*" data-act="cam-foto" aria-label="Foto do defeito">
+        ${img ? `<img src="${esc(img)}" alt="Foto do defeito">` : '<span class="ic">📷</span>'}
+        <span><b>${img ? 'Trocar a foto' : 'Foto do defeito *'}</b><br><span class="small muted">Toque para escolher ou tirar a foto. No computador: cole o recorte da câmera (Ctrl+V) ou arraste a imagem para cá.</span></span>
+      </label>
+      <div>
+        <label class="campo">Vagão *<input id="cam-vag" data-cf="vagao" value="${esc(fm.vagao)}" placeholder="3019519HPT ou HPT 301951-9" autocomplete="off" autocapitalize="characters" spellcheck="false"><span class="small" id="cam-vag-dica" style="font-weight:600">${camVagDica()}</span></label>
+        <label class="campo">Descrição do defeito *<textarea id="cam-desc" data-cf="desc" rows="3" placeholder="ex.: Amparo balanço BD sem as chapas">${esc(fm.desc)}</textarea></label>
+        <div class="chips cam-chips">${CAM_COMP.map(c => `<button class="chip" data-act="cam-comp" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+        <div class="linha-campos">
+          <label class="campo">Prefixo<input data-cf="prefixo" value="${esc(fm.prefixo)}" placeholder="ex.: G99" autocapitalize="characters" autocomplete="off"></label>
+          <label class="campo">Posição<input data-cf="posicao" value="${esc(fm.posicao)}" inputmode="numeric" placeholder="ex.: 48" autocomplete="off"></label>
+          <label class="campo">Nota SAP<select data-cf="nota"><option value="">–</option><option value="nao" ${fm.nota === 'nao' ? 'selected' : ''}>Não</option><option value="sim" ${fm.nota === 'sim' ? 'selected' : ''}>Sim</option></select></label>
+        </div>
+      </div>
+    </div>
+    <button class="btn primary big" id="cam-salvar" data-act="cam-salvar" ${camFormOk() && !CAM.salvando ? '' : 'disabled'}>${CAM.salvando ? 'Salvando…' : ed ? '💾 Salvar alterações' : '💾 Salvar apontamento'}</button>
+    ${ed ? '<button class="btn" style="width:100%;margin-top:8px" data-act="cam-cancelar">Cancelar edição</button>' : ''}
+    <p class="small muted" style="margin:10px 0 0">* Obrigatórios. Prefixo, posição e nota são opcionais, como no WhatsApp. Quando o trem com esse vagão for lido na ficha em Tutoia, o apontamento vai sozinho ao técnico que revistar o vagão (até ${CAM_DIAS} dias). Dá para editar enquanto estiver “Apontado”.</p>
+  </div>
+  <div class="card larga"><h2>Seus últimos apontamentos <button class="btn sm" style="float:right" data-act="aba" data-v="cammeus">ver todos</button></h2>${camLista(meus, 'Nenhum apontamento seu nos últimos 30 dias.')}</div></div>`;
+}
+// 2 e 3. minhas ocorrências, com o retorno do revisor
+function camMeus() {
+  camGarantir();
+  const minhas = CAM.lista.filter(a => a.por === DB.me.id), l = camFiltros(minhas, { ...CAM.f, por: '' }), n = k => minhas.filter(a => camStatus(a) === k).length;
+  const ret = minhas.filter(a => a.retorno), conf = ret.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, nao = ret.filter(a => a.retorno === 'nao_existia').length;
+  return camAviso() + `<div class="card"><h2>Minhas ocorrências <span class="dir">${minhas.length} no período</span></h2>
+    <div class="cam-busca">${camPeriodo()}<label class="campo">Vagão<input data-cam="vag" value="${esc(CAM.f.vag)}" placeholder="número" inputmode="search" autocomplete="off"></label><span class="bts"><button class="btn" data-act="cam-buscar">↻ Atualizar</button></span></div>
+    <div class="chips">${[['', 'Todas ' + minhas.length], ...Object.keys(CAM_ST).map(k => [k, CAM_ST[k][0] + ' ' + n(k)])].map(([k, lb]) => `<button class="chip ${CAM.f.st === k ? 'on' : ''}" data-act="cam-st" data-v="${k}">${lb}</button>`).join('')}</div>
+    ${ret.length ? `<p class="small" style="margin:0 0 6px">Retorno do revisor: <b style="color:var(--ok)">${conf} confirmado(s)</b> (realizado ou cortado) · <b style="color:var(--bad)">${nao} não existia</b> · ${ret.length - conf - nao} não localizado(s)</p>` : ''}
+  </div><div class="card">${camLista(l, 'Nenhuma ocorrência com esse filtro.')}</div>`;
+}
+// 4. histórico com filtros (período, vagão, assistente, status, resultado, turno)
+const camEquipe = () => { const ids = new Set(CAM.lista.map(a => a.por)); return DB.colab.filter(x => ['camera', 'camera_sup'].includes(x.perfil) || ids.has(x.id)).sort((a, b) => a.nome.localeCompare(b.nome)); };
+function camHist() {
+  camGarantir();
+  const f = CAM.f, l = camFiltros(CAM.lista), sel = (k, rot, ops) => `<label class="campo">${rot}<select data-cam="${k}"><option value="">Todos</option>${ops.map(([v, t]) => `<option value="${esc(v)}" ${f[k] === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>`;
+  return camAviso() + `<div class="card"><h2>${S.papel === 'camsup' ? 'Ocorrências da equipe' : 'Histórico do Portal de Câmeras'} <span class="dir">${l.length} de ${CAM.lista.length} no período</span></h2>
+    <div class="cam-busca larga">${camPeriodo()}<label class="campo">Vagão<input data-cam="vag" value="${esc(f.vag)}" placeholder="número" inputmode="search" autocomplete="off"></label>
+      ${sel('por', 'Assistente', camEquipe().map(x => [x.id, x.nome]))}${sel('st', 'Status', Object.entries(CAM_ST).map(([k, v]) => [k, v[0]]))}
+      ${sel('ret', 'Resultado do revisor', [...Object.entries(CAM_RET).map(([k, v]) => [k, v[0].replace(/^\S+ /, '')]), ['sem', 'Sem retorno']])}${sel('turno', 'Turno', 'ABCD'.split('').map(t => [t, t]))}
+      <span class="bts"><button class="btn" data-act="cam-buscar">↻ Atualizar</button>${Object.values(f).some(Boolean) ? '<button class="btn" data-act="cam-limpar">✕ Limpar</button>' : ''}<button class="btn" data-act="cam-csv" ${l.length ? '' : 'disabled'}>⬇ Planilha</button></span></div>
+  </div><div class="card">${camLista(l, 'Nenhuma ocorrência com esse filtro.')}</div>`;
+}
+function camCSV() {
+  const l = camFiltros(CAM.lista), L = [['Apontado em', 'Turno', 'Assistente', 'Vagão', 'Descrição', 'Prefixo (WhatsApp)', 'Posição (WhatsApp)', 'Nota SAP', 'Status', 'Enviado ao revisor em', 'Trem', 'Posição na ficha', 'Retorno', 'Observação do revisor', 'Retorno em', 'Revisor', 'Concluído em', 'Editado em']];
+  l.forEach(a => L.push([quandoCam(a.criado_em), a.turno, C(a.por).nome, a.vagao, a.descricao, a.prefixo, a.posicao, a.nota_sap == null ? '' : a.nota_sap ? 'Sim' : 'Não', CAM_ST[camStatus(a)][0],
+    a.enviado_em ? quandoCam(a.enviado_em) : '', a.trem_prefixo, a.trem_pos_ficha, a.retorno ? CAM_RET[a.retorno][0].replace(/^\S+ /, '') : '', a.retorno_obs, a.retorno_em ? quandoCam(a.retorno_em) : '',
+    a.retorno_por ? C(a.retorno_por).nome : '', a.concluido_em ? quandoCam(a.concluido_em) : '', a.editado_em ? quandoCam(a.editado_em) : '']));
+  baixarCSV(L, 'portal-cameras-' + CAM.de + '-a-' + CAM.ate + '.csv');
+}
+// 5. dashboard: por turno, por assistente, por status e taxa de confirmação
+function camDash() {
+  camGarantir();
+  const f = CAM.f, l = camFiltros(CAM.lista, { ...f, st: '', ret: '' }), n = l.length, cont = fn => { const m = {}; l.forEach(a => { const k = fn(a); m[k] = (m[k] || 0) + 1; }); return m; };
+  const env = l.filter(a => a.enviado_em).length, ret = l.filter(a => a.retorno), conf = ret.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, nao = ret.filter(a => a.retorno === 'nao_existia').length;
+  const aguard = l.filter(a => camStatus(a) === 'enviado').length, exp = l.filter(a => camStatus(a) === 'expirado').length, taxa = conf + nao ? conf / (conf + nao) * 100 : null;
+  const porT = cont(a => a.turno || '–'), porA = cont(a => a.por), porS = cont(camStatus), porR = cont(a => a.retorno || 'sem');
+  const porAss = Object.entries(porA).map(([id, v]) => [C(id).nome, v]).sort((a, b) => b[1] - a[1]);
+  const confAss = Object.keys(porA).map(id => { const r = l.filter(a => a.por === id && a.retorno), c = r.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, x = r.filter(a => a.retorno === 'nao_existia').length;
+    return [C(id).nome, c + x ? Math.round(c / (c + x) * 100) : null, c, x]; }).filter(x => x[1] != null).sort((a, b) => b[1] - a[1]);
+  const pc = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
+  return camAviso() + `<div class="card"><h2>Dashboard · Portal de Câmeras <span class="dir">${n} apontamento(s)</span></h2>
+    <div class="cam-busca">${camPeriodo()}<label class="campo">Turno<select data-cam="turno"><option value="">Todos</option>${'ABCD'.split('').map(t => `<option ${f.turno === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label class="campo">Assistente<select data-cam="por"><option value="">Todos</option>${camEquipe().map(x => `<option value="${x.id}" ${f.por === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label><span class="bts"><button class="btn" data-act="cam-buscar">↻ Atualizar</button></span></div></div>
+  <div class="kpis">${kpi('Apontamentos', fmt(n), 'no período')}${kpi('Enviados ao revisor', fmt(env), pc(env, n) + ' dos apontamentos')}${kpi('Com retorno', fmt(ret.length), pc(ret.length, env) + ' dos enviados')}${kpi('Aguardando retorno', fmt(aguard), 'com o técnico revisor')}
+    ${kpi('Taxa de confirmação', taxa == null ? '–' : Math.round(taxa) + '%', `${conf} confirmado(s) × ${nao} não existia`)}${kpi('Expirados', fmt(exp), `vagão não passou em ${CAM_DIAS} dias`)}</div>
+  <div class="grid">
+    <div class="card"><h2>Por turno <span class="dir">apontamentos</span></h2>${n ? hbars(['A', 'B', 'C', 'D', ...(porT['–'] ? ['–'] : [])].map(t => ['Turno ' + t, porT[t] || 0]), 'apontamentos') : semDados}</div>
+    <div class="card"><h2>Por status <span class="dir">apontamentos</span></h2>${n ? hbars(Object.keys(CAM_ST).map(k => [CAM_ST[k][0], porS[k] || 0]), 'apontamentos') : semDados}</div>
+    <div class="card"><h2>Resultado do revisor <span class="dir">apontamentos</span></h2>${n ? hbars([...Object.keys(CAM_RET).map(k => [CAM_RET[k][0].replace(/^\S+ /, ''), porR[k] || 0]), ['Sem retorno', porR.sem || 0]], 'apontamentos') : semDados}
+      <p class="small muted" style="margin:8px 0 0">Taxa de confirmação = defeito existia (realizado + vagão cortado) ÷ (realizado + cortado + não existia). “Não localizado” fica fora da conta.</p></div>
+    <div class="card"><h2>Por assistente <span class="dir">apontamentos</span></h2>${porAss.length ? hbars(porAss, 'apontamentos') : semDados}</div>
+    <div class="card"><h2>Confirmação por assistente <span class="dir">% · com retorno</span></h2>${confAss.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Assistente</th><th>Confirmação</th><th>Confirmados</th><th>Não existia</th></tr></thead><tbody>${confAss.map(([nm, p, c, x]) => `<tr><td>${esc(nm)}</td><td><b>${p}%</b></td><td>${c}</td><td>${x}</td></tr>`).join('')}</tbody></table></div>` : '<span class="muted small">Aparece quando os revisores derem retorno.</span>'}</div>
+  </div>`;
+}
+// auditoria de um apontamento (eventos gravados pelo banco, com o horário do servidor)
+const CAM_EV = { apontado: '📷 Apontado', editado: '✏ Editado', enviado: '🚆 Enviado ao revisor', retornado: '↩ Retorno do revisor', concluido: '✔ Concluído', expirado: '⌛ Expirado' };
+function modalCamEventos(M) {
+  const a = CAM.lista.find(x => x.id === M.id) || {};
+  return `<h3>Auditoria · ${esc(a.vagao || '')}</h3><p class="small muted" style="margin:0 0 8px">Registros do sistema, com o horário do servidor. Não podem ser alterados.</p>
+    ${M.ev == null ? '<p class="muted">Carregando…</p>' : M.ev.length ? `<ul class="feed">${M.ev.map(e => `<li><span class="h">${quandoCam(e.quando)}</span><span><b>${CAM_EV[e.evento] || esc(e.evento)}</b>${e.por ? ' · ' + esc(C(e.por).nome) : ''}${e.detalhe?.retorno ? ' · ' + (CAM_RET[e.detalhe.retorno]?.[0] || '') : ''}${e.detalhe?.obs ? '<br><span class="small">' + esc(e.detalhe.obs) + '</span>' : ''}${e.evento === 'editado' && e.detalhe?.antes ? `<br><span class="small muted">Antes: ${esc(e.detalhe.antes.vagao || '')} · ${esc(e.detalhe.antes.descricao || '')}</span>` : ''}</span></li>`).join('')}</ul>` : '<p class="muted">Sem eventos.</p>'}`;
+}
+async function camSalvar() {
+  if (!precisaNuvem() || CAM.salvando) return;
+  const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit);
+  if (!camFormOk()) { toast('Foto, vagão e descrição são obrigatórios'); return; }
+  CAM.salvando = true; render();
+  try {
+    const id = ed ? ed.id : crypto.randomUUID();
+    let foto = ed?.foto;
+    if (fm.foto) {
+      foto = `cam/${id}-${Date.now()}.jpg`;
+      const up = await sb.storage.from('fotos').upload(foto, await (await fetch(fm.foto)).blob(), { contentType: 'image/jpeg' });
+      if (up.error) throw up.error;
+      CAM.urls[foto] = { u: fm.foto, em: Date.now() };
+    }
+    const dados = { vagao: vagFmt(fm.vagao), descricao: fm.desc.trim(), foto, prefixo: fm.prefixo.trim().toUpperCase() || null, posicao: parseInt(fm.posicao, 10) || null, nota_sap: fm.nota ? fm.nota === 'sim' : null };
+    const { error } = ed ? await sb.from('cam_apontamentos').update(dados).eq('id', id) : await sb.from('cam_apontamentos').insert({ id, turno: emServico().turno || null, ...dados });
+    if (error) throw error;
+    const { data: a, error: e2 } = await sb.from('cam_apontamentos').select(camCampos).eq('id', id).single();   // o banco pode ter ligado ao trem na hora
+    if (e2) throw e2;
+    const i = CAM.lista.findIndex(x => x.id === id); if (i >= 0) CAM.lista[i] = a; else CAM.lista.unshift(a);
+    CAM.form = { vagao: '', desc: '', prefixo: '', posicao: '', nota: '', foto: null }; CAM.edit = null;
+    toast(a.status === 'enviado' ? `✓ Apontado e já enviado ao revisor: trem ${a.trem_prefixo}, posição ${a.trem_pos_ficha}` : ed ? '✓ Apontamento atualizado' : '✓ Apontamento salvo. Vai ao revisor quando o vagão for lido na ficha');
+  } catch (e) { toast('⚠ ' + camErro(e)); }
+  CAM.salvando = false; render();
+}
+async function camFotoArquivo(arq) {
+  if (!arq || !/^image\//.test(arq.type)) { toast('Escolha uma imagem'); return; }
+  try { CAM.form.foto = await reduzirFoto(arq); } catch { toast('Não consegui ler a imagem'); return; }
+  render(); setTimeout(() => $('cam-vag')?.focus());
+}
+// colar (Ctrl+V) e arrastar a imagem no formulário
+const camNoForm = () => ['cam', 'camsup', 'prog'].includes(S.papel) && S.aba[S.papel] === 'camnovo' && !S.modal;
+document.addEventListener('paste', e => {
+  if (!camNoForm()) return;
+  const it = [...(e.clipboardData?.items || [])].find(x => x.type.startsWith('image/'));
+  if (it) { e.preventDefault(); camFotoArquivo(it.getAsFile()); }
+});
+document.addEventListener('dragover', e => { if (camNoForm() && e.target.closest?.('#cam-drop')) { e.preventDefault(); e.target.closest('#cam-drop').classList.add('sobre'); } });
+document.addEventListener('dragleave', e => { e.target.closest?.('#cam-drop')?.classList.remove('sobre'); });
+document.addEventListener('drop', e => { if (!camNoForm() || !e.target.closest?.('#cam-drop')) return; e.preventDefault(); camFotoArquivo(e.dataTransfer.files[0]); });
+
+// ---------- técnico revisor: apontamentos das câmeras ligados aos trens em revista / em validação ----------
+const CAMT = { porTrem: {}, em: 0, falhou: 0 };
+async function carregarCamTec() {
+  if (DEMO || OFFLINE || ehCam() || ehVis() || Date.now() - CAMT.falhou < 10 * 60e3) return;
+  const ids = DB.trens.filter(t => t.status === 'andamento' || t.validacao?.status === 'pendente').map(t => t.id).filter(id => !String(id).startsWith('demo-'));
+  if (!ids.length) { CAMT.porTrem = {}; return; }
+  try {
+    const out = {};
+    for (let i = 0; i < ids.length; i += 100) {
+      const rows = await tudo(() => sb.from('cam_apontamentos').select('id,trem_id,trem_pos,vagao,descricao,foto,por,criado_em,status,retorno,retorno_obs,retorno_em,retorno_por,prefixo,posicao').in('trem_id', ids.slice(i, i + 100)).order('criado_em'));
+      rows.forEach(r => (out[r.trem_id] ||= []).push(r));
+    }
+    const fila = [...REJ, ...FILA].filter(o => o.fn === 'cam_retorno');           // retorno ainda não enviado: vale o do aparelho
+    Object.values(out).flat().forEach(r => { const o = fila.filter(x => x.args.p_id === r.id).pop(); if (o) Object.assign(r, { retorno: o.args.p_retorno, retorno_obs: o.args.p_obs, status: 'retornado' }); });
+    CAMT.porTrem = out; CAMT.em = Date.now();
+    camFotos(Object.values(out).flat());
+  } catch (e) { CAMT.falhou = Date.now(); }
+}
+const camDe = (t, pos) => (CAMT.porTrem[t.id] || []).filter(a => a.trem_pos === +pos);
+const txtCam = l => l.map(a => a.descricao).join(' · ');
+const linhasCam = l => l.map(a => `<br><span style="color:var(--cam)">📷 <b>Câmeras:</b> ${esc(a.descricao)} <span class="muted">(${esc(C(a.por).nome.split(' ')[0])}, ${quandoCam(a.criado_em)})</span></span>${a.retorno ? ` <span class="tag ${CAM_RET[a.retorno][1]}">${CAM_RET[a.retorno][0]}</span>` : ''}`).join('');
+// botões de retorno (lista do técnico e cartão do vagão)
+function camRetorno(a, comObs) {
+  const u = camUrl(a.foto);
+  return `<div class="cam-ret">${u ? `<a class="cam-mini" href="${esc(u)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="${esc(u)}" alt="Foto da câmera"></a>` : '<span class="cam-mini vazia">📷</span>'}
+    <div><div><b>📷 ${esc(a.descricao)}</b></div><div class="small muted">Portal de Câmeras · ${esc(C(a.por).nome)} · ${quandoCam(a.criado_em)}${a.prefixo ? ' · prefixo ' + esc(a.prefixo) : ''}</div>
+    ${comObs ? `<label class="campo" style="margin:6px 0 0">Observação do retorno (opcional)<input id="cam-obs-${a.id}" value="${esc(a.retorno_obs || '')}" autocomplete="off"></label>` : ''}
+    <div class="cam-bts">${Object.entries(CAM_RET).map(([k, [l, c]]) => `<button class="btn sm ${a.retorno === k ? 'on-' + c : ''}" data-act="cam-ret" data-id="${a.id}" data-v="${k}">${l}</button>`).join('')}</div></div></div>`;
+}
+
 const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, notas: vistaNotas },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
   esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, notas: vistaNotas },
-  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, notas: vistaNotas, cadastros: progCadastros },
-  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, notas: vistaNotas },
-  vis: { geral: progGeral, aderencia: progAderencia }
+  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, cadastros: progCadastros },
+  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, notas: vistaNotas, camhist: camHist, camdash: camDash },
+  vis: { geral: progGeral, aderencia: progAderencia },
+  cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
+  camsup: { camnovo: camNovo, camhist: camHist, cammeus: camMeus, camdash: camDash }
 };
 
 // ---------- login, troca de senha, entrada ----------
@@ -3575,13 +3887,13 @@ async function entrar() {
   DB.me = me; lsGravar('rzto_me', me);
   if (me.trocar_senha && !offline) return telaTrocarSenha();
   S.papel = PAPEL[me.perfil];
-  if (!['programador', 'pcm', 'visualizador'].includes(me.perfil)) S.turnoVer = me.turno;
+  if (!['programador', 'pcm', 'visualizador', 'camera', 'camera_sup'].includes(me.perfil)) S.turnoVer = me.turno;
   S.planoTurno = me.turno || SERVICO.turno;
   mostrarTela('tela-app');
   $('main').innerHTML = '<div class="card muted">Carregando…</div>';
   resetRaw();
   if (OFFLINE) { if (!usarCache()) { OFFLINE = false; lsGravar('rzto_offline', false); toast('Sem dados guardados neste aparelho: a nuvem foi religada'); } }
-  if (!OFFLINE) try { if (!DEMO && await restaurarRaw()) { await montarDados(); render(); } await carregar(); } catch (e) {
+  if (!OFFLINE) try { if (!DEMO && !ehCam() && await restaurarRaw()) { await montarDados(); render(); } await carregar(); } catch (e) {
     if (DB.carregado) semSinal = ehRede(e);                                    // ficou com a cópia do aparelho
     else if (!usarCache()) { $('main').innerHTML = `<div class="card"><p>Não consegui carregar os dados${ehRede(e) ? ' (sem internet)' : ': ' + esc(e.message)}.</p><button class="btn primary" data-act="recarregar">Tentar de novo</button></div>`; return; }
     semSinal = ehRede(e); toast('Sem internet: mostrando os últimos dados guardados');
@@ -4009,6 +4321,27 @@ document.addEventListener('click', async e => {
     case 'exportar-mat': exportarMaterial(); return;
     case 'ver-vagao': e.preventDefault(); if (S.papel === 'vis' || (!VIEWS[S.papel].vagao && !ehProg())) return; S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.aba[S.papel] = 'vagao'; break;
     case 'buscar': S.busca = $('busca').value; break;
+    case 'cam-salvar': camSalvar(); return;
+    case 'cam-comp': { const fm = CAM.form, d = fm.desc.trim(); fm.desc = d ? (d.toLowerCase().includes(v.toLowerCase()) ? d : d + ' · ' + v) : v + ' '; render(); const ta = $('cam-desc'); if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = ta.value.length; } return; }
+    case 'cam-editar': { const a = CAM.lista.find(x => x.id === el.dataset.id); if (!a || !camPodeEditar(a)) return;
+      CAM.edit = a.id; CAM.form = { vagao: a.vagao, desc: a.descricao, prefixo: a.prefixo || '', posicao: a.posicao ?? '', nota: a.nota_sap == null ? '' : a.nota_sap ? 'sim' : 'nao', foto: null };
+      S.aba[S.papel] = 'camnovo'; render(); scrollTo(0, 0); return; }
+    case 'cam-cancelar': CAM.edit = null; CAM.form = { vagao: '', desc: '', prefixo: '', posicao: '', nota: '', foto: null }; break;
+    case 'cam-st': CAM.f.st = v; CAM.ver = 30; break;
+    case 'cam-mais': CAM.ver += 30; break;
+    case 'cam-limpar': CAM.f = { st: '', vag: '', por: '', ret: '', turno: '' }; CAM.ver = 30; break;
+    case 'cam-buscar': if (!precisaNuvem()) return; toast('Atualizando…'); await camCarregar(true); break;
+    case 'cam-csv': camCSV(); return;
+    case 'cam-eventos': { if (!precisaNuvem()) return; const id = el.dataset.id; S.modal = { tipo: 'camev', id, ev: null }; renderModal();
+      const { data, error } = await sb.from('cam_eventos').select('*').eq('apont_id', id).order('quando').order('id');
+      if (S.modal?.tipo === 'camev' && S.modal.id === id) { S.modal.ev = error ? [] : data; renderModal(); } if (error) toast('⚠ ' + error.message); return; }
+    case 'cam-ret': {
+      const id = el.dataset.id, a = Object.values(CAMT.porTrem).flat().find(x => x.id === id); if (!a) return;
+      const obs = ($('cam-obs-' + id)?.value ?? a.retorno_obs ?? '').trim();
+      Object.assign(a, { retorno: v, retorno_obs: obs || null, status: 'retornado', retorno_em: new Date().toISOString(), retorno_por: DB.me.id });
+      enviar({ acao: 'rpc', fn: 'cam_retorno', args: { p_id: id, p_retorno: v, p_obs: obs || null }, desc: 'Retorno ao Portal de Câmeras · ' + a.vagao });
+      toast('Retorno enviado ao Portal de Câmeras: ' + CAM_RET[v][0]); render(); return;
+    }
     case 'notas-buscar': buscarNotas(); return;
     case 'notas-mais': buscarNotas(true); return;
     case 'notas-limpar': NS.q = { vag: '', tipo: '', de: '', ate: '' }; buscarNotas(); return;
@@ -4018,6 +4351,11 @@ document.addEventListener('click', async e => {
   render();
 });
 document.addEventListener('change', async e => {
+  const cf = e.target.dataset?.cf, ck = e.target.dataset?.cam;
+  if (cf) { CAM.form[cf] = e.target.value; return; }
+  if (ck) { const v = e.target.value.trim(); CAM.ver = 30;
+    if (ck === 'de' || ck === 'ate') { if (!v) return; CAM[ck] = v; if (CAM.de > CAM.ate) CAM[ck === 'de' ? 'ate' : 'de'] = v; render(); await camCarregar(true); render(); }
+    else { CAM.f[ck] = v; render(); } return; }
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, N = S.novo, M = S.modal;
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
@@ -4059,6 +4397,7 @@ document.addEventListener('change', async e => {
     S.enviandoPlanos = false; render();
   }
   else if (a === 'div-ok') { N.divOk = el.checked; render(); }
+  else if (a === 'cam-foto') { camFotoArquivo(el.files[0]); el.value = ''; }
   else if (a === 'notas-xlsx') {
     const arq = el.files[0]; if (!arq) return;
     S.enviandoNotas = true; render();
@@ -4100,6 +4439,7 @@ document.addEventListener('change', async e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.dataset?.cf) { CAM.form[e.target.dataset.cf] = e.target.value; if (e.target.dataset.cf === 'vagao' && $('cam-vag-dica')) $('cam-vag-dica').innerHTML = camVagDica(); if ($('cam-salvar')) $('cam-salvar').disabled = !camFormOk() || CAM.salvando; return; }
   if (e.target.dataset?.nq) { NS.q[e.target.dataset.nq] = e.target.value.trim(); return; }
   if (e.target.id === 'retro-busca' && S.modal?.tipo === 'retro') { S.modal.q = e.target.value; $('retro-res').innerHTML = retroLista(S.modal); return; }
   if (e.target.id !== 'busca-falha') return;
@@ -4109,6 +4449,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'busca') { S.busca = e.target.value; render(); }
+  if (e.key === 'Enter' && e.target.dataset?.cam === 'vag') { CAM.f.vag = e.target.value.trim(); CAM.ver = 30; render(); }
   if (e.key === 'Enter' && e.target.id === 'notas-vag') { NS.q.vag = e.target.value.trim(); buscarNotas(); }
   if (e.key === 'Escape' && S.modal) { S.modal = null; renderModal(); }
 });
