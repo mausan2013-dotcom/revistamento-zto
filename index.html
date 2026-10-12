@@ -618,7 +618,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.60';
+const VERSAO = '1.61';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1298,10 +1298,21 @@ async function linhasDoPdf(arquivo) {
   }
   return linhas;
 }
+// Trava da leitura (v1.61, caso I91 de 12/10: 3 vagões com restrição ficaram de fora e ninguém notou).
+// Compara a ficha com o que foi lido: quantidade declarada ("Vagões: N") e posições da ficha que não viraram vagão
+// nem locomotiva. Se não bater, o líder precisa marcar que conferiu para poder dividir e enviar.
+const divergFicha = N => {
+  if (!N.lidos || !N.posFicha) return null;                                         // texto colado não tem posições
+  const tem = new Set([...N.posFicha, ...(N.ignorados || []).map(x => x.pos)]), falta = [];
+  for (let i = 1, max = Math.max(0, ...tem); i <= max; i++) if (!tem.has(i)) falta.push(i);
+  const conta = N.declarados != null && N.declarados !== N.lidos.length;
+  return falta.length || conta ? { falta, conta } : null;
+};
+const travaFicha = N => { const dv = divergFicha(N); if (dv && !N.divOk) { toast('⚠ A leitura não bate com a ficha: confira e marque a confirmação'); return true; } return false; };
 function aplicarFicha(f, nome) {
   const N = S.novo;
   if (!f.vagoes.length) { toast('Não encontrei vagões nessa ficha'); return false; }
-  Object.assign(N, { lidos: f.vagoes.map(v => v.cod), posFicha: f.vagoes.map(v => v.pos), restr: f.restr, ignorados: f.ignorados, declarados: f.declarados, fichaNome: nome, dist: null, qtdVist: null, qtdOk: false });
+  Object.assign(N, { lidos: f.vagoes.map(v => v.cod), posFicha: f.vagoes.map(v => v.pos), restr: f.restr, ignorados: f.ignorados, declarados: f.declarados, fichaNome: nome, dist: null, qtdVist: null, qtdOk: false, divOk: false });
   if (f.prefixo && !N.prefixo) N.prefixo = f.prefixo;
   if (f.os) N.os = f.os;
   return true;
@@ -1713,6 +1724,8 @@ function supNovo() {
         <span class="ic">📄</span><span><b>${N.lendo ? 'Lendo a ficha…' : N.fichaNome ? 'Trocar ficha do trem' : 'Enviar ficha do trem (PDF)'}</b><br><span class="small muted">${N.fichaNome ? esc(N.fichaNome) : 'O PDF de impressão do trem. Locomotivas (mais de 4 eixos) são ignoradas.'}</span></span></label>
       ${N.lidos ? `<div class="ficha-ok">
         <p style="margin:0 0 4px"><span class="tag ok">✓ ${N.lidos.length} vagões lidos</span> ${N.declarados != null ? (N.declarados === N.lidos.length ? `<span class="small" style="color:var(--ok);font-weight:700">confere com a ficha (${N.declarados})</span>` : `<span class="small" style="color:var(--bad);font-weight:700">⚠ a ficha diz ${N.declarados}. Confira!</span>`) : ''}</p>
+        ${(dv => dv ? `<div class="alerta" style="margin:10px 0 8px;display:block"><b>⚠ A leitura não bate com a ficha.</b> ${dv.conta ? `A ficha diz ${N.declarados} vagões e foram lidos ${N.lidos.length}. ` : ''}${dv.falta.length ? `Posições da ficha sem leitura: <b>${dv.falta.join(', ')}</b>. ` : ''}Podem ser vagões que o app não reconheceu (por exemplo, com restrição). Abra a ficha e confira; se ela mudou, envie o PDF de novo.
+          <label class="radio" style="margin-top:8px"><input type="checkbox" data-act="div-ok" ${N.divOk ? 'checked' : ''}> <span>Conferi: o que não foi lido não é vagão da composição (ex.: locomotiva)</span></label></div>` : '')(divergFicha(N))}
         <p class="small muted" style="margin:0">Primeiro ${esc(N.lidos[0])}${N.posFicha ? ` (pos. ${N.posFicha[0]})` : ''}, último ${esc(N.lidos[N.lidos.length - 1])}${N.posFicha ? ` (pos. ${N.posFicha[N.posFicha.length - 1]})` : ''}</p>
         ${N.ignorados.length ? `<p class="small muted" style="margin:4px 0 0">Ignorados (locomotivas): ${N.ignorados.map(v => `${esc(v.cod)} · pos. ${v.pos} · ${v.eixos} eixos`).join('; ')}</p>` : ''}
         ${(() => { const l = N.lidos.map((c, i) => ({ c, i, pp: planosPend(c) })).filter(x => x.pp.length); return l.length ? `<p class="small" style="margin:6px 0 0"><b style="color:var(--info)">📋 ${l.length} vagão(ões) com plano especial pendente:</b> ${l.map(x => `pos. ${N.posFicha ? N.posFicha[x.i] : x.i + 1} ${esc(x.c)} (${esc(txtPlanos(x.pp))})`).join('; ')}. As equipes verão o aviso no vagão.</p>` : ''; })()}
@@ -1730,7 +1743,7 @@ function supNovo() {
     <div class="card"><h2>2 · Equipes que vão atuar</h2>
       ${eqs.map((e, i) => `<label class="radio"><input type="checkbox" data-act="novo-sel" data-i="${i}" ${N.sel[i] !== false ? 'checked' : ''}> <span><b>Equipe ${e.n}</b> · ${esc(nomesEquipe(e.membros)) || '<i>sem integrantes</i>'}</span></label>`).join('')}
       ${!S.eqSalvo[T()] ? '<p class="small muted" style="margin:6px 0 0">Equipes sugeridas: ao enviar o trem elas ficam confirmadas para hoje. Para mudar, use a aba Equipes.</p>' : ''}
-      <div class="acoes"><button class="btn primary" data-act="distribuir" ${N.lidos && selIdx.length ? '' : 'disabled'}>Dividir igualmente</button></div>
+      <div class="acoes"><button class="btn primary" data-act="distribuir" ${N.lidos && selIdx.length && !(divergFicha(N) && !N.divOk) ? '' : 'disabled'}>Dividir igualmente</button></div>
     </div>
     ${distHtml}
   </div>`;
@@ -3891,6 +3904,7 @@ document.addEventListener('click', async e => {
     }
     case 'novo-sel': N.sel[+el.dataset.i] = el.checked; N.dist = null; N.qtdVist = null; N.qtdOk = false; break;
     case 'distribuir': {
+      if (travaFicha(N)) return;
       if (!N.qtdOk && N.lidos.length > LIM_TREM_GRANDE && selIdxNovo().length <= LIM_EQ_GRANDE) { S.modal = { tipo: 'qtdvag', passo: 'pergunta', msg: '' }; renderModal(); return; }
       dividirNovo(); break;
     }
@@ -3903,6 +3917,7 @@ document.addEventListener('click', async e => {
       N.qtdVist = v >= N.lidos.length ? null : v; N.qtdOk = true; S.modal = null; dividirNovo(); break;
     }
     case 'enviar-trem': {
+      if (travaFicha(N)) return;
       const tt = T(), eqs = EQ(tt);
       if (!S.eqSalvo[tt] || S.eqSujo[tt]) salvarEquipes(tt);
       const id = uuid(), lider = DB.me.perfil === 'supervisor' ? DB.me.id : DB.colab.find(x => x.perfil === 'supervisor' && x.turno === tt && x.status === 'ativo')?.id || null;
@@ -4036,6 +4051,7 @@ document.addEventListener('change', async e => {
     catch (err) { toast('⚠ ' + err.message); }
     S.enviandoPlanos = false; render();
   }
+  else if (a === 'div-ok') { N.divOk = el.checked; render(); }
   else if (a === 'notas-xlsx') {
     const arq = el.files[0]; if (!arq) return;
     S.enviandoNotas = true; render();
