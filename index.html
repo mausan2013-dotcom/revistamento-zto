@@ -655,7 +655,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.66';
+const VERSAO = '1.67';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -881,21 +881,22 @@ async function carregarNotasTec() {
   const cods = [...new Set(atuais().flatMap(t => t.vagoes))].sort();
   if (!cods.length) { if (NTEC.chave) Object.assign(NTEC, { mapa: {}, chave: 0 }); return; }
   let ch = 0; const todos = cods.join(','); for (let i = 0; i < todos.length; i++) ch = (ch * 31 + todos.charCodeAt(i)) | 0;
-  if (ch === NTEC.chave && Date.now() - NTEC.em < 10 * 60e3) return;                 // mesmos vagões: confere a planilha a cada 10 min
+  const regra = VERSAO;                                                               // regra dos grupos mudou (app novo): refaz a lista guardada
+  if (ch === NTEC.chave && NTEC.regra === regra && Date.now() - NTEC.em < 10 * 60e3) return;   // mesmos vagões: confere a planilha a cada 10 min
   if (Date.now() - NTEC.tent < 20e3) return; NTEC.tent = Date.now();
   try {
     const { data: c, error } = await sb.from('notas_cargas').select('id').order('quando', { ascending: false }).limit(1);
     if (error) return;
-    if (!c.length) { Object.assign(NTEC, { mapa: {}, chave: ch, carga: null, em: Date.now() }); return; }
-    if (ch === NTEC.chave && c[0].id === NTEC.carga) { NTEC.em = Date.now(); return; }
+    if (!c.length) { Object.assign(NTEC, { mapa: {}, chave: ch, carga: null, regra, em: Date.now() }); return; }
+    if (ch === NTEC.chave && c[0].id === NTEC.carga && NTEC.regra === regra) { NTEC.em = Date.now(); return; }
     const mapa = {};
     for (let i = 0; i < cods.length; i += 100) {
       const rows = await tudo(() => sb.from('notas_sap').select('vagao,tp_nota,data_nota,nota,descricao,texto').eq('carga_id', c[0].id).in('vagao', cods.slice(i, i + 100)).order('id'));
       rows.forEach(r => { const g = grupoNota(r); if (!g) return; const l = (mapa[r.vagao] ||= []);
         if (!l.some(x => x.nota === r.nota && x.grupo === g)) l.push({ grupo: g, tp: r.tp_nota, data: r.data_nota, nota: r.nota, desc: partesSap(r.descricao) || partesSap(r.texto) }); });
     }
-    Object.assign(NTEC, { mapa, chave: ch, carga: c[0].id, em: Date.now() });
-    lsGravar('rzto_notas_tec', { mapa, chave: ch, carga: c[0].id });
+    Object.assign(NTEC, { mapa, chave: ch, carga: c[0].id, regra, em: Date.now() });
+    lsGravar('rzto_notas_tec', { mapa, chave: ch, carga: c[0].id, regra });
   } catch {}
 }
 const notasPend = cod => NTEC.mapa[cod] || [];
