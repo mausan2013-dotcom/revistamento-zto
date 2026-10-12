@@ -381,6 +381,7 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .cam-drop img { width: 100%; max-height: 260px; object-fit: contain; border-radius: var(--radius-sm); }
 .cam-drop .ic { font-size: 44px; }
 .cam-drop.sobre { background: var(--info-bg); }
+.cam-vag-dica { margin: -6px 0 10px; font-weight: 700; line-height: 1.6; } .cam-vag-dica .chip { margin: 4px 4px 0 0; }
 .cam-form label.campo textarea { font-family: inherit; font-size: 16px; min-height: 84px; }
 .cam-chips { margin: -4px 0 10px; } .cam-chips .chip { font-size: 12px; padding: 4px 10px; }
 .cam-busca { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; margin-bottom: 10px; }
@@ -655,7 +656,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.67';
+const VERSAO = '1.68';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3398,7 +3399,7 @@ async function carregarEmpresas() {
   try {
     const m = await (await fetch('vagoes-empresa.json', { cache: 'no-cache' })).json(), semDv = {}, num = {};
     Object.entries(m).forEach(([k, v]) => { const a = k.slice(0, 10), b = k.slice(4, 10); semDv[a] = semDv[a] === undefined || semDv[a] === v ? v : null; num[b] = num[b] === undefined || num[b] === v ? v : null; });
-    Object.assign(EMP, { mapa: m, semDv, num }); render();
+    Object.assign(EMP, { mapa: m, semDv, num }); if (!digitando()) render(); else if ($('cam-vag-dica')) camAtualizaVag();
   } catch { EMP.carregando = false; }
 }
 // código exato; senão ignora o dígito final; senão só o número (só quando não há dúvida) -> marcado como aproximado
@@ -3650,12 +3651,37 @@ function camLista(l, vazio) {
 }
 
 // 1. formulário: foto + vagão + descrição (obrigatórios); data, hora, turno e assistente entram sozinhos
-const camFormOk = () => { const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit); return !!((fm.foto || ed) && vagNum(fm.vagao).length >= 6 && fm.desc.trim()); };
-const camVagDica = () => { const v = CAM.form.vagao; if (!v.trim()) return ''; const n = vagNum(v).length;
-  return n < 6 ? '<span style="color:var(--bad)">número incompleto</span>' : `→ ${esc(vagFmt(v))}${n !== 7 ? ' <span style="color:var(--warn)">(confira: a ficha usa 7 dígitos)</span>' : ''}`; };
+// vagão conferido no cadastro (vagoes-empresa.json, planilha EMPRESA DOS VAGÕES, v1.68): só salva vagão que existe
+function camVagCheck(v) {
+  const n = vagNum(v), L = String(v || '').toUpperCase().replace(/[^A-Z]/g, '');
+  if (!String(v || '').trim()) return { st: 'vazio' };
+  if (n.length < 6 || n.length > 7) return { st: 'curto' };
+  if (!EMP.mapa) return { st: 'carregando' };
+  if (!EMP.idx) { const i7 = {}, i6 = {}; Object.keys(EMP.mapa).forEach(k => { const d = vagNum(k); (i7[d] ||= []).push(k); (i6[d.slice(0, 6)] ||= []).push(k); }); Object.assign(EMP, { idx: i7, idx6: i6 }); }
+  const cand = (n.length === 7 ? EMP.idx[n] : EMP.idx6[n]) || [], certos = L ? cand.filter(k => k.startsWith(L)) : cand;
+  if (certos.length === 1) return { st: 'ok', cod: certos[0] };
+  if (certos.length > 1) return { st: 'escolher', sugest: certos };
+  if (cand.length) return { st: 'serie', sugest: cand };                                   // número existe, série diferente
+  const dv = n.length === 7 ? (EMP.idx6[n.slice(0, 6)] || []) : [];                     // número sem o dígito existe
+  return dv.length ? { st: 'digito', sugest: dv } : { st: 'nao' };
+}
+const camPodeForcar = () => ['camera_sup', 'programador'].includes(DB.me.perfil);
+const camVagValido = () => { const c = camVagCheck(CAM.form.vagao); return c.st === 'ok' || (c.st === 'nao' && CAM.form.forcar && camPodeForcar()); };
+const camFormOk = () => { const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit); return !!((fm.foto || ed) && camVagValido() && fm.desc.trim()); };
+function camVagDica() {
+  const c = camVagCheck(CAM.form.vagao), bts = l => l.slice(0, 8).map(k => `<button class="chip" data-act="cam-vag-usar" data-v="${esc(k)}">${esc(k)}</button>`).join(' ');
+  return { vazio: '', curto: '<span style="color:var(--bad)">Número incompleto: o vagão tem 7 dígitos (6 + dígito).</span>',
+    carregando: '<span class="muted">Conferindo no cadastro de vagões…</span>',
+    ok: `<span style="color:var(--ok)">✓ ${esc(c.cod)} · vagão encontrado no cadastro</span>`,
+    escolher: `<span style="color:var(--warn)">Esse número existe em mais de uma série. Escolha:</span><br>${bts(c.sugest || [])}`,
+    serie: `<span style="color:var(--warn)">A série não confere com o cadastro. Você quis dizer:</span><br>${bts(c.sugest || [])}`,
+    digito: `<span style="color:var(--warn)">O dígito final não confere com o cadastro. Você quis dizer:</span><br>${bts(c.sugest || [])}`,
+    nao: `<span style="color:var(--bad)">✗ Vagão não encontrado no cadastro. Confira o número.</span>${camPodeForcar() ? `<br><label class="small" style="font-weight:600"><input type="checkbox" data-act="cam-vag-forcar" ${CAM.form.forcar ? 'checked' : ''}> Confirmo que o número está certo (vagão fora do cadastro)</label>` : '<br><span class="small muted">Se o vagão for novo, peça ao supervisor de câmeras para lançar.</span>'}` }[c.st];
+}
+const camAtualizaVag = () => { if ($('cam-vag-dica')) $('cam-vag-dica').innerHTML = camVagDica(); if ($('cam-salvar')) $('cam-salvar').disabled = !camFormOk() || CAM.salvando; };
 function camNovo() {
   if (!ehCam() && !ehProg()) return '<div class="card muted">Só a equipe de câmeras registra apontamentos.</div>';
-  camGarantir();
+  camGarantir(); carregarEmpresas();
   const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit), img = fm.foto || (ed && camUrl(ed.foto)), sv = emServico();
   if (ed) camFotos([ed]);
   const meus = CAM.lista.filter(a => a.por === DB.me.id).slice(0, 5);
@@ -3668,7 +3694,7 @@ function camNovo() {
         <span><b>${img ? 'Trocar a foto' : 'Foto do defeito *'}</b><br><span class="small muted">Toque para escolher ou tirar a foto. No computador: cole o recorte da câmera (Ctrl+V) ou arraste a imagem para cá.</span></span>
       </label>
       <div>
-        <label class="campo">Vagão *<input id="cam-vag" data-cf="vagao" value="${esc(fm.vagao)}" placeholder="3019519HPT ou HPT 301951-9" autocomplete="off" autocapitalize="characters" spellcheck="false"><span class="small" id="cam-vag-dica" style="font-weight:600">${camVagDica()}</span></label>
+        <label class="campo">Vagão *<input id="cam-vag" data-cf="vagao" value="${esc(fm.vagao)}" placeholder="3019519HPT ou HPT 301951-9" autocomplete="off" autocapitalize="characters" spellcheck="false"></label><div class="small cam-vag-dica" id="cam-vag-dica">${camVagDica()}</div>
         <label class="campo">Descrição do defeito *<textarea id="cam-desc" data-cf="desc" rows="3" placeholder="ex.: Amparo balanço BD sem as chapas">${esc(fm.desc)}</textarea></label>
         <div class="chips cam-chips">${CAM_COMP.map(c => `<button class="chip" data-act="cam-comp" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>
         <div class="linha-campos">
@@ -3760,13 +3786,14 @@ async function camSalvar() {
       if (up.error) throw up.error;
       CAM.urls[foto] = { u: fm.foto, em: Date.now() };
     }
-    const dados = { vagao: vagFmt(fm.vagao), descricao: fm.desc.trim(), foto, prefixo: fm.prefixo.trim().toUpperCase() || null, posicao: parseInt(fm.posicao, 10) || null, nota_sap: fm.nota ? fm.nota === 'sim' : null };
+    const ck = camVagCheck(fm.vagao);
+    const dados = { vagao: ck.st === 'ok' ? ck.cod : vagFmt(fm.vagao), descricao: fm.desc.trim(), foto, prefixo: fm.prefixo.trim().toUpperCase() || null, posicao: parseInt(fm.posicao, 10) || null, nota_sap: fm.nota ? fm.nota === 'sim' : null };
     const { error } = ed ? await sb.from('cam_apontamentos').update(dados).eq('id', id) : await sb.from('cam_apontamentos').insert({ id, turno: emServico().turno || null, ...dados });
     if (error) throw error;
     const { data: a, error: e2 } = await sb.from('cam_apontamentos').select(camCampos).eq('id', id).single();   // o banco pode ter ligado ao trem na hora
     if (e2) throw e2;
     const i = CAM.lista.findIndex(x => x.id === id); if (i >= 0) CAM.lista[i] = a; else CAM.lista.unshift(a);
-    CAM.form = { vagao: '', desc: '', prefixo: '', posicao: '', nota: '', foto: null }; CAM.edit = null;
+    CAM.form = { vagao: '', desc: '', prefixo: '', posicao: '', nota: '', foto: null, forcar: false }; CAM.edit = null;
     toast(a.status === 'enviado' ? `✓ Apontado e já enviado ao revisor: trem ${a.trem_prefixo}, posição ${a.trem_pos_ficha}` : ed ? '✓ Apontamento atualizado' : '✓ Apontamento salvo. Vai ao revisor quando o vagão for lido na ficha');
   } catch (e) { toast('⚠ ' + camErro(e)); }
   CAM.salvando = false; render();
@@ -4325,6 +4352,7 @@ document.addEventListener('click', async e => {
     case 'ver-vagao': e.preventDefault(); if (S.papel === 'vis' || (!VIEWS[S.papel].vagao && !ehProg())) return; S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.aba[S.papel] = 'vagao'; break;
     case 'buscar': S.busca = $('busca').value; break;
     case 'cam-salvar': camSalvar(); return;
+    case 'cam-vag-usar': CAM.form.vagao = v; CAM.form.forcar = false; render(); setTimeout(() => $('cam-desc')?.focus()); return;
     case 'cam-comp': { const fm = CAM.form, d = fm.desc.trim(); fm.desc = d ? (d.toLowerCase().includes(v.toLowerCase()) ? d : d + ' · ' + v) : v + ' '; render(); const ta = $('cam-desc'); if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = ta.value.length; } return; }
     case 'cam-editar': { const a = CAM.lista.find(x => x.id === el.dataset.id); if (!a || !camPodeEditar(a)) return;
       CAM.edit = a.id; CAM.form = { vagao: a.vagao, desc: a.descricao, prefixo: a.prefixo || '', posicao: a.posicao ?? '', nota: a.nota_sap == null ? '' : a.nota_sap ? 'sim' : 'nao', foto: null };
@@ -4400,6 +4428,7 @@ document.addEventListener('change', async e => {
     S.enviandoPlanos = false; render();
   }
   else if (a === 'div-ok') { N.divOk = el.checked; render(); }
+  else if (a === 'cam-vag-forcar') { CAM.form.forcar = el.checked; camAtualizaVag(); }
   else if (a === 'cam-foto') { camFotoArquivo(el.files[0]); el.value = ''; }
   else if (a === 'notas-xlsx') {
     const arq = el.files[0]; if (!arq) return;
@@ -4442,7 +4471,7 @@ document.addEventListener('change', async e => {
   }
 });
 document.addEventListener('input', e => {
-  if (e.target.dataset?.cf) { CAM.form[e.target.dataset.cf] = e.target.value; if (e.target.dataset.cf === 'vagao' && $('cam-vag-dica')) $('cam-vag-dica').innerHTML = camVagDica(); if ($('cam-salvar')) $('cam-salvar').disabled = !camFormOk() || CAM.salvando; return; }
+  if (e.target.dataset?.cf) { CAM.form[e.target.dataset.cf] = e.target.value; if (e.target.dataset.cf === 'vagao') CAM.form.forcar = false; camAtualizaVag(); return; }
   if (e.target.dataset?.nq) { NS.q[e.target.dataset.nq] = e.target.value.trim(); return; }
   if (e.target.id === 'retro-busca' && S.modal?.tipo === 'retro') { S.modal.q = e.target.value; $('retro-res').innerHTML = retroLista(S.modal); return; }
   if (e.target.id !== 'busca-falha') return;
