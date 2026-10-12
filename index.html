@@ -612,7 +612,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.57';
+const VERSAO = '1.58';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1559,7 +1559,7 @@ function cardTrem(t) {
     ${eqs}
     ${(l => l.length ? `<div class="alerta" style="margin:10px 0 0"><span>⚠ <b>Faixas sobrepostas:</b> ${l.map(x => `Equipe ${x.a} e Equipe ${x.b} nas ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, x.ini)} a ${posF(t, x.fim)}`).join('; ')}. Esses vagões aparecem para as duas equipes: combine quem faz.</span></div>` : '')(sobrepostas(t))}
     ${t.status === 'andamento' && !t.dist.some(d => d.membros.some(m => C(m).turno === t.turno)) ? `<div class="alerta" style="margin:10px 0 0"><span>👥 <b>Sem equipes deste turno neste trem.</b> ${t.dist.length ? 'Recebido do turno anterior: o que já foi registrado fica; divida o restante.' : ''}</span><button class="btn sm primary" data-act="dividir-trem" data-id="${t.id}">Dividir entre as equipes</button></div>` : ''}
-    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
+    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}" data-data="${n.data}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
     ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
   </div>`;
@@ -3646,9 +3646,11 @@ document.addEventListener('click', async e => {
       const t = tremPorId(el.dataset.id), nt = el.dataset.turno;
       if (!confirm(`Passar o trem ${t.prefixo} para o turno ${nt} (líder ${liderDe(nt)})?\n\n• As equipes que já começaram têm a parte encerrada agora; o que registraram fica.\n• As partes que não começaram são retiradas.\n• O líder do turno ${nt} divide o restante entre as equipes dele.\n\nPrecisa de internet.`)) return;
       toast('Passando o trem…');
-      const { error } = await sb.rpc('passar_trem', { t: t.id, novo_turno: nt });
+      // v1.58: o trem passa a contar no dia de serviço do turno de destino (18-passar-trem-data.sql)
+      let aviso18 = false, { error } = await sb.rpc('passar_trem', { t: t.id, novo_turno: nt, nova_data: el.dataset.data || null });
+      if (error && /function|schema cache|nova_data/i.test(error.message)) { ({ error } = await sb.rpc('passar_trem', { t: t.id, novo_turno: nt })); if (!error) aviso18 = true; }
       if (error) { toast('⚠ ' + (/function|schema cache/i.test(error.message) ? 'Rode o 09-passar-trem.sql no Supabase' : error.message)); return; }
-      await carregar().catch(() => {}); toast('Trem ' + t.prefixo + ' passado para o turno ' + nt); break;
+      await carregar().catch(() => {}); toast('Trem ' + t.prefixo + ' passado para o turno ' + nt + (aviso18 ? ' · rode o 18-passar-trem-data.sql para valer o dia do turno ' + nt : '')); break;
     }
     case 'dividir-trem': S.modal = { tipo: 'dividir', id: el.dataset.id, sel: {} }; renderModal(); return;
     case 'salvar-divisao': {
