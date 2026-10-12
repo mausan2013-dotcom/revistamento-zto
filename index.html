@@ -618,7 +618,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.59';
+const VERSAO = '1.60';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -814,6 +814,56 @@ async function carregarPendentes(forcar) {
 const planosPend = cod => PEND.mapa[cod] || [];
 const txtPlanos = l => l.map(x => x.plano).join(', ');
 
+// Notas abertas do SAP (planilha Z369) dos vagões dos trens em andamento, só dos componentes combinados com o PCM (v1.60).
+// O técnico vê o aviso no vagão, como nos planos especiais, mas sem baixa: é só informação. A regra olha primeiro a
+// Descrição ("SISTEMA|COMPONENTE|PEÇA|DEFEITO") e, se ela não casar com nenhum grupo, o Texto.
+// Para incluir ou tirar um componente, é só mexer nesta lista (não precisa enviar a planilha de novo).
+const GRUPOS_NOTA = [
+  ['Longarina', d => /\|long\|/.test(d), t => /longarina/.test(t)],
+  ['Travessa central', d => /travessa/.test(d), t => /truque:travessa/.test(t)],
+  ['Amparo balanço', d => /\|ab\|/.test(d) || /ampara/.test(d), t => /ampara|(amort|truque):(chapa( do)? ab|base ab|elastomero ab|mola ab)/.test(t)],
+  ['Prato pião', d => /\|(prato piao|pp)\|/.test(d), t => /prato piao/.test(t)],
+  ['Cunha', d => /\|cunha\|/.test(d), t => /cunha/.test(t)],
+  ['Mola', d => /pacote ?de ?mola/.test(d), t => /(amort|amortecimento):mola/.test(t)],
+  ['Adaptador', d => /adaptador/.test(d), t => /rd:adaptador/.test(t)],
+  ['Roda friso', d => /roda\|friso/.test(d), t => /(rd|t-bogi.*):?friso/.test(t)],
+  ['Pino T', d => /pino t(\||\s|$)/.test(d), () => false],
+  ['Parafuso retentor engate F', d => /engate\|pino f\|/.test(d), () => false],
+  ['Haste de manobra', d => /haste (de )?manobra/.test(d), t => /haste de manobra/.test(t)],
+  ['Freio isolado', d => /\|freio\|isolado|freio isolado/.test(d), t => /freio:isolado/.test(t)]
+];
+function grupoNota(n) {
+  const d = semAcento(String(n.descricao || '')), t = semAcento(String(n.texto || ''));
+  return (GRUPOS_NOTA.find(g => g[1](d)) || GRUPOS_NOTA.find(g => g[2](t)) || [null])[0];
+}
+const NTEC = Object.assign({ mapa: {}, chave: 0, carga: null, em: 0, tent: 0 }, lsLer('rzto_notas_tec', {}), { em: 0, tent: 0 });
+async function carregarNotasTec() {
+  if (DEMO || OFFLINE) return;
+  const cods = [...new Set(atuais().flatMap(t => t.vagoes))].sort();
+  if (!cods.length) { if (NTEC.chave) Object.assign(NTEC, { mapa: {}, chave: 0 }); return; }
+  let ch = 0; const todos = cods.join(','); for (let i = 0; i < todos.length; i++) ch = (ch * 31 + todos.charCodeAt(i)) | 0;
+  if (ch === NTEC.chave && Date.now() - NTEC.em < 10 * 60e3) return;                 // mesmos vagões: confere a planilha a cada 10 min
+  if (Date.now() - NTEC.tent < 20e3) return; NTEC.tent = Date.now();
+  try {
+    const { data: c, error } = await sb.from('notas_cargas').select('id').order('quando', { ascending: false }).limit(1);
+    if (error) return;
+    if (!c.length) { Object.assign(NTEC, { mapa: {}, chave: ch, carga: null, em: Date.now() }); return; }
+    if (ch === NTEC.chave && c[0].id === NTEC.carga) { NTEC.em = Date.now(); return; }
+    const mapa = {};
+    for (let i = 0; i < cods.length; i += 100) {
+      const rows = await tudo(() => sb.from('notas_sap').select('vagao,tp_nota,data_nota,nota,descricao,texto').eq('carga_id', c[0].id).in('vagao', cods.slice(i, i + 100)).order('id'));
+      rows.forEach(r => { const g = grupoNota(r); if (!g) return; const l = (mapa[r.vagao] ||= []);
+        if (!l.some(x => x.nota === r.nota && x.grupo === g)) l.push({ grupo: g, tp: r.tp_nota, data: r.data_nota, nota: r.nota, desc: partesSap(r.descricao) || partesSap(r.texto) }); });
+    }
+    Object.assign(NTEC, { mapa, chave: ch, carga: c[0].id, em: Date.now() });
+    lsGravar('rzto_notas_tec', { mapa, chave: ch, carga: c[0].id });
+  } catch {}
+}
+const notasPend = cod => NTEC.mapa[cod] || [];
+const txtNotas = l => [...new Set(l.map(x => x.grupo))].join(', ');
+const dtNota = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
+const linhasNotas = l => l.map(x => `<br><span style="color:var(--info)">📝 <b>${esc(x.grupo)}</b> · ${esc(x.tp || '')} ${dtNota(x.data)} · nota ${esc(x.nota || '')}<br><span class="small muted">${esc(x.desc)}</span></span>`).join('');
+
 // Carga dos dados. Para economizar tráfego (Supabase, plano grátis: 5 GB/mês de saída), três níveis (v1.51):
 //  · do zero: ao entrar sem cópia no aparelho, em "Atualizar agora" e a cada 12 h;
 //  · conferência da janela (a cada 20 min): lista id + carimbo dos trens do período do perfil e baixa só os que
@@ -993,6 +1043,7 @@ async function montarDados() {
   DB.equipesDia = RAW.eqd;
   if (prog) DB.planosTodos = planos.map(planoDe);
   await carregarPendentes();
+  await carregarNotasTec();
   DB.log = RAW.log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
   sincronizarEquipes();
   DB.carregado = true; DB.atualizadoEm = new Date();
@@ -2011,7 +2062,7 @@ function vistaApont() {
 // ---------- TÉCNICO ----------
 function atencaoFaixa(t, d) {
   const out = [];
-  for (let pos = d.ini; pos <= d.fim; pos++) { const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]); if (rf || pp.length) out.push({ pos, cod: t.vagoes[pos - 1], rf, pp, r: t.reg[pos] }); }
+  for (let pos = d.ini; pos <= d.fim; pos++) { const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), nn = notasPend(t.vagoes[pos - 1]); if (rf || pp.length || nn.length) out.push({ pos, cod: t.vagoes[pos - 1], rf, pp, nn, r: t.reg[pos] }); }
   return out;
 }
 // faixa do técnico no trem: a primeira ainda aberta (a própria vem antes; depois as faixas extras recebidas de uma
@@ -2021,13 +2072,13 @@ const ehExtra = (t, d) => t.dist.findIndex(x => x.n === d.n) !== t.dist.indexOf(
 // linha de um vagão na lista do técnico (d = equipe dona da faixa); vagão feito por outra equipe mostra quem fez
 function itemVagao(t, pos, d, escolhido) {
   const r = t.reg[pos];
-    const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), reg = r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : '', outra = r && r.equipe != null && r.equipe !== d.n ? r.equipe : null;
+    const rf = restrDe(t, pos), pp = planosPend(t.vagoes[pos - 1]), nn = notasPend(t.vagoes[pos - 1]), reg = r ? (r.st === 'ok' ? 'Registrado às ' + r.h : txtReg(r)) : '', outra = r && r.equipe != null && r.equipe !== d.n ? r.equipe : null;
     const pex = (t.pexec || {})[pos] || {};
     const botoesPlano = pp.length && (!d.termino || escolhido) ? `<div class="pl-acoes">${pp.map(x => { const e = pex[x.plano]; return `<div class="pl-linha"><span>📋 ${esc(x.plano)}</span>
       <button class="btn sm ${e?.ok === true ? 'ok' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="1">✓ Realizado</button>
       <button class="btn sm ${e?.ok === false ? 'nao' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="0">✗ Não realizado</button></div>`; }).join('')}</div>` : '';
-  return `${botoesPlano ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
-      ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}${outra ? `<span class="det apoio">🤝 feito pela Equipe ${outra} (apoio)</span>` : ''}</span>${tagReg(r)}</button>${botoesPlano ? botoesPlano + '</div>' : ''}`;
+  return `${botoesPlano ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length || nn.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
+      ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${nn.length ? `<span class="det av plano">📝 Nota SAP aberta: ${esc(txtNotas(nn))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}${outra ? `<span class="det apoio">🤝 feito pela Equipe ${outra} (apoio)</span>` : ''}</span>${tagReg(r)}</button>${botoesPlano ? botoesPlano + '</div>' : ''}`;
 }
 // ---------- apoio entre equipes ----------
 // Quem já encerrou a sua parte pode ajudar uma equipe do mesmo trem que ainda tem vagões (ex.: travou numa avaria).
@@ -2084,7 +2135,7 @@ function tecMeu() {
   for (const pos of ordemFaixa(d)) {
     const r = t.reg[pos];
     if (S.tecFiltro === 'faltam' && r) continue;
-    if (S.tecFiltro === 'atencao' && !restrDe(t, pos) && !planosPend(t.vagoes[pos - 1]).length) continue;
+    if (S.tecFiltro === 'atencao' && !restrDe(t, pos) && !planosPend(t.vagoes[pos - 1]).length && !notasPend(t.vagoes[pos - 1]).length) continue;
     if (S.tecFiltro === 'feitos' && !r) continue;
     lista.push(itemVagao(t, pos, d, escolhido));
   }
@@ -2096,11 +2147,11 @@ function tecMeu() {
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões${ehExtra(t, d) ? ' (faixa extra)' : ''}: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
     ${d.comeco > d.ini ? `<div class="small" style="color:var(--info);font-weight:700">↪ Começando no ${esc(t.vagoes[d.comeco - 1])} (${t.posFicha ? 'pos.' : 'nº'} ${posF(t, d.comeco)}); no fim, os vagões antes dele</div>` : ''}<div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
     ${barra(p.n / p.total * 100)}
-    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length, ab = S.tecAten === t.id + ':' + d.n;
-      return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
+    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length, nt = a.filter(x => x.nn.length).length, ab = S.tecAten === t.id + ':' + d.n;
+      return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''}${(iso || pl) && nt ? ' · ' : ''}${nt ? `<b style="color:var(--info)">📝 ${nt} com nota SAP</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
       ${ab ? `<ul class="aten-lista">${a.map(x => `<li><span class="pos">${posF(t, x.pos)}</span><span><b>${esc(x.cod)}</b>${x.r ? ' <span class="tag ok">registrado</span>' : ''}
         ${x.rf ? `<br><span style="color:var(--warn)">⚠ Na ficha: ${esc(x.rf.motivo)}${x.rf.data ? ` <span class="muted">(desde ${esc(x.rf.data)})</span>` : ''}</span>` : ''}
-        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
+        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${linhasNotas(x.nn)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
       : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
@@ -2178,7 +2229,7 @@ function blocoArvore(M) {
     ${N.falha ? '<button class="btn" style="width:100%;margin-bottom:12px" data-act="add-falha">+ Adicionar falha</button>' : ''}`;
 }
 function modalVagao(M) {
-  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
+  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}${notasPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📝 <span><b>Nota(s) aberta(s) no SAP:</b>${linhasNotas(notasPend(t.vagoes[M.pos - 1]))}<br><span class="small">Confira o componente na revista. Se achar o defeito, registre no vagão.</span></span></div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
   if (!M.modo) return cab + `<div class="escolhas">
     <button class="btn ok big" data-act="salvar-ok">✓ Revistado, sem intervenção</button>
     <button class="btn big" style="color:var(--title);border-color:var(--title)" data-act="modo" data-v="int">🔧 Troca de material / ocorrência</button>
