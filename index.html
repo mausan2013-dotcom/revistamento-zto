@@ -656,7 +656,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.68';
+const VERSAO = '1.69';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -729,6 +729,16 @@ const MATERIAIS = [
   { id: 'sup_mang', nome: 'Suporte flexível mangueira PCT', desc: 'SUPORTE FLEXIVEL PARA MANGUEIRA PCT' }
 ];
 const MAT = Object.fromEntries(MATERIAIS.map(m => [m.id, m]));
+// lista mantida pelo programador em Cadastros (SQL 22): material novo, retirar da lista do técnico e voltar. Sem o SQL 22 vale só a lista oficial.
+let MAT_CFG = lsLer('rzto_mat_cfg', []), MAT_EM = 0;
+const matLista = () => { const o = new Map(MATERIAIS.map(m => [m.id, { ...m, ativo: true, extra: false }]));
+  MAT_CFG.forEach(c => o.set(c.id, { ...(o.get(c.id) || {}), id: c.id, nome: c.nome, desc: c.descricao || c.nome, ativo: c.ativo !== false, extra: !MAT[c.id] })); return [...o.values()]; };
+const matAtivos = () => matLista().filter(m => m.ativo && !m.pos);
+const matPorId = id => matLista().find(m => m.id === id) || MAT[id];
+async function carregarMateriais(forca) {
+  if (DEMO || (!forca && Date.now() - MAT_EM < 5 * 60e3)) return; MAT_EM = Date.now();
+  try { const { data, error } = await sb.from('materiais_lista').select('*').order('ordem').order('criado_em'); if (!error && data) { MAT_CFG = data; lsGravar('rzto_mat_cfg', data); } } catch {}
+}
 const POSICOES = ['1E','2E','3E','4E','1D','2D','3D','4D'];
 const OCORRENCIAS = ['Retenção de vagão', 'Isolado fora da ficha', 'Normalizado fora da ficha', 'Normalizado dentro da ficha', 'Isolado pela mecânica de vagões'];
 const MOTIVOS_PARCIAL = ['Falta temporária de efetivo', 'Equipe em refeição', 'Movimentação de trens', 'Condições climáticas', 'Intervenção mecânica em vagão', 'Restrição de acesso à área', 'Transposição de composição', 'Passagem de turno', 'Desvios operacionais', 'Outro'];
@@ -999,6 +1009,7 @@ async function conferirColunas() {
 async function carregar(completa) {
   if (DEMO) return;
   if (ehCam()) return carregarCam(completa);
+  await carregarMateriais(completa);
   await conferirColunas();
   await conferirCarimbo();
   if (completa || !RAW.zeroEm || Date.now() - RAW.zeroEm > CARGA_ZERO_MS || !TEM_CARIMBO && Date.now() - RAW.completaEm > CARGA_COMPLETA_MS) return carregarCompleto();
@@ -1874,6 +1885,12 @@ function supGestao() {
   <div class="kpis"><div class="kpi"><div class="r">Ativos</div><div class="v">${n('ativo')}</div></div><div class="kpi"><div class="r">Afastados</div><div class="v">${n('afastado')}</div></div><div class="kpi"><div class="r">Líder</div><div class="v" style="font-size:18px;padding-top:6px">${esc(liderDe(tt))}</div></div></div>
   <div class="grid"><div class="card larga"><h2>Mecânicos do turno ${tt}</h2>${tabelaColab([tt])}</div>${cardLog(10)}</div>`;
 }
+function modalMatCad() {
+  return `<h3>Adicionar material</h3><p class="small muted">Aparece na lista do técnico ao registrar o vagão (até 5 minutos para chegar aos celulares abertos).</p>
+    <label class="campo">Nome do material<input id="mc-nome" maxlength="80" placeholder="Ex.: Mola do engate" autocomplete="off"></label>
+    <label class="campo">Descrição oficial (opcional)<input id="mc-desc" maxlength="160" placeholder="Como está no SAP, se quiser"></label>
+    <button class="btn primary big" data-act="mat-salvar">Adicionar à lista</button>`;
+}
 function modalColab(M) {
   const x = M.id ? C(M.id) : null, c = M.campos;
   if (M.acao === 'credencial') return `<h3>Acesso de ${esc(M.cred.nome)}</h3><p>Entregue ao colaborador. A senha é provisória: no primeiro acesso o app pede uma nova.</p>
@@ -2292,7 +2309,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, matcad: modalMatCad, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -2319,7 +2336,7 @@ function modalVagao(M) {
     <div class="grade-sap"><span></span><b>1</b><b>2</b><b>3</b><b>4</b><b>E</b>${['1E','2E','3E','4E'].map(celula).join('')}<b>D</b>${['1D','2D','3D','4D'].map(celula).join('')}</div>
     <div class="secao">Outros materiais</div>
     ${M.mats.map((m, i) => `<div class="def-item" style="background:var(--info-bg)"><span><b>${m.qtd}× ${esc(m.nome)}</b></span><button data-act="rem-mat" data-i="${i}" aria-label="Remover">✕</button></div>`).join('')}
-    <label class="campo"><select data-act="novo-mat"><option value="">Escolha um material…</option>${MATERIAIS.filter(m => !m.pos).map(m => `<option value="${m.id}" ${m.id === M.novoMat ? 'selected' : ''}>${esc(m.nome)}</option>`).join('')}<option value="outro" ${M.novoMat === 'outro' ? 'selected' : ''}>Outro (não está na lista)…</option></select></label>
+    <label class="campo"><select data-act="novo-mat"><option value="">Escolha um material…</option>${matAtivos().map(m => `<option value="${m.id}" ${m.id === M.novoMat ? 'selected' : ''}>${esc(m.nome)}</option>`).join('')}<option value="outro" ${M.novoMat === 'outro' ? 'selected' : ''}>Outro (não está na lista)…</option></select></label>
     ${M.novoMat === 'outro' ? `<label class="campo">Qual material?<input id="outro-nome" value="${esc(M.outroNome)}"></label>` : ''}
     ${M.novoMat ? `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><span class="stepper"><button data-act="qtd" data-v="-1">−</button><span>${M.novoQtd}</span><button data-act="qtd" data-v="1">+</button></span><button class="btn" style="flex:1" data-act="add-mat">+ Adicionar</button></div>` : ''}
     <div class="secao">Ocorrências <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">o validador técnico confere</span></div>
@@ -3531,7 +3548,9 @@ function progCadastros() {
     <div class="card"><h2>Programadores</h2><ul class="feed">${de('programador').map(x => `<li><span></span><span>${esc(x.nome)}<br><span class="small muted">${esc(x.login)}</span></span></li>`).join('')}</ul></div>
     ${cardLog(15)}
     <div class="card larga"><h2>Escala 8 horas</h2>${escalaHtml(16)}</div>
-    <div class="card larga"><h2>Materiais <span class="dir">${MATERIAIS.length} + “outro”</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>No app</th><th>Descrição oficial</th></tr></thead><tbody>${MATERIAIS.map(m => `<tr><td><b>${esc(m.nome)}</b></td><td class="small">${esc(m.desc)}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card larga"><h2>Materiais <span class="dir">${matAtivos().length + 1} na lista do técnico + “outro”</span></h2>
+      ${ehProg() ? `<p class="small muted" style="margin:0 0 8px">O técnico escolhe nesta lista ao registrar o vagão. Retirar tira da lista, mas o que já foi registrado fica como está.</p><button class="btn sm primary" data-act="mat-novo" style="margin-bottom:10px">+ Adicionar material</button>` : ''}
+      <div class="rolagem"><table class="tabela"><thead><tr><th>No app</th><th>Descrição oficial</th>${ehProg() ? '<th></th>' : ''}</tr></thead><tbody>${matLista().map(m => `<tr${m.ativo ? '' : ' style="opacity:.55"'}><td><b>${esc(m.nome)}</b>${m.extra ? ' <span class="tag info">novo</span>' : ''}${m.ativo ? '' : ' <span class="tag warn">retirado</span>'}</td><td class="small">${esc(m.desc)}</td>${ehProg() ? `<td>${m.pos ? '<span class="small muted">fixo</span>' : `<button class="btn sm ${m.ativo ? 'perigo' : ''}" data-act="${m.ativo ? 'mat-ret' : 'mat-volta'}" data-id="${m.id}">${m.ativo ? 'Retirar' : 'Voltar'}</button>`}</td>` : ''}</tr>`).join('')}</tbody></table></div></div>
     ${lst('Ocorrências por vagão', OCORRENCIAS)}${lst('Motivos de inspeção parcial', MOTIVOS_PARCIAL)}${lst('Motivos de trem não revistado', MOTIVOS_NAO_REV)}${lst('Motivos de desvio', MOTIVOS_DESVIO)}
     <div class="card"><h2>Sobre</h2><p class="small" style="margin:0">Revistamento ZTO v${VERSAO}<br>${RECURSOS.arvoreFalhas ? 'Árvore de falhas ligada.' : 'Árvore de falhas oficial pronta, mas oculta.'}</p></div>
   </div>`;
@@ -4103,7 +4122,7 @@ document.addEventListener('click', async e => {
     case 'qtd': M.novoQtd = Math.max(1, M.novoQtd + +v); renderModal(); return;
     case 'add-mat': {
       if (M.novoMat === 'outro' && !M.outroNome.trim()) { toast('Escreva o nome do material'); return; }
-      M.mats.push({ id: M.novoMat, nome: M.novoMat === 'outro' ? M.outroNome.trim() : MAT[M.novoMat].nome, qtd: M.novoQtd, pos: [] });
+      M.mats.push({ id: M.novoMat, nome: M.novoMat === 'outro' ? M.outroNome.trim() : matPorId(M.novoMat).nome, qtd: M.novoQtd, pos: [] });
       M.novoMat = ''; M.novoQtd = 1; M.outroNome = ''; renderModal(); return;
     }
     case 'rem-mat': M.mats.splice(+el.dataset.i, 1); renderModal(); return;
@@ -4298,6 +4317,23 @@ document.addEventListener('click', async e => {
         recalcCurto(); registrarLog(`${era === 'desligado' ? 'Readmitiu' : 'Reativou'} ${x.nome}`); toast(x.nome + ' ativo de novo. Inclua numa equipe na aba Equipes.'); break;
       }
       S.modal = { tipo: 'colab', acao, id, motivo: '', campos: {} }; renderModal(); return;
+    }
+    case 'mat-novo': S.modal = { tipo: 'matcad' }; renderModal(); return;
+    case 'mat-salvar': {
+      const nome = ($('mc-nome').value || '').replace(/\s+/g, ' ').trim(), desc = ($('mc-desc').value || '').trim(), norm = x => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      if (nome.length < 3) { toast('Escreva o nome do material'); return; }
+      if (matLista().some(m => norm(m.nome) === norm(nome))) { toast('Já existe um material com esse nome'); return; }
+      const c = { id: 'x' + Date.now().toString(36), nome, descricao: desc || null, ativo: true, ordem: 100 };
+      MAT_CFG = [...MAT_CFG, c]; lsGravar('rzto_mat_cfg', MAT_CFG);
+      enviar({ tabela: 'materiais_lista', acao: 'upsert', onConflict: 'id', dados: c, desc: 'Material ' + nome }); registrarLog('Adicionou o material ' + nome);
+      S.modal = null; renderModal(); toast(nome + ' entrou na lista do técnico'); break;
+    }
+    case 'mat-ret': case 'mat-volta': {
+      const m = matPorId(el.dataset.id); if (!m || m.pos) return; const ativo = a === 'mat-volta';
+      const c = { id: m.id, nome: m.nome, descricao: m.desc || null, ativo, ordem: 100 };
+      MAT_CFG = [...MAT_CFG.filter(x => x.id !== m.id), c]; lsGravar('rzto_mat_cfg', MAT_CFG);
+      enviar({ tabela: 'materiais_lista', acao: 'upsert', onConflict: 'id', dados: c, desc: (ativo ? 'Volta ' : 'Retira ') + m.nome }); registrarLog((ativo ? 'Devolveu à lista o material ' : 'Retirou da lista o material ') + m.nome);
+      toast(ativo ? m.nome + ' voltou à lista' : m.nome + ' saiu da lista do técnico'); break;
     }
     case 'salvar-colab': salvarColab(); return;
     case 'gest-deslig': S.gestDeslig = !S.gestDeslig; break;
