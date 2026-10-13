@@ -656,7 +656,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.69';
+const VERSAO = '1.70';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -882,9 +882,26 @@ const GRUPOS_NOTA = [
   ['Tirante quebrado', d => /(^|\|)(fr|freio)\|timo(neria)?\|tirante\|quebr/.test(d), () => false],
   ['Válvula de freio', d => /(^|\|)(fr|freio)\|/.test(d) && /valv|vlv/.test(d), () => false]
 ];
+// Lista oficial de notas que a revista deve apontar (v1.70, enviada pelo usuário em 13/10/2026): a etiqueta do campo Texto da nota
+// (ex.: *CCT:TELHA DO ENGATE*), sem asterisco, acento nem maiúscula. Vale quando nenhuma regra acima casou; aqui entra o que ainda faltava.
+const TAGS_NOTA = {
+  'amort:base ab': 'Amparo balanço', 'amort:chapa ab': 'Amparo balanço', 'amort:chapa da cunha': 'Cunha', 'amort:cunha alta': 'Cunha', 'amort:mola': 'Mola', 'amort:prato piao': 'Prato pião',
+  'amort:truque desalinhado': 'Truque desalinhado',
+  'cct:altura do engate': 'Altura do engate', 'cct:bracadeira do engate': 'Braçadeira do engate', 'cct:chapa do engate': 'Chapa do engate', 'cct:corpo do engate': 'Corpo do engate',
+  'cct:haste de manobra': 'Haste de manobra', 'cct:olhal do engate': 'Olhal do engate', 'cct:pino do engate': 'Pino do engate', 'cct:pino mandibula': 'Pino mandíbula',
+  'cct:suporte do engate': 'Suporte do engate', 'cct:telha do engate': 'Telha do engate',
+  'ddv:cabo': 'DDV cabo', 'ddv:mangueira': 'DDV mangueira', 'ddv:suporte': 'DDV suporte', 'ddv:valvula': 'DDV válvula',
+  'fm:inoperante': 'Freio manual inoperante', 'freio manual:inoperante': 'Freio manual inoperante',
+  'freio:cilindro de freio': 'Cilindro de freio', 'freio:coletor de po': 'Coletor de pó', 'freio:isolado': 'Freio isolado', 'freio:sapata': 'Sapata de freio', 'freio:timoneria': 'Timoneria de freio',
+  'freio:triangulo de freio': 'Triângulo de freio', 'freio:valvula de emergencia': 'Válvula de freio', 'freio:vazio carregado': 'Válvula de freio',
+  'longarina:trinca': 'Longarina',
+  'rd:adaptador': 'Adaptador', 'rd:bandagem': 'Bandagem', 'rd:friso': 'Roda friso', 'rd:pista': 'Pista da roda', 'rd:rolamento': 'Rolamento', 'rd:topador': 'Topador',
+  'roda fria:': 'Roda fria', 'rodeiro:outros': 'Rodeiro (outros)', 'rodeiro:pad': 'Rodeiro PAD', 'sistema de descarga:reincidente': 'Descarga reincidente'
+};
+const tagNota = n => semAcento(String(n.texto || '')).replace(/\*/g, '').replace(/\s*:\s*/g, ':').replace(/\s+/g, ' ').trim();
 function grupoNota(n) {
   const d = semAcento(String(n.descricao || '')), t = semAcento(String(n.texto || ''));
-  return (GRUPOS_NOTA.find(g => g[1](d)) || GRUPOS_NOTA.find(g => g[2](t)) || [null])[0];
+  return (GRUPOS_NOTA.find(g => g[1](d)) || GRUPOS_NOTA.find(g => g[2](t)) || [TAGS_NOTA[tagNota(n)] || null])[0];
 }
 const NTEC = Object.assign({ mapa: {}, chave: 0, carga: null, em: 0, tent: 0 }, lsLer('rzto_notas_tec', {}), { em: 0, tent: 0 });
 async function carregarNotasTec() {
