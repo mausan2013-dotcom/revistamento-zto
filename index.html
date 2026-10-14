@@ -661,7 +661,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.80';
+const VERSAO = '1.81';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3486,7 +3486,7 @@ function freioEventos() {
   const [a, b] = periodoDe(F.per), rows = consultaHV(HV.fre, a + '|' + b, 'freio_vagoes', { p_de: a, p_ate: b });
   if (rows === undefined) return undefined;
   if (rows) { const m = {};
-    return rows.map(x => ({ k: x.tipo, t: trHV(m, x), p: x.posicao ?? 0, pf: x.pos_ficha ?? x.posicao ?? '–', c: x.vagao, det: x.detalhe || '', h: x.hora ? x.hora.slice(0, 5) : '', eq: x.equipe != null ? 'Equipe ' + x.equipe : '', org: x.posicao == null ? 'Forms' : 'App' }))
+    return rows.map(x => ({ k: x.tipo, t: trHV(m, x), p: x.posicao ?? 0, pf: x.pos_ficha ?? x.posicao ?? '–', c: x.vagao, det: x.detalhe || '', h: x.hora ? x.hora.slice(0, 5) : '', eq: x.equipe != null ? 'Equipe ' + x.equipe : '', org: x.posicao == null && x.tipo !== 'isoFicha' ? 'Forms' : 'App' }))
       .filter(e => passaF(e.t)).sort((x, y) => y.t.dataISO.localeCompare(x.t.dataISO) || x.t.prefixo.localeCompare(y.t.prefixo) || x.p - y.p);
   }
   return freioLocal(trensNaoRev());
