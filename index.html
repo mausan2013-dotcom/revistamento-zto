@@ -661,7 +661,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.78';
+const VERSAO = '1.79';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3700,6 +3700,8 @@ function empresaDe(cod) {
 const txtEmpresa = c => { const x = empresaDe(c); return x ? x.e + (x.aprox ? ' (aprox.)' : '') : ''; };
 
 // materiais consumidos (todos) com clique: mostra os vagões que receberam o material escolhido
+// código para a reserva no SAP: números (com o dígito) e depois as letras, sem espaço nem traço (HPT 840591-3 -> 8405913HPT)
+const vagSAP = v => { const t = String(v || ''); return t.replace(/\D/g, '') + t.replace(/[^A-Za-z]/g, '').toUpperCase(); };
 function usosMaterial(rows, nome) {
   return rows.flatMap(r => r.apl.filter(x => x.nome === nome).map(x => ({ r, x }))).sort((a, b) => b.r.dataISO.localeCompare(a.r.dataISO) || (b.x.hora || '').localeCompare(a.x.hora || ''));
 }
@@ -3716,7 +3718,7 @@ function tabelaMateriais(rows, mat) {
     <div class="acoes" style="margin:0 0 10px"><button class="btn sm primary" data-act="exportar-mat">⬇ Exportar Excel</button><button class="btn sm" data-act="mat-sel" data-v="${esc(sel)}">Fechar</button></div>
     ${semVagao > 0 ? `<p class="small muted" style="margin:0 0 8px">${fmt(semVagao)} unidade(s) sem vagão identificado (texto do Forms sem código do vagão).</p>` : ''}
     ${us.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Vagão</th><th>Empresa</th><th class="num">Qtd</th><th>Posições</th><th>Equipe</th><th>Origem</th></tr></thead><tbody>
-      ${us.slice(0, lim).map(({ r, x }) => `<tr><td>${r.dataISO.split('-').reverse().join('/')}${x.hora ? ' ' + x.hora : ''}</td><td>${r.turno || '–'}</td><td><b>${esc(r.prefixo)}</b>${x.posTrem ? ` <span class="small muted">pos. ${x.posTrem}</span>` : ''}</td><td>${esc(r.linha || '')}</td><td><a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}"><b>${esc(x.vagao)}</b></a></td><td>${(em => em ? `<b>${esc(em.e)}</b>${em.aprox ? ' <span class="small muted" title="Identificada pelo número do vagão: o código registrado difere do cadastro">aprox.</span>' : ''}` : EMP.mapa ? '<span class="muted">–</span>' : '<span class="muted small">…</span>')(empresaDe(x.vagao))}</td><td class="num">${fmt(x.qtd)}</td><td>${esc((x.pos || []).join(', '))}</td><td class="small">${esc(x.equipe || '')}</td><td class="small muted">${r.forms ? 'Forms' : 'App'}</td></tr>`).join('')}
+      ${us.slice(0, lim).map(({ r, x }) => `<tr><td>${r.dataISO.split('-').reverse().join('/')}${x.hora ? ' ' + x.hora : ''}</td><td>${r.turno || '–'}</td><td><b>${esc(r.prefixo)}</b>${x.posTrem ? ` <span class="small muted">pos. ${x.posTrem}</span>` : ''}</td><td>${esc(r.linha || '')}</td><td><a href="#" data-act="ver-vagao" data-v="${esc(x.vagao)}" title="${esc(x.vagao)}"><b>${esc(vagSAP(x.vagao))}</b></a></td><td>${(em => em ? `<b>${esc(em.e)}</b>${em.aprox ? ' <span class="small muted" title="Identificada pelo número do vagão: o código registrado difere do cadastro">aprox.</span>' : ''}` : EMP.mapa ? '<span class="muted">–</span>' : '<span class="muted small">…</span>')(empresaDe(x.vagao))}</td><td class="num">${fmt(x.qtd)}</td><td>${esc((x.pos || []).join(', '))}</td><td class="small">${esc(x.equipe || '')}</td><td class="small muted">${r.forms ? 'Forms' : 'App'}</td></tr>`).join('')}
     </tbody></table></div>${us.length > lim ? `<p class="small muted" style="margin:8px 0 0">Mostrando ${lim} de ${fmt(us.length)}. A planilha traz todos.</p>` : ''}` : '<span class="muted small">Nenhum vagão identificado para este material no período.</span>'}</div>` : ''}`;
 }
 async function exportarMaterial() {
@@ -3724,9 +3726,9 @@ async function exportarMaterial() {
   const us = usosMaterial(filtrar(linhasHist()), sel), [, , nomePer] = periodoDe(F.per);
   try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
   await carregarEmpresas();
-  const aoa = [['Data', 'Hora', 'Turno', 'Trem', 'Posição no trem', 'Linha', 'Vagão', 'Empresa', 'Material', 'Quantidade', 'Posições (sapata)', 'Equipe', 'Origem']]
-    .concat(us.map(({ r, x }) => [r.dataISO.split('-').reverse().join('/'), x.hora || '', r.turno || '', r.prefixo, x.posTrem || '', r.linha || '', x.vagao, txtEmpresa(x.vagao), sel, x.qtd, (x.pos || []).join(' '), x.equipe || '', r.forms ? 'Forms' : 'App']));
-  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [10, 6, 6, 8, 8, 7, 15, 14, 28, 10, 14, 34, 7].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:M1' };
+  const aoa = [['Data', 'Hora', 'Turno', 'Trem', 'Posição no trem', 'Linha', 'Vagão (SAP)', 'Empresa', 'Material', 'Quantidade', 'Posições (sapata)', 'Equipe', 'Origem', 'Vagão (como registrado)']]
+    .concat(us.map(({ r, x }) => [r.dataISO.split('-').reverse().join('/'), x.hora || '', r.turno || '', r.prefixo, x.posTrem || '', r.linha || '', vagSAP(x.vagao), txtEmpresa(x.vagao), sel, x.qtd, (x.pos || []).join(' '), x.equipe || '', r.forms ? 'Forms' : 'App', x.vagao]));
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [10, 6, 6, 8, 8, 7, 15, 14, 28, 10, 14, 34, 7, 16].map(w => ({ wch: w })); ws['!autofilter'] = { ref: 'A1:N1' };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Vagões');
   const slug = sem => sem.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
   XLSX.writeFile(wb, `revistamento-zto-${slug(sel)}-${slug(nomePer)}.xlsx`);
