@@ -656,7 +656,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.73';
+const VERSAO = '1.74';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3345,44 +3345,77 @@ function sitVagao(t, p) {
   if (r.st === 'pend') return { k: 'nao', txt: 'Não vistoriado: ' + (r.motivo || 'pendente') };
   return { k: 'ok', txt: 'Vistoriado' + (r.h ? ' às ' + r.h : '') };
 }
+const passaF = t => (F.turno === 'todos' || t.turno === F.turno) && (F.linha === 'todas' || t.linha === F.linha)
+  && (F.prefixo === 'todos' || t.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === (t.status !== 'nao_revistado'));
 function trensNaoRev() {
   const [a, b] = periodoDe(F.per);
-  return DB.trens.filter(t => t.vagoes.length && t.dataISO >= a && t.dataISO <= b && (F.turno === 'todos' || t.turno === F.turno) && (F.linha === 'todas' || t.linha === F.linha)
-    && (F.prefixo === 'todos' || t.prefixo === F.prefixo) && (F.rev === 'todos' || (F.rev === 'sim') === (t.status !== 'nao_revistado')))
+  return DB.trens.filter(t => t.vagoes.length && t.dataISO >= a && t.dataISO <= b && passaF(t))
     .sort((x, y) => y.dataISO.localeCompare(x.dataISO) || (y.inicio || y.chegada || '').localeCompare(x.inicio || x.chegada || ''));
 }
-// vagões que passaram nos trens dos últimos N dias e não foram revistados em nenhum deles (base: trens do app, 35 dias)
-const DIAS_SEM_REV = 20;
-function vagoesSemRevista(dias = DIAS_SEM_REV) {
+// ---------- consultas por vagão no banco, sem o limite de 35 dias do aparelho (23-historico-vagoes.sql, v1.74) ----------
+// devolve as linhas, null (usar os trens do aparelho: sem o SQL, modo demonstração, sem internet ou erro) ou undefined (carregando)
+const HV = { fre: {}, sr: {}, semSql: false };
+function consultaHV(o, chave, fn, args) {
+  if (DEMO || OFFLINE || HV.semSql || o.falhou === chave) { o.local = true; return null; }
+  const tem = o.chave === chave && o.rows; if (tem) o.local = false;
+  if ((!tem || Date.now() - o.em > 5 * 60e3) && o.busca !== chave) {
+    o.busca = chave;
+    tudo(() => sb.rpc(fn, args)).then(rows => { if (o.busca === chave) Object.assign(o, { chave, rows, em: Date.now() }); })
+      .catch(e => { if (/function|schema cache|could not find/i.test(e?.message || '')) HV.semSql = true; else o.falhou = chave; })
+      .finally(() => { if (o.busca === chave) { o.busca = null; render(); } });
+  }
+  return tem ? o.rows : undefined;
+}
+const trHV = (m, x) => m[x.trem_id] ||= { id: x.trem_id, dataISO: x.data, turno: x.turno, prefixo: x.prefixo, os: x.os || '', linha: x.linha, status: x.status };
+const notaBaseHV = o => !o.local || DEMO ? '' : `<p class="nota">Mostrando só os trens guardados no aparelho (últimos 35 dias). ${HV.semSql ? 'Para o histórico completo, rode o <b>23-historico-vagoes.sql</b> no Supabase.' : OFFLINE ? 'O aparelho está sem nuvem.' : 'O banco não respondeu: troque o filtro ou atualize para tentar de novo.'}</p>`;
+const carregandoHV = t => `<div class="card muted">Carregando ${t} do banco…</div>`;
+
+// vagões que passaram nos trens dos últimos N dias e não foram revistados em nenhum deles
+// base: o banco (último ano de trens) ou, sem o SQL 23, os trens do aparelho (35 dias)
+const DIAS_SEM_REV = 20, DIAS_SR_OPC = [20, 30, 45, 60, 90];
+const diasSR = () => S.srDias || DIAS_SEM_REV;
+function vagoesSemRevista(dias = diasSR()) {
+  const rows = consultaHV(HV.sr, String(dias), 'vagoes_sem_revista', { p_dias: dias, p_base_dias: 365 });
+  if (rows === undefined) return undefined;
+  const ordem = (a, b) => b.dias - a.dias || b.trens.length - a.trens.length || a.cod.localeCompare(b.cod);
+  if (rows) {
+    const hoje = isoData(new Date()), dif = d => Math.round((deISO(hoje) - deISO(d)) / 864e5), V = {}, m = {};
+    rows.forEach(x => { const v = V[normVag(x.vagao)] ||= { cod: x.vagao, ultRev: x.ult_rev_data ? { dataISO: x.ult_rev_data, prefixo: x.ult_rev_prefixo } : null, trens: [], pass: [], base: x.base };
+      const t = trHV(m, x); v.trens.push(t); v.pass.push({ t, pf: x.pos_ficha ?? x.posicao, sit: x.situacao }); });
+    return Object.values(V).map(v => ({ ...v, dias: dif(v.ultRev ? v.ultRev.dataISO : v.base), semBase: !v.ultRev, ultTrem: v.trens[v.trens.length - 1] })).sort(ordem);
+  }
   const hoje = isoData(new Date()), corte = isoData(new Date(deISO(hoje).getTime() - (dias - 1) * 864e5)), V = {};
   const ts = DB.trens.filter(t => t.vagoes.length).sort((a, b) => a.dataISO.localeCompare(b.dataISO));
   ts.forEach(t => t.vagoes.forEach((c, i) => {
     const k = normVag(c); if (!k) return;
-    const v = V[k] ||= { cod: c, ultRev: null, trens: [], revJanela: false };
-    const ok = sitVagao(t, i + 1).k === 'ok';
-    if (ok) { v.ultRev = t; if (t.dataISO >= corte) v.revJanela = true; }
-    else if (t.dataISO >= corte && t.status !== 'andamento') v.trens.push(t);     // trem em revista ainda pode revistar o vagão
+    const v = V[k] ||= { cod: c, ultRev: null, trens: [], pass: [], revJanela: false };
+    const s = sitVagao(t, i + 1);
+    if (s.k === 'ok') { v.ultRev = t; if (t.dataISO >= corte) v.revJanela = true; }
+    else if (t.dataISO >= corte && t.status !== 'andamento') { v.trens.push(t); v.pass.push({ t, pf: posF(t, i + 1), sit: s.txt }); }     // trem em revista ainda pode revistar o vagão
   }));
   const dif = d => Math.round((deISO(hoje) - deISO(d)) / 864e5), base = ts.length ? ts[0].dataISO : hoje;   // sem revista na base: no mínimo desde o trem mais antigo carregado
   return Object.values(V).filter(v => !v.revJanela && v.trens.length)
     .map(v => ({ ...v, dias: dif(v.ultRev ? v.ultRev.dataISO : base), semBase: !v.ultRev, base, ultTrem: v.trens[v.trens.length - 1] }))
-    .sort((a, b) => b.dias - a.dias || b.trens.length - a.trens.length || a.cod.localeCompare(b.cod));
+    .sort(ordem);
 }
 const trensSemRev = l => { const m = new Map(); l.forEach(v => v.trens.forEach(t => m.set(t.id, t))); return [...m.values()].sort((a, b) => b.dataISO.localeCompare(a.dataISO) || a.prefixo.localeCompare(b.prefixo)); };
-const semRevFiltrada = () => { const l = vagoesSemRevista(); return S.srTrem ? l.filter(v => v.trens.some(t => t.id === S.srTrem)) : l; };
+const semRevFiltrada = () => { const l = vagoesSemRevista() || []; return S.srTrem ? l.filter(v => v.trens.some(t => t.id === S.srTrem)) : l; };
 function cardSemRevista() {
-  const tudo = vagoesSemRevista(), tr = trensSemRev(tudo), l = S.srTrem && tr.some(t => t.id === S.srTrem) ? semRevFiltrada() : tudo, lim = 300;
+  const tudo = vagoesSemRevista(), D = diasSR();
+  const selDias = `<label class="filtro">Sem revista há<select data-act="sr-dias">${DIAS_SR_OPC.map(d => `<option value="${d}" ${D === d ? 'selected' : ''}>${d} dias ou mais</option>`).join('')}</select></label>`;
+  if (tudo === undefined) return `<div class="card"><h2>⚠ Vagões sem revista há ${D} dias ou mais</h2><div class="filtros" style="margin:0 0 8px">${selDias}</div><p class="muted small" style="margin:0">Carregando do banco…</p></div>`;
+  const tr = trensSemRev(tudo), l = S.srTrem && tr.some(t => t.id === S.srTrem) ? semRevFiltrada() : tudo, lim = 300;
   if (S.srTrem && !tr.some(t => t.id === S.srTrem)) S.srTrem = '';
-  return `<div class="card"><h2>⚠ Vagões sem revista há ${DIAS_SEM_REV} dias ou mais <span class="dir">${fmt(l.length)} vagão(ões) · passaram em trens dos últimos ${DIAS_SEM_REV} dias sem ser revistados</span></h2>
-    <div class="filtros" style="margin:0 0 8px"><label class="filtro">Composição<select data-act="sr-trem"><option value="">Todas (${fmt(tudo.length)} vagões)</option>${tr.map(t => `<option value="${t.id}" ${S.srTrem === t.id ? 'selected' : ''}>${esc(t.prefixo)} · ${diaRot(t.dataISO)} · ${esc(t.linha)}</option>`).join('')}</select></label>
+  return `<div class="card"><h2>⚠ Vagões sem revista há ${D} dias ou mais <span class="dir">${fmt(l.length)} vagão(ões) · passaram em trens dos últimos ${D} dias sem ser revistados</span></h2>
+    <div class="filtros" style="margin:0 0 8px">${selDias}<label class="filtro">Composição<select data-act="sr-trem"><option value="">Todas (${fmt(tudo.length)} vagões)</option>${tr.map(t => `<option value="${t.id}" ${S.srTrem === t.id ? 'selected' : ''}>${esc(t.prefixo)} · ${diaRot(t.dataISO)} · ${esc(t.linha)}</option>`).join('')}</select></label>
       <span class="filtro-acoes"><button class="btn sm" data-act="exportar-semrev" ${l.length ? '' : 'disabled'}>⬇ Excel (${fmt(l.length)} vagões)</button></span></div>
-    <p class="small muted" style="margin:0 0 8px">Lista automática: o vagão sai daqui assim que for revistado em algum trem. Ordem: mais dias sem revista, depois mais trens sem revista. Considera todos os turnos e linhas (trens do app, últimos 35 dias).</p>
-    ${l.length ? `<div class="rolagem alto"><table class="tabela compacta sem-rev"><thead><tr><th>Vagão</th><th class="num">Dias sem revista</th><th class="num">Trens sem revista (${DIAS_SEM_REV} d)</th><th>Última revista</th><th>Última passagem sem revista</th><th>Trens</th></tr></thead><tbody>
-      ${l.slice(0, lim).map(v => `<tr><td><b>${esc(v.cod)}</b> <span class="tag bad">⚠ ${DIAS_SEM_REV}+ dias</span></td><td class="num"><b style="color:var(--bad)">${v.semBase ? '≥ ' : ''}${v.dias}</b></td><td class="num"><b>${v.trens.length}</b></td>
+    <p class="small muted" style="margin:0 0 8px">Lista automática: o vagão sai daqui assim que for revistado em algum trem. Ordem: mais dias sem revista, depois mais trens sem revista. Considera todos os turnos e linhas. ${HV.sr.local ? 'Base: trens do aparelho (últimos 35 dias).' : 'Base: trens do app no último ano (banco).'}</p>
+    ${l.length ? `<div class="rolagem alto"><table class="tabela compacta sem-rev"><thead><tr><th>Vagão</th><th class="num">Dias sem revista</th><th class="num">Trens sem revista (${D} d)</th><th>Última revista</th><th>Última passagem sem revista</th><th>Trens</th></tr></thead><tbody>
+      ${l.slice(0, lim).map(v => `<tr><td><b>${esc(v.cod)}</b> <span class="tag bad">⚠ ${D}+ dias</span></td><td class="num"><b style="color:var(--bad)">${v.semBase ? '≥ ' : ''}${v.dias}</b></td><td class="num"><b>${v.trens.length}</b></td>
         <td class="small">${v.ultRev ? `${diaRot(v.ultRev.dataISO)} · ${esc(v.ultRev.prefixo)}` : `<span class="muted">nenhuma desde ${diaRot(v.base)}</span>`}</td>
         <td class="small">${diaRot(v.ultTrem.dataISO)} · ${esc(v.ultTrem.prefixo)} · ${esc(v.ultTrem.linha)}</td>
         <td class="small muted">${v.trens.slice().reverse().map(t => `${esc(t.prefixo)} ${diaRot(t.dataISO)}`).join(', ')}</td></tr>`).join('')}
-    </tbody></table></div>${l.length > lim ? `<p class="small muted">Mostrando os ${lim} primeiros.</p>` : ''}` : `<p class="muted small" style="margin:0">Nenhum vagão passou nos últimos ${DIAS_SEM_REV} dias sem ser revistado.</p>`}</div>`;
+    </tbody></table></div>${l.length > lim ? `<p class="small muted">Mostrando os ${lim} primeiros.</p>` : ''}` : `<p class="muted small" style="margin:0">Nenhum vagão passou nos últimos ${D} dias sem ser revistado.</p>`}</div>`;
 }
 function progNaoRev() {
   const todas = linhasHist(), ts = trensNaoRev(), [, , nomePer] = periodoDe(F.per);
@@ -3410,35 +3443,45 @@ const FRE = [['isoFicha', 'Isolados na ficha', 'bad'], ['isoFora', 'Isolados for
 const FRE_OC = { 'Isolado fora da ficha': 'isoFora', 'Isolado pela mecânica de vagões': 'isoTime', 'Normalizado dentro da ficha': 'normFicha', 'Normalizado fora da ficha': 'normFora' };
 // na ficha do trem: restrição "freio isolado" (motivo da ficha); as demais vêm da ocorrência marcada pela equipe no vagão
 function freioEventos() {
+  const [a, b] = periodoDe(F.per), rows = consultaHV(HV.fre, a + '|' + b, 'freio_vagoes', { p_de: a, p_ate: b });
+  if (rows === undefined) return undefined;
+  if (rows) { const m = {};
+    return rows.map(x => ({ k: x.tipo, t: trHV(m, x), p: x.posicao, pf: x.pos_ficha ?? x.posicao, c: x.vagao, det: x.detalhe || '', h: x.hora ? x.hora.slice(0, 5) : '', eq: x.equipe != null ? 'Equipe ' + x.equipe : '' }))
+      .filter(e => passaF(e.t)).sort((x, y) => y.t.dataISO.localeCompare(x.t.dataISO) || x.t.prefixo.localeCompare(y.t.prefixo) || x.p - y.p);
+  }
   const L = [];
   trensNaoRev().forEach(t => t.vagoes.forEach((c, i) => {
     const p = i + 1, rf = restrDe(t, p), r = t.reg[p], d = (r && t.dist.find(x => x.n === r.equipe)) || [...t.dist].reverse().find(x => p >= x.ini && p <= x.fim), eq = d ? 'Equipe ' + d.n : '';
-    if (rf && /isol/i.test(rf.motivo || '') && !/normaliz/i.test(rf.motivo || '')) L.push({ k: 'isoFicha', t, p, c, det: rf.motivo + (rf.data ? ' (desde ' + rf.data + ')' : ''), h: '', eq });
-    ((r && r.oc) || []).forEach(o => { if (FRE_OC[o]) L.push({ k: FRE_OC[o], t, p, c, det: r.obs || '', h: r.h || '', eq }); });
+    if (rf && /isol/i.test(rf.motivo || '') && !/normaliz/i.test(rf.motivo || '')) L.push({ k: 'isoFicha', t, p, pf: posF(t, p), c, det: rf.motivo + (rf.data ? ' (desde ' + rf.data + ')' : ''), h: '', eq });
+    ((r && r.oc) || []).forEach(o => { if (FRE_OC[o]) L.push({ k: FRE_OC[o], t, p, pf: posF(t, p), c, det: r.obs || '', h: r.h || '', eq }); });
   }));
   return L;
 }
-const freioFiltrado = () => { const l = freioEventos(); return S.freSt ? l.filter(e => e.k === S.freSt) : l; };
+const freioFiltrado = () => { const l = freioEventos() || []; return S.freSt ? l.filter(e => e.k === S.freSt) : l; };
 function vistaFreio() {
-  const todas = linhasHist(), ev = freioEventos(), l = S.freSt ? ev.filter(e => e.k === S.freSt) : ev, lim = 400, [, , nomePer] = periodoDe(F.per);
+  const todas = linhasHist(), ev = freioEventos(), lim = 400, [, , nomePer] = periodoDe(F.per);
+  if (ev === undefined) return barraFiltros(todas) + carregandoHV('os vagões de freio isolado');
+  const l = S.freSt ? ev.filter(e => e.k === S.freSt) : ev;
   const por = k => ev.filter(e => e.k === k), vd = a => new Set(a.map(e => normVag(e.c))).size;
   const rot = k => FRE.find(x => x[0] === k)[1], cor = k => FRE.find(x => x[0] === k)[2];
   return `${barraFiltros(todas, `<span class="filtro-acoes"><button class="btn sm" data-act="exportar-freio" ${l.length ? '' : 'disabled'}>⬇ Excel (${fmt(l.length)})</button></span>`)}
-  <p class="nota">Vagões com <b>freio isolado</b> e normalizados nos trens lançados no app (${esc(nomePer)}). <b>Na ficha</b>: restrição “freio isolado” que veio na ficha do trem. As demais linhas vêm da ocorrência marcada pela equipe no vagão.</p>
+  ${notaBaseHV(HV.fre)}<p class="nota">Vagões com <b>freio isolado</b> e normalizados nos trens lançados no app (${esc(nomePer)}${HV.fre.local ? ', só os trens guardados no aparelho' : ', histórico completo do banco'}). <b>Na ficha</b>: restrição “freio isolado” que veio na ficha do trem. As demais linhas vêm da ocorrência marcada pela equipe no vagão.</p>
   <div class="kpis">${FRE.map(([k, n]) => kpi(n, fmt(vd(por(k))), por(k).length === vd(por(k)) ? 'vagões' : 'vagões · ' + fmt(por(k).length) + ' ocorrências')).join('')}</div>
   <div class="card"><h2>Vagões por status <span class="dir">${fmt(l.length)} linha(s)</span></h2>
     <div class="chips"><button class="chip ${S.freSt ? '' : 'on'}" data-act="fre-st" data-v="">Todos (${fmt(ev.length)})</button>${FRE.map(([k, n]) => `<button class="chip ${S.freSt === k ? 'on' : ''}" data-act="fre-st" data-v="${k}">${esc(n)} (${fmt(por(k).length)})</button>`).join('')}</div>
     ${l.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Status</th><th>Vagão</th><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Pos.</th><th>Equipe</th><th>Hora</th><th>Detalhe</th></tr></thead><tbody>
-      ${l.slice(0, lim).map(e => `<tr><td><span class="tag ${cor(e.k)}">${esc(rot(e.k))}</span></td><td><a href="#" data-act="ver-vagao" data-v="${esc(e.c)}"><b>${esc(e.c)}</b></a></td><td>${diaRot(e.t.dataISO)}</td><td>${e.t.turno}</td><td><b>${esc(e.t.prefixo)}</b></td><td>${esc(e.t.linha)}</td><td class="num">${posF(e.t, e.p)}</td><td class="small">${esc(e.eq)}</td><td>${esc(e.h)}</td><td class="small">${esc(e.det)}</td></tr>`).join('')}
+      ${l.slice(0, lim).map(e => `<tr><td><span class="tag ${cor(e.k)}">${esc(rot(e.k))}</span></td><td><a href="#" data-act="ver-vagao" data-v="${esc(e.c)}"><b>${esc(e.c)}</b></a></td><td>${diaRot(e.t.dataISO)}</td><td>${e.t.turno}</td><td><b>${esc(e.t.prefixo)}</b></td><td>${esc(e.t.linha)}</td><td class="num">${e.pf}</td><td class="small">${esc(e.eq)}</td><td>${esc(e.h)}</td><td class="small">${esc(e.det)}</td></tr>`).join('')}
     </tbody></table></div>${l.length > lim ? `<p class="muted small">Mostrando ${lim} de ${fmt(l.length)}. O Excel traz todas.</p>` : ''}` : '<p class="muted small" style="margin:0">Nenhum vagão neste filtro. O histórico do Forms não tem isolamento por vagão.</p>'}</div>`;
 }
 async function exportarFreio() {
-  const l = freioFiltrado(), ev = freioEventos(), [, , nomePer] = periodoDe(F.per);
+  const ev = freioEventos(), [, , nomePer] = periodoDe(F.per);
+  if (ev === undefined) { toast('Aguarde: carregando do banco'); return; }
+  const l = S.freSt ? ev.filter(e => e.k === S.freSt) : ev;
   try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
   const rot = k => FRE.find(x => x[0] === k)[1], br = d => d.split('-').reverse().join('/');
   const a1 = [['Indicador', 'Vagões distintos', 'Ocorrências'], ...FRE.map(([k, n]) => { const a = ev.filter(e => e.k === k); return [n, new Set(a.map(e => normVag(e.c))).size, a.length]; }), [], ['Período', nomePer]];
   const a2 = [['Status', 'Vagão', 'Data', 'Turno', 'Trem', 'OS', 'Linha', 'Posição na ficha', 'Equipe', 'Hora', 'Detalhe']];
-  l.forEach(e => a2.push([rot(e.k), e.c, br(e.t.dataISO), e.t.turno, e.t.prefixo, e.t.os || '', e.t.linha, posF(e.t, e.p), e.eq, e.h, e.det]));
+  l.forEach(e => a2.push([rot(e.k), e.c, br(e.t.dataISO), e.t.turno, e.t.prefixo, e.t.os || '', e.t.linha, e.pf, e.eq, e.h, e.det]));
   const w1 = XLSX.utils.aoa_to_sheet(a1), w2 = XLSX.utils.aoa_to_sheet(a2);
   w1['!cols'] = [38, 16, 12].map(w => ({ wch: w })); w2['!cols'] = [34, 15, 12, 6, 10, 10, 8, 10, 12, 8, 50].map(w => ({ wch: w })); w2['!autofilter'] = { ref: 'A1:K1' };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, w1, 'Indicadores'); XLSX.utils.book_append_sheet(wb, w2, 'Vagões');
@@ -3447,20 +3490,21 @@ async function exportarFreio() {
 }
 const arqNome = sem => sem.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
 async function exportarSemRev() {
-  const l = semRevFiltrada(), t0 = S.srTrem ? tremPorId(S.srTrem) : null;
+  if (vagoesSemRevista() === undefined) { toast('Aguarde: carregando do banco'); return; }
+  const l = semRevFiltrada(), D = diasSR(), t0 = S.srTrem ? trensSemRev(l).find(t => t.id === S.srTrem) : null;
   try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
   const br = d => d.split('-').reverse().join('/');
-  const a1 = [['Vagão', 'Dias sem revista', 'Trens sem revista (' + DIAS_SEM_REV + ' d)', 'Última revista (data)', 'Última revista (trem)', 'Última passagem sem revista (data)', 'Última passagem (trem)', 'Última passagem (linha)', 'Trens sem revista']];
+  const a1 = [['Vagão', 'Dias sem revista', 'Trens sem revista (' + D + ' d)', 'Última revista (data)', 'Última revista (trem)', 'Última passagem sem revista (data)', 'Última passagem (trem)', 'Última passagem (linha)', 'Trens sem revista']];
   const a2 = [['Vagão', 'Data do trem', 'Turno', 'Trem', 'OS', 'Linha', 'Posição na ficha', 'Situação']];
   l.forEach(v => {
     a1.push([v.cod, (v.semBase ? '≥ ' : '') + v.dias, v.trens.length, v.ultRev ? br(v.ultRev.dataISO) : 'nenhuma desde ' + br(v.base), v.ultRev ? v.ultRev.prefixo : '', br(v.ultTrem.dataISO), v.ultTrem.prefixo, v.ultTrem.linha, v.trens.slice().reverse().map(t => t.prefixo + ' ' + br(t.dataISO)).join(', ')]);
-    v.trens.slice().reverse().forEach(t => { const p = t.vagoes.findIndex(c => normVag(c) === normVag(v.cod)) + 1; a2.push([v.cod, br(t.dataISO), t.turno, t.prefixo, t.os || '', t.linha, p ? posF(t, p) : '', p ? sitVagao(t, p).txt : '']); });
+    v.pass.slice().reverse().forEach(x => a2.push([v.cod, br(x.t.dataISO), x.t.turno, x.t.prefixo, x.t.os || '', x.t.linha, x.pf, x.sit]));
   });
   const w1 = XLSX.utils.aoa_to_sheet(a1), w2 = XLSX.utils.aoa_to_sheet(a2);
   w1['!cols'] = [15, 10, 12, 18, 12, 18, 12, 10, 40].map(w => ({ wch: w })); w1['!autofilter'] = { ref: 'A1:I1' };
   w2['!cols'] = [15, 12, 6, 10, 10, 8, 10, 40].map(w => ({ wch: w })); w2['!autofilter'] = { ref: 'A1:H1' };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, w1, 'Vagões'); XLSX.utils.book_append_sheet(wb, w2, 'Passagens sem revista');
-  XLSX.writeFile(wb, `revistamento-zto-vagoes-sem-revista-${DIAS_SEM_REV}d${t0 ? '-' + arqNome(t0.prefixo + ' ' + t0.dataISO) : ''}.xlsx`);
+  XLSX.writeFile(wb, `revistamento-zto-vagoes-sem-revista-${D}d${t0 ? '-' + arqNome(t0.prefixo + ' ' + t0.dataISO) : ''}.xlsx`);
   toast('Planilha gerada (' + fmt(l.length) + ' vagões)');
 }
 async function exportarNaoRev(id) {
@@ -4087,7 +4131,7 @@ document.addEventListener('click', async e => {
       await processarFila(); HIST.em = 0; await atualizar(true);
       if (!FILA.length && n) toast('☁ Tudo enviado'); return;
     }
-    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; HIST.pesadoEm = 0; await processarFila(); await atualizar(true); return;
+    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; HIST.pesadoEm = 0; HV.fre = {}; HV.sr = {}; HV.semSql = false; await processarFila(); await atualizar(true); return;
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
     case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
@@ -4530,6 +4574,7 @@ document.addEventListener('change', async e => {
   else if (a === 'rel-turno') { S.relTurno = el.value; S.relPref = 'todos'; render(); }
   else if (a === 'rel-pref') { S.relPref = el.value; render(); }
   else if (a === 'sr-trem') { S.srTrem = el.value; render(); }
+  else if (a === 'sr-dias') { S.srDias = +el.value || DIAS_SEM_REV; S.srTrem = ''; render(); }
   else if (a === 'nr-exp') { S.nrExp = el.value; render(); }
   else if (a === 'div-sel') { S.modal.sel[+el.dataset.i] = el.checked; renderModal(); }
   else if (a === 'eq-membro') { M.membros = el.checked ? [...M.membros, el.value] : M.membros.filter(x => x !== el.value); renderModal(); }
