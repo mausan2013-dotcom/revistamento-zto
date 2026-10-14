@@ -656,7 +656,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.75';
+const VERSAO = '1.76';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -977,7 +977,8 @@ function marcarTocado(op) {
 }
 const tocadosVivos = () => { const ag = Date.now(); [...TOCADOS].forEach(([id, ate]) => { if (ate < ag) TOCADOS.delete(id); }); return [...TOCADOS.keys()]; };
 const PLANO_ABERTO = ['aberta', 'feita', 'reaberta'];
-async function filhosDe(ids) {
+async function filhosDe(ids) { Object.assign(RAW.filhos, await baixarFilhos(ids)); }
+async function baixarFilhos(ids) {
   const [eqs, regs, dsv, pex, par] = ids.length ? await Promise.all([
     emLotes(ids, l => sb.from('trem_equipes').select('*').in('trem_id', l).order('id')),
     emLotes(ids, l => sb.from('registros').select('*').in('trem_id', l).order('trem_id').order('posicao')),
@@ -987,8 +988,26 @@ async function filhosDe(ids) {
   ]) : [[], [], [], [], []];
   const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
   const pe = por(eqs, 'trem_id'), pr = por(regs, 'trem_id'), pd = por(dsv, 'trem_id'), px = por(pex, 'trem_id'), pp = por(par, 'trem_id');
-  ids.forEach(id => { RAW.filhos[id] = { eqs: pe[id] || [], regs: pr[id] || [], dsv: pd[id] || [], pex: px[id] || [], par: pp[id] || [] }; });
+  return Object.fromEntries(ids.map(id => [id, { eqs: pe[id] || [], regs: pr[id] || [], dsv: pd[id] || [], pex: px[id] || [], par: pp[id] || [] }]));
 }
+// trens antigos (fora da janela do aparelho), baixados inteiros só quando alguém abre a ficha, exporta ou busca o vagão (v1.76).
+// Ficam só na memória (somem ao recarregar o app) e não entram em DB.trens: são só para leitura.
+const ANT = new Map(), ANT_BUSCA = new Set(), ANT_FALHA = new Set(), MESES_HIST = 6;
+const desdeHist = () => isoData(new Date(Date.now() - MESES_HIST * 30.5 * 864e5));
+const tremAnt = id => DB.trens.find(x => x.id === id) || ANT.get(id);
+async function carregarAntigos(ids) {
+  ids = [...new Set(ids)].filter(id => !ANT.has(id) && !ANT_BUSCA.has(id) && !DB.trens.some(t => t.id === id));
+  if (!ids.length || DEMO || OFFLINE) return;
+  ids.forEach(id => ANT_BUSCA.add(id));
+  try {
+    const rows = await emLotes(ids, l => sb.from('trens').select('*').in('id', l).order('id')), f = await baixarFilhos(rows.map(t => t.id));
+    rows.forEach(t => { const x = f[t.id]; ANT.set(t.id, montarTrem(t, x.eqs, x.regs, x.dsv, x.pex, x.par)); });
+    ids.filter(id => !ANT.has(id)).forEach(id => ANT_FALHA.add(id));           // apagado ou sem acesso: não pede de novo
+  } catch (e) { ids.forEach(id => ANT_FALHA.add(id)); throw e; }
+  finally { ids.forEach(id => ANT_BUSCA.delete(id)); }
+}
+// pede os trens e redesenha quando chegarem (sem repetir os que falharam)
+const pedirAntigos = ids => { const l = ids.filter(id => !tremAnt(id) && !ANT_BUSCA.has(id) && !ANT_FALHA.has(id)); if (l.length) carregarAntigos(l).catch(() => {}).finally(render); return l.length > 0 || ids.some(id => ANT_BUSCA.has(id)); };
 // baixa inteiros (linha + filhos) só os trens indicados
 async function buscarTrens(ids) {
   if (!ids.length) return;
@@ -2124,9 +2143,9 @@ function espValidados() {
 // ---------- APONTAMENTOS (todos os perfis): tudo o que as equipes lançaram nos vagões ----------
 const TIPOS_AP = { def: '📝 Defeitos', mat: '🔧 Materiais', pla: '📋 Planos especiais', ava: '⚠ Avarias', fic: '🚩 Isolados na ficha' };
 // comFicha: inclui os vagões com restrição na ficha do trem (isolados), mesmo sem nenhum registro da equipe
-function linhasApont(comFicha) {
+function linhasApont(comFicha, trens = DB.trens) {
   const out = [];
-  DB.trens.forEach(t => { const ps = new Set([...Object.keys(t.reg), ...Object.keys(t.pexec || {})].map(Number));
+  trens.forEach(t => { const ps = new Set([...Object.keys(t.reg), ...Object.keys(t.pexec || {})].map(Number));
     if (comFicha) t.vagoes.forEach((c, i) => { if (restrDe(t, i + 1)) ps.add(i + 1); });
     ps.forEach(p => { const r = t.reg[p] || null, ex = (t.pexec || {})[p] || {};
       const tipos = { def: !!r && (r.falhas.length > 0 || !!r.obs), mat: !!r && r.mats.length > 0, pla: Object.keys(ex).length > 0, ava: !!r && r.oc.length > 0, fic: !!comFicha && !!restrDe(t, p) };
@@ -3354,20 +3373,20 @@ function trensNaoRev() {
 }
 // ---------- consultas por vagão no banco, sem o limite de 35 dias do aparelho (23-historico-vagoes.sql, v1.74) ----------
 // devolve as linhas, null (usar os trens do aparelho: sem o SQL, modo demonstração, sem internet ou erro) ou undefined (carregando)
-const HV = { fre: {}, sr: {}, semSql: false };
+const HV = { fre: {}, sr: {}, fi: {}, vg: {} };          // cada consulta guarda o seu estado (o SQL 24 pode faltar com o 23 rodado)
 function consultaHV(o, chave, fn, args) {
-  if (DEMO || OFFLINE || HV.semSql || o.falhou === chave) { o.local = true; return null; }
+  if (DEMO || OFFLINE || o.semSql || o.falhou === chave) { o.local = true; return null; }
   const tem = o.chave === chave && o.rows; if (tem) o.local = false;
   if ((!tem || Date.now() - o.em > 5 * 60e3) && o.busca !== chave) {
     o.busca = chave;
     tudo(() => sb.rpc(fn, args)).then(rows => { if (o.busca === chave) Object.assign(o, { chave, rows, em: Date.now() }); })
-      .catch(e => { if (/function|schema cache|could not find/i.test(e?.message || '')) HV.semSql = true; else o.falhou = chave; })
+      .catch(e => { if (/function|schema cache|could not find/i.test(e?.message || '')) o.semSql = true; else o.falhou = chave; })
       .finally(() => { if (o.busca === chave) { o.busca = null; render(); } });
   }
   return tem ? o.rows : undefined;
 }
 const trHV = (m, x) => m[x.trem_id] ||= { id: x.trem_id, dataISO: x.data, turno: x.turno, prefixo: x.prefixo, os: x.os || '', linha: x.linha, status: x.status };
-const notaBaseHV = o => !o.local || DEMO ? '' : `<p class="nota">Mostrando só os trens guardados no aparelho (últimos 35 dias). ${HV.semSql ? 'Para o histórico completo, rode o <b>23-historico-vagoes.sql</b> no Supabase.' : OFFLINE ? 'O aparelho está sem nuvem.' : 'O banco não respondeu: troque o filtro ou atualize para tentar de novo.'}</p>`;
+const notaBaseHV = o => !o.local || DEMO ? '' : `<p class="nota">Mostrando só os trens guardados no aparelho (últimos 35 dias). ${o.semSql ? 'Para o histórico completo, rode o <b>23-historico-vagoes.sql</b> no Supabase.' : OFFLINE ? 'O aparelho está sem nuvem.' : 'O banco não respondeu: troque o filtro ou atualize para tentar de novo.'}</p>`;
 const carregandoHV = t => `<div class="card muted">Carregando ${t} do banco…</div>`;
 
 // vagões que passaram nos trens dos últimos N dias e não foram revistados em nenhum deles
@@ -3417,25 +3436,41 @@ function cardSemRevista() {
         <td class="small muted">${v.trens.slice().reverse().map(t => `${esc(t.prefixo)} ${diaRot(t.dataISO)}`).join(', ')}</td></tr>`).join('')}
     </tbody></table></div>${l.length > lim ? `<p class="small muted">Mostrando os ${lim} primeiros.</p>` : ''}` : `<p class="muted small" style="margin:0">Nenhum vagão passou nos últimos ${D} dias sem ser revistado.</p>`}</div>`;
 }
+// fichas do filtro: trens do aparelho + (com o SQL 24) resumo dos trens mais antigos, até MESES_HIST meses
+// -> lista de { t, n, ok, nv } (t pode ser só o resumo, com t.resumo = true, até a ficha ser baixada) ou undefined (carregando)
+function trensFichas() {
+  const loc = trensNaoRev().map(t => { const n = t.vagoes.filter((c, i) => sitVagao(t, i + 1).k !== 'ok').length; return { t, n, ok: t.vagoes.length - n, nv: t.vagoes.length }; });
+  const [a0, b] = periodoDe(F.per), a = a0 < desdeHist() ? desdeHist() : a0;
+  const rows = a > b ? [] : consultaHV(HV.fi, a + '|' + b, 'fichas_trens', { p_de: a, p_ate: b });
+  if (rows === undefined) return undefined;
+  if (!rows) return loc;
+  const tem = new Set(DB.trens.map(t => t.id));
+  const velhos = rows.filter(x => !tem.has(x.id)).map(x => {
+    const t = ANT.get(x.id) || { id: x.id, resumo: true, dataISO: x.data, turno: x.turno, prefixo: x.prefixo, os: x.os || '', linha: x.linha, status: x.status, inicio: hm(x.inicio) || '', chegada: hm(x.chegada) || '' };
+    return { t, n: x.total - x.vistos, ok: x.vistos, nv: x.total };
+  }).filter(e => passaF(e.t));
+  return loc.concat(velhos).sort((x, y) => y.t.dataISO.localeCompare(x.t.dataISO) || (y.t.inicio || y.t.chegada || '').localeCompare(x.t.inicio || x.t.chegada || ''));
+}
 function progNaoRev() {
-  const todas = linhasHist(), ts = trensNaoRev(), [, , nomePer] = periodoDe(F.per);
+  const todas = linhasHist(), res = trensFichas(), [, , nomePer] = periodoDe(F.per);
+  if (res === undefined) return barraFiltros(todas) + cardSemRevista() + carregandoHV('as fichas dos trens');
+  const ts = res.map(x => x.t);
   const eqPos = (t, p) => { const r = t.reg[p], d = (r && t.dist.find(x => x.n === r.equipe)) || [...t.dist].reverse().find(x => p >= x.ini && p <= x.fim); return d ? 'Equipe ' + d.n : '–'; };
-  const res = ts.map(t => { const n = t.vagoes.filter((c, i) => sitVagao(t, i + 1).k !== 'ok').length; return { t, n, ok: t.vagoes.length - n }; });
-  const tot = res.reduce((a, x) => ({ v: a.v + x.t.vagoes.length, n: a.n + x.n }), { v: 0, n: 0 });
+  const tot = res.reduce((a, x) => ({ v: a.v + x.nv, n: a.n + x.n }), { v: 0, n: 0 });
   const st = t => t.status === 'andamento' ? '<span class="tag info">em revista</span>' : t.status === 'nao_revistado' ? '<span class="tag bad">não revistado</span>' : '<span class="tag neu">fechado</span>';
-  const ficha = t => `<tr class="nr-ficha"><td colspan="9"><div style="margin:0 0 6px"><button class="btn sm" data-act="exportar-naorev" data-v="${t.id}">⬇ Excel desta composição</button></div><table class="tabela compacta"><thead><tr><th class="num">Pos.</th><th>Vagão</th><th>Equipe</th><th>Situação</th><th>Apontamento da equipe</th></tr></thead><tbody>
+  const ficha = t => t.resumo ? `<tr class="nr-ficha"><td colspan="9"><p class="muted small" style="margin:4px 0">${pedirAntigos([t.id]) ? 'Baixando a ficha deste trem…' : 'Não foi possível baixar a ficha. Toque em ↻ Atualizar agora para tentar de novo.'}</p></td></tr>` : `<tr class="nr-ficha"><td colspan="9"><div style="margin:0 0 6px"><button class="btn sm" data-act="exportar-naorev" data-v="${t.id}">⬇ Excel desta composição</button></div><table class="tabela compacta"><thead><tr><th class="num">Pos.</th><th>Vagão</th><th>Equipe</th><th>Situação</th><th>Apontamento da equipe</th></tr></thead><tbody>
     ${t.vagoes.map((c, i) => ({ c, p: i + 1, s: sitVagao(t, i + 1) })).filter(x => !S.nrSo || x.s.k !== 'ok').map(({ c, p, s }) => { const r = t.reg[p];
       return `<tr><td class="num">${posF(t, p)}</td><td><b>${esc(c)}</b></td><td class="small">${eqPos(t, p)}</td><td>${s.k === 'ok' ? '<span class="tag ok">✓ Vistoriado</span>' : '<span class="tag bad">✗ Não vistoriado</span>'}<br><span class="small muted">${esc(s.txt)}</span></td><td class="small">${r && r.st !== 'pend' && r.st !== 'ok' ? esc(txtReg(r)) : ''}</td></tr>`; }).join('')}
     </tbody></table></td></tr>`;
   return `${barraFiltros(todas, `<span class="filtro-acoes"><button class="btn sm" data-act="exportar-naorev" ${ts.length ? '' : 'disabled'}>⬇ Excel (vagão a vagão)</button></span>`)}
   <div class="kpis">${kpi('Trens com ficha', fmt(ts.length), 'lançados no app · ' + esc(nomePer))}${kpi('Vagões nas fichas', fmt(tot.v), 'soma das composições')}${kpi('Vistoriados', fmt(tot.v - tot.n), tot.v ? pct1(tot.v - tot.n, tot.v) + '% dos vagões' : '')}${kpi('Não vistoriados', fmt(tot.n), tot.v ? pct1(tot.n, tot.v) + '% dos vagões' : '')}</div>
   ${cardSemRevista()}
-  <div class="card"><h2>Fichas dos trens <span class="dir">toque no trem para abrir a ficha · trens do app (últimos 35 dias)</span></h2>
+  <div class="card"><h2>Fichas dos trens <span class="dir">toque no trem para abrir a ficha · trens do app (${HV.fi.local ? 'só os guardados no aparelho, últimos 35 dias' : 'até ' + MESES_HIST + ' meses'})</span></h2>
     <div class="filtros" style="margin:0 0 8px"><label class="filtro">Exportar<select data-act="nr-exp"><option value="">Todas as fichas do filtro (${fmt(ts.length)} trens)</option>${ts.map(t => `<option value="${t.id}" ${S.nrExp === t.id ? 'selected' : ''}>${esc(t.prefixo)} · ${diaRot(t.dataISO)} · ${t.turno} · ${esc(t.linha)}</option>`).join('')}</select></label>
       <span class="filtro-acoes"><button class="btn sm" data-act="exportar-naorev" data-v="sel" ${ts.length ? '' : 'disabled'}>⬇ Excel ${S.nrExp && ts.some(t => t.id === S.nrExp) ? 'desta composição' : 'das fichas'}</button></span></div>
     <div class="chips"><button class="chip ${S.nrSo ? '' : 'on'}" data-act="nr-so" data-v="0">Ficha completa</button><button class="chip ${S.nrSo ? 'on' : ''}" data-act="nr-so" data-v="1">Só não vistoriados</button></div>
     ${ts.length ? `<div class="rolagem"><table class="tabela compacta nr"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>OS</th><th>Linha</th><th>Situação</th><th class="num">Vagões</th><th class="num">Vistoriados</th><th class="num">Não vistoriados</th></tr></thead><tbody>
-      ${res.map(({ t, n, ok }) => `<tr class="nr-trem ${S.nrAberto === t.id ? 'on' : ''}" data-act="nr-abrir" data-id="${t.id}"><td>${diaRot(t.dataISO)}</td><td>${t.turno}</td><td><b>${S.nrAberto === t.id ? '▾' : '▸'} ${esc(t.prefixo)}</b></td><td class="small">${esc(t.os || '–')}</td><td>${esc(t.linha)}</td><td>${st(t)}</td><td class="num">${t.vagoes.length}</td><td class="num">${ok}</td><td class="num"><b style="color:${n ? 'var(--bad)' : 'var(--ok)'}">${n}</b></td></tr>${S.nrAberto === t.id ? ficha(t) : ''}`).join('')}
+      ${res.map(({ t, n, ok, nv }) => `<tr class="nr-trem ${S.nrAberto === t.id ? 'on' : ''}" data-act="nr-abrir" data-id="${t.id}"><td>${diaRot(t.dataISO)}</td><td>${t.turno}</td><td><b>${S.nrAberto === t.id ? '▾' : '▸'} ${esc(t.prefixo)}</b></td><td class="small">${esc(t.os || '–')}</td><td>${esc(t.linha)}</td><td>${st(t)}</td><td class="num">${nv}</td><td class="num">${ok}</td><td class="num"><b style="color:${n ? 'var(--bad)' : 'var(--ok)'}">${n}</b></td></tr>${S.nrAberto === t.id ? ficha(t) : ''}`).join('')}
     </tbody></table></div>` : '<p class="muted small" style="margin:0">Nenhum trem do app neste filtro. O histórico do Forms não tem a ficha vagão a vagão.</p>'}</div>`;
 }
 // ---------- Freio isolado: isolamentos e normalizações dos vagões (trens do app) ----------
@@ -3509,8 +3544,13 @@ async function exportarSemRev() {
 }
 async function exportarNaoRev(id) {
   if (id === 'sel') id = S.nrExp || '';
-  let ts = trensNaoRev(), [, , nomePer] = periodoDe(F.per);
-  if (id) { const t = tremPorId(id); if (!t) return; ts = [t]; nomePer = t.prefixo + ' ' + t.dataISO; }
+  const res = trensFichas(); if (res === undefined) { toast('Aguarde: carregando do banco'); return; }
+  let ts = res.map(x => x.t), [, , nomePer] = periodoDe(F.per);
+  if (id) { const t = ts.find(x => x.id === id) || tremAnt(id); if (!t) return; ts = [t]; nomePer = t.prefixo + ' ' + t.dataISO; }
+  const falta = ts.filter(t => t.resumo).map(t => t.id), LIM_ANT = 400;
+  if (falta.length > LIM_ANT) { toast(`⚠ São ${fmt(falta.length)} fichas antigas para baixar. Escolha um período menor (até ${LIM_ANT}).`); return; }
+  if (falta.length) { toast(`Baixando ${fmt(falta.length)} ficha(s) do banco…`); try { await carregarAntigos(falta); } catch (e) { toast('⚠ Não foi possível baixar as fichas: ' + (e.message || e)); return; } }
+  ts = ts.map(t => t.resumo ? ANT.get(t.id) : t).filter(Boolean);
   try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
   const aoa = [['Data', 'Turno', 'Trem', 'OS', 'Linha', 'Situação do trem', 'Posição na ficha', 'Vagão', 'Equipe', 'Vistoriado?', 'Detalhe', 'Apontamento da equipe']];
   ts.forEach(t => t.vagoes.forEach((c, i) => { const p = i + 1, s = sitVagao(t, p), r = t.reg[p], d = (r && t.dist.find(x => x.n === r.equipe)) || [...t.dist].reverse().find(x => p >= x.ini && p <= x.fim);
@@ -3631,24 +3671,34 @@ function progMateriais() {
   </div>`;
 }
 const normCod = s => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
-function historicoVagao(cod) {
+function historicoVagao(cod, trens = DB.trens) {
   const out = [];
-  DB.trens.forEach(t => t.vagoes.forEach((c, i) => { if (c === cod) { const p = i + 1; out.push({ t, p, r: t.reg[p], d: donoPos(t, p) || { n: '–', membros: [] } }); } }));
+  trens.forEach(t => t.vagoes.forEach((c, i) => { if (c === cod) { const p = i + 1; out.push({ t, p, r: t.reg[p], d: donoPos(t, p) || { n: '–', membros: [] } }); } }));
   return out.sort((a, b) => b.t.data - a.t.data);
 }
+const cabVagao = (todos, rv) => { const per = rv ? `até ${MESES_HIST} meses` : `${ehGestao() ? 35 : 15} dias`;
+  return `<div class="card"><h2>Buscar vagão <span class="dir">app (${per})${ehGestao() ? ' + materiais do Forms' : ''}</span></h2>
+    <div style="display:flex;gap:8px"><input id="busca" value="${esc(S.busca)}" placeholder="Ex.: HPT 031995-3" class="inp"><button class="btn primary" data-act="buscar">Buscar</button></div>
+    ${todos.length ? `<p class="small muted" style="margin:8px 0 0">Exemplos: ${todos.slice(-5).map(c => `<a href="#" data-act="ver-vagao" data-v="${esc(c)}">${esc(c)}</a>`).join(' · ')}</p>` : ''}</div>`; };
 function progVagao() {
   const hist = linhasHist().filter(r => r.forms && r.apl.length);
   const todos = [...new Set(DB.trens.flatMap(t => t.vagoes).concat(hist.flatMap(r => r.apl.map(x => x.vagao))))], q = S.busca.trim();
-  const cod = q ? todos.find(c => normCod(c) === normCod(q)) || todos.find(c => normCod(c).includes(normCod(q)) && normCod(q).length >= 6) : null;
-  const h0 = cod ? historicoVagao(cod) : null, hf = cod ? hist.filter(r => r.apl.some(x => x.vagao === cod)).reverse() : [];
+  let cod = q ? todos.find(c => normCod(c) === normCod(q)) || todos.find(c => normCod(c).includes(normCod(q)) && normCod(q).length >= 6) : null;
+  // com o SQL 24: trens antigos (até MESES_HIST meses) em que o vagão passou, baixados sob demanda
+  const rv = q && normCod(q).length >= 4 ? consultaHV(HV.vg, normCod(q), 'vagao_trens', { p_vagao: q, p_desde: desdeHist() }) : null;
+  if (rv === undefined) return cabVagao(todos) + carregandoHV('o histórico do vagão');
+  if (rv && rv.length && !cod) cod = rv[0].cod;
+  const idsAnt = rv && cod ? rv.filter(x => x.cod === cod && !DB.trens.some(t => t.id === x.trem_id)).map(x => x.trem_id) : [];
+  const baixando = idsAnt.length ? pedirAntigos(idsAnt) : false, trensV = DB.trens.concat(idsAnt.map(id => ANT.get(id)).filter(Boolean));
+  const h0 = cod ? historicoVagao(cod, trensV) : null, hf = cod ? hist.filter(r => r.apl.some(x => x.vagao === cod)).reverse() : [];
   const h = h0 && (h0.length || hf.length) ? h0 : null;
   const cardForms = hf.length ? `<div class="card"><h2>Materiais aplicados · histórico do Forms <span class="dir">${hf.length} passagens</span></h2><div class="rolagem"><table class="tab-larga tabela"><thead><tr><th>Data</th><th>Trem</th><th>Turno</th><th>Materiais</th></tr></thead><tbody>
     ${hf.map(r => `<tr><td>${diaRot(r.dataISO)}/${r.dataISO.slice(2, 4)}</td><td><b>${esc(r.prefixo)}</b><br><span class="small muted">${esc(r.linha || '')}</span></td><td>${r.turno || '–'}</td><td class="small">${r.apl.filter(x => x.vagao === cod).map(x => `${x.qtd}× ${esc(x.nome)}${x.pos.length ? ' (' + x.pos.join(', ') + ')' : ''}`).join(' · ')}</td></tr>`).join('')}
   </tbody></table></div></div>` : '';
   // apontamentos da equipe neste vagão (defeitos, materiais, planos especiais e avarias), do mais recente para o mais antigo
-  const aps = cod ? linhasApont().filter(x => normCod(x.t.vagoes[x.p - 1] || '') === normCod(cod)) : [];
+  const aps = cod ? linhasApont(false, trensV).filter(x => normCod(x.t.vagoes[x.p - 1] || '') === normCod(cod)) : [];
   const eqAp = (t, p) => { const d = donoPos(t, p); return d ? `Equipe ${d.n}<br><span class="small">${esc(nomesEquipe(d.membros))}</span>` : '–'; };
-  const cardAp = `<div class="card"><h2>Apontamentos do vagão <span class="dir">${aps.length} apontamento(s) · app (${ehGestao() ? 35 : 15} dias)</span></h2>${aps.length ? `<div class="rolagem"><table class="tab-larga tabela compacta"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Avaria</th><th>Materiais</th><th>Defeito / observação</th><th>Plano especial</th><th>Equipe</th><th>Validação</th></tr></thead><tbody>
+  const cardAp = `<div class="card"><h2>Apontamentos do vagão <span class="dir">${aps.length} apontamento(s) · app (${rv ? 'até ' + MESES_HIST + ' meses' : (ehGestao() ? 35 : 15) + ' dias'})</span></h2>${aps.length ? `<div class="rolagem"><table class="tab-larga tabela compacta"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Avaria</th><th>Materiais</th><th>Defeito / observação</th><th>Plano especial</th><th>Equipe</th><th>Validação</th></tr></thead><tbody>
     ${aps.map(({ t, p, r, ex, tipos }) => `<tr><td>${diaRot(t.dataISO)}/${t.dataISO.slice(2, 4)} · ${t.turno}${r?.h ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${esc(t.linha || '')}${t.os ? ' · OS ' + esc(t.os) : ''}</span></td><td class="num">${posF(t, p)}</td>
       <td class="small">${tipos.ava ? r.oc.map(o => `<span class="tag bad">${esc(o)}</span>`).join(' ') : '–'}</td>
       <td class="small">${tipos.mat ? esc(r.mats.map(txtMat).join(' · ')) : '–'}</td>
@@ -3657,11 +3707,9 @@ function progVagao() {
       <td class="small">${eqAp(t, p)}${r?.apontadoPor ? `<br><span class="muted">lançado por ${esc(r.apontadoPor)}</span>` : ''}</td>
       <td class="small">${r?.val ? `<span class="tag ${r.val === 'corrigido' ? 'info' : 'ok'}">${r.val === 'corrigido' ? '✏ Corrigido' : '✓ Validado'}</span>` : r ? '<span class="tag neu">aguardando</span>' : '–'}</td></tr>`).join('')}
   </tbody></table></div>` : '<p class="muted small" style="margin:0">Nenhum defeito, material, plano especial ou avaria apontado neste vagão nos trens do app.</p>'}</div>`;
-  const diasApp = ehGestao() ? 35 : 15;
-  return `<div class="card"><h2>Buscar vagão <span class="dir">app (${diasApp} dias)${ehGestao() ? ' + materiais do Forms' : ''}</span></h2>
-    <div style="display:flex;gap:8px"><input id="busca" value="${esc(S.busca)}" placeholder="Ex.: HPT 031995-3" class="inp"><button class="btn primary" data-act="buscar">Buscar</button></div>
-    ${todos.length ? `<p class="small muted" style="margin:8px 0 0">Exemplos: ${todos.slice(-5).map(c => `<a href="#" data-act="ver-vagao" data-v="${esc(c)}">${esc(c)}</a>`).join(' · ')}</p>` : ''}</div>
-  ${!q ? '' : !h ? '<div class="card muted">Vagão não encontrado nos trens carregados.</div>' : `
+  const aviso = baixando ? `<div class="card muted">Baixando ${fmt(idsAnt.filter(id => !ANT.has(id)).length)} trem(ns) antigo(s) deste vagão…</div>` : '';
+  return `${cabVagao(todos, rv)}${aviso}
+  ${!q ? '' : !h ? (baixando ? '' : `<div class="card muted">Vagão não encontrado ${rv ? 'nos trens dos últimos ' + MESES_HIST + ' meses' : 'nos trens carregados'}.</div>`) : `
 ${h0.length ? `<div class="card"><h2>${esc(cod)} <span class="dir">${h0.length} passagens pelo revistamento (app)</span></h2><div class="rolagem"><table class="tab-larga tabela"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Equipe que revistou</th><th>Resultado</th><th>Detalhes</th></tr></thead><tbody>
     ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em andamento</span>' : ''}</td><td class="num">${posF(t, p)}</td><td>Equipe ${d.n}<br><span class="small">${esc(d.membros.map(nomeTec).join(', '))}</span></td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td><td class="small">${r ? (r.st === 'ok' ? '–' : esc(txtReg(r)) + btnFotos(r, '📷')) : esc(t.motivoNao || t.motivoParcial || '')}</td></tr>`).join('')}
   </tbody></table></div></div>` : ''}`}${h ? cardForms + cardAp : ''}`;
@@ -4131,7 +4179,7 @@ document.addEventListener('click', async e => {
       await processarFila(); HIST.em = 0; await atualizar(true);
       if (!FILA.length && n) toast('☁ Tudo enviado'); return;
     }
-    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; HIST.pesadoEm = 0; HV.fre = {}; HV.sr = {}; HV.semSql = false; await processarFila(); await atualizar(true); return;
+    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; HIST.pesadoEm = 0; HV.fre = {}; HV.sr = {}; HV.fi = {}; HV.vg = {}; ANT.clear(); ANT_FALHA.clear(); await processarFila(); await atualizar(true); return;
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
     case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
