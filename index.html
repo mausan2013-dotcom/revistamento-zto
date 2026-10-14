@@ -656,7 +656,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.71';
+const VERSAO = '1.72';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3131,7 +3131,7 @@ function progGeral() {
   if (lc.length > 9) lc = lc.slice(0, 8).concat([['Outras justificativas (texto livre)', lc.slice(8).reduce((a, c) => a + c[1], 0)]]);   // o Forms tem muito texto livre
   const totC = lc.reduce((a, c) => a + c[1], 0); let acum = 0;
   const acumulado = lc.map(c => (acum += c[1]) / totC * 100);
-  const retidos = rows.flatMap(r => r.ret.map(x => ({ r, ...x }))).reverse(), naoRev = rows.filter(r => !r.rev).reverse();
+  const retidos = rows.flatMap(r => [...r.ret.map(x => ({ r, ...x })), ...Array.from({ length: r.ret.length ? 0 : (r.retidos || 0) }, () => ({ r, vagao: '', obs: 'vagão não informado no registro' }))]).reverse(), naoRev = rows.filter(r => !r.rev).reverse();
   const dm = A.tMed - META_MIN;
   const comT = rows.filter(r => r.rev && r.durMin > 0), dentro = comT.filter(r => r.durMin <= META_MIN), fora = comT.filter(r => r.durMin > META_MIN);
   const motA = {}; fora.forEach(r => { const k = motivoAtraso(r); motA[k] = (motA[k] || 0) + 1; });
