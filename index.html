@@ -661,7 +661,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.81';
+const VERSAO = '1.82';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3218,7 +3218,7 @@ function trensDoTurno(rs, sapata) {
 function progEquipes() {
   const todas = linhasHist(), rows = filtrar(todas), A = agrega(rows), sapata = MAT.sapata?.nome;
   const TT = 'ABCD'.split('').map(t => { const rs = rows.filter(r => r.turno === t), rv = rs.filter(r => r.rev && r.durMin > 0);
-    return { t, rs, A: agrega(rs), com: rv.filter(r => r.nDesv), sem: rv.filter(r => !r.nDesv), sap: rs.reduce((a, r) => a + (r.mats[sapata] || 0), 0) }; });
+    return { t, rs, A: agrega(rs), Ad: agrega(rs.filter(r => !porClima(r))), com: rv.filter(r => r.nDesv), sem: rv.filter(r => !r.nDesv), sap: rs.reduce((a, r) => a + (r.mats[sapata] || 0), 0) }; });
   const duo = (lista, cor) => `<div class="duo"><div><h3>Tempo médio</h3>${colunas(TT.map(x => ({ rot: x.t, v: media(x[lista]), tip: `Turno ${x.t}: ${dur(media(x[lista]))} em ${x[lista].length} trens` })), { cor, meta: META_MIN, rotMeta: 'meta ' + META_MIN + ' min', fmtV: durC, alt: 130 })}</div>
     <div><h3>Trens</h3>${colunas(TT.map(x => ({ rot: x.t, v: x[lista].length, tip: `Turno ${x.t}: ${x[lista].length} trens` })), { cor, alt: 130 })}</div></div>`;
   return `${barraFiltros(todas)}
@@ -3229,9 +3229,9 @@ function progEquipes() {
     <div class="card"><h2>Total de trens revistados · por turno</h2>${colunas(TT.map(x => ({ rot: 'Turno ' + x.t, v: x.A.nRev })), { alt: 130 })}</div>
     <div class="card larga"><h2>Resumo por turno</h2><div class="rolagem"><table class="tabela"><thead><tr><th>Turno</th><th>Líder</th><th class="num">Trens rev.</th><th class="num">Não rev.</th><th class="num">Vagões insp.</th><th class="num">Aderência</th><th class="num">Tempo médio</th><th class="num">C/ desvio</th><th class="num">S/ desvio</th><th class="num">Retidos</th><th class="num">Sapatas</th></tr></thead><tbody>
       ${TT.filter(x => F.turno === 'todos' || x.t === F.turno).map(x => `<tr class="nr-trem ${S.resTurno === x.t ? 'on' : ''}" data-act="res-turno" data-v="${x.t}" title="Ver os trens do turno no período"><td><b>${S.resTurno === x.t ? '▾' : '▸'} ${x.t}</b></td><td class="small"><b>${esc(liderDe(x.t))}</b><br><span class="muted">${S.resTurno === x.t ? 'fechar' : 'ver os ' + fmt(x.rs.length) + ' trens'}</span></td><td class="num">${fmt(x.A.nRev)}</td><td class="num">${fmt(x.A.nNao)}</td><td class="num">${fmt(x.A.insp)}</td>
-        <td class="num">${x.A.total ? `<span class="tag ${x.A.ader >= META_ADER ? 'ok' : 'bad'}">${x.A.ader >= META_ADER ? '✓' : '▼'} ${pct1(x.A.insp, x.A.total)}%</span>` : '–'}</td>
+        <td class="num">${x.Ad.total ? `<span class="tag ${x.Ad.ader >= META_ADER ? 'ok' : 'bad'}">${x.Ad.ader >= META_ADER ? '✓' : '▼'} ${pct1(x.Ad.insp, x.Ad.total)}%</span>` : '–'}</td>
         <td class="num">${x.A.tMed ? dur(x.A.tMed) : '–'}</td><td class="num">${x.com.length ? dur(media(x.com)) : '–'}</td><td class="num">${x.sem.length ? dur(media(x.sem)) : '–'}</td><td class="num">${fmt(x.A.retidos)}</td><td class="num">${fmt(x.sap)}</td></tr>${S.resTurno === x.t ? trensDoTurno(x.rs, sapata) : ''}`).join('')}
-    </tbody></table></div></div>
+    </tbody></table></div>${rows.filter(porClima).length ? `<p class="small muted" style="margin:8px 0 0">Aderência: os ${fmt(rows.filter(porClima).length)} trem(ns) não revistados por condições climáticas ficam fora do cálculo, como na aba Aderência.</p>` : ''}</div>
   </div>`;
 }
 
@@ -3549,18 +3549,18 @@ function freioAno(ano) {
   return ev.filter(e => e.mes.startsWith(ano) && passaInd(e));
 }
 function indMetricas(rs, fr, ap) {
-  const A = agrega(rs), cr = rs.filter(r => r.rev && r.durMin > 0), dentro = cr.filter(r => r.durMin <= META_MIN).length, sapata = MAT.sapata?.nome;
+  const A = agrega(rs), Ad = agrega(rs.filter(r => !porClima(r))), cr = rs.filter(r => r.rev && r.durMin > 0), dentro = cr.filter(r => r.durMin <= META_MIN).length, sapata = MAT.sapata?.nome;
   const vd = k => fr ? new Set(fr.filter(e => e.k === k).map(e => normVag(e.c))).size : null;
   return { n: A.n, rev: A.nRev, nao: A.nNao, pRev: A.n ? A.nRev / A.n * 100 : null, porDia: A.nRev ? A.porDia : null,
-    total: A.total, insp: A.insp, falt: A.falt, ader: A.total ? A.ader : null, vagTrem: A.nRev ? A.vagTrem : null,
+    clima: rs.filter(porClima).length, total: Ad.total, insp: A.insp, falt: Ad.falt, ader: Ad.total ? Ad.ader : null, vagTrem: A.nRev ? A.vagTrem : null,
     tMed: A.tMed || null, pTempo: cr.length ? dentro / cr.length * 100 : null, segVag: A.segVag || null,
     ret: A.retidos, desv: rs.filter(r => r.nDesv).length, itens: A.itens, sap: rs.reduce((a, r) => a + ((r.mats || {})[sapata] || 0), 0),
     ...Object.fromEntries(FRE.map(([k]) => [k, vd(k)])), ap, taxaAp: ap && A.insp ? ap / A.insp * 100 : null };
 }
 const pctI = v => dec1(v) + '%';
 // [rótulo, chave, formato, regra de cor, meta]  (linha só com o rótulo = título de grupo)
-const IND_DEF = [['Trens'], ['Trens registrados', 'n', fmt], ['Trens revistados', 'rev', fmt], ['Trens não revistados', 'nao', fmt], ['% de trens revistados', 'pRev', pctI], ['Trens revistados por dia (média)', 'porDia', dec1],
-  ['Vagões'], ['Vagões nos trens', 'total', fmt], ['Vagões inspecionados', 'insp', fmt], ['Vagões não inspecionados', 'falt', fmt], ['Aderência (inspecionados ÷ vagões)', 'ader', pctI, '+', META_ADER], ['Vagões por trem revistado (média)', 'vagTrem', v => fmt(Math.round(v))],
+const IND_DEF = [['Trens'], ['Trens registrados', 'n', fmt], ['Trens revistados', 'rev', fmt], ['Trens não revistados', 'nao', fmt], ['  · destes, por condições climáticas (fora da aderência)', 'clima', fmt], ['% de trens revistados', 'pRev', pctI], ['Trens revistados por dia (média)', 'porDia', dec1],
+  ['Vagões'], ['Vagões nos trens (sem os trens de clima)', 'total', fmt], ['Vagões inspecionados', 'insp', fmt], ['Vagões não inspecionados (sem os trens de clima)', 'falt', fmt], ['Aderência (inspecionados ÷ vagões)', 'ader', pctI, '+', META_ADER], ['Vagões por trem revistado (média)', 'vagTrem', v => fmt(Math.round(v))],
   ['Tempo de revisão'], ['Tempo médio por trem', 'tMed', dur, '-', META_MIN], ['Trens dentro do tempo padrão (até ' + META_MIN + ' min)', 'pTempo', pctI], ['Revisão por vagão (média)', 'segVag', v => Math.round(v) + ' s'],
   ['Ocorrências e materiais'], ['Vagões retidos', 'ret', fmt], ['Trens com desvio', 'desv', fmt], ['Materiais aplicados (itens)', 'itens', fmt], ['Sapatas aplicadas', 'sap', fmt],
   ['Freio isolado (vagões distintos)'], ...FRE.map(([k, n]) => [n, k, fmt]),
@@ -3600,6 +3600,7 @@ function vistaIndic() {
   return `${barra}${notas.map(n => `<p class="nota">${n}</p>`).join('')}
   <div class="kpis">${kpi('Trens revistados', fmt(Y.rev), Y.n ? pctI(Y.pRev) + ' dos ' + fmt(Y.n) + ' trens' : '')}${kpi('Vagões inspecionados', fmt(Y.insp), 'de ' + fmt(Y.total) + ' nos trens')}${kpi('Aderência', Y.ader == null ? '–' : pctI(Y.ader), 'meta ' + META_ADER + '%')}
     ${kpi('Tempo médio por trem', Y.tMed ? dur(Y.tMed) : '–', 'meta ' + META_MIN + ' min')}${kpi('Trens no tempo padrão', Y.pTempo == null ? '–' : pctI(Y.pTempo), 'até ' + META_MIN + ' min')}${kpi('Vagões retidos', fmt(Y.ret), fmt(Y.desv) + ' trens com desvio')}</div>
+  ${Y.clima ? `<p class="nota">Trens não revistados por <b>condições climáticas</b> (${fmt(Y.clima)} no ano) ficam fora dos vagões e da aderência, como na aba Aderência.</p>` : ''}
   <div class="card"><h2>Mês a mês <span class="dir">${ano} · soma ou média de cada mês, coluna ${ano} = o ano todo</span></h2>${M.length && Y.n ? tabela : semDados}</div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr))">
     <div class="card"><h2>Trens revistados <span class="dir">${ano}</span></h2>${colunas(it('rev'), { larg: 40 })}</div>
