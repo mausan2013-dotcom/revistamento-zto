@@ -656,7 +656,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.72';
+const VERSAO = '1.73';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1518,12 +1518,12 @@ function entrarDemo() {
 // ---------- render geral ----------
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
-  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
+  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
+  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
-  vis: [['geral', 'Painel geral'], ['aderencia', 'Aderência']],
+  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['cadastros', 'Cadastros']],
+  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
+  vis: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado']],
   cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard']],
   camsup: [['camnovo', 'Novo apontamento'], ['camhist', 'Ocorrências da equipe'], ['cammeus', 'Minhas ocorrências'], ['camdash', 'Dashboard']]
 };
@@ -3405,6 +3405,46 @@ function progNaoRev() {
       ${res.map(({ t, n, ok }) => `<tr class="nr-trem ${S.nrAberto === t.id ? 'on' : ''}" data-act="nr-abrir" data-id="${t.id}"><td>${diaRot(t.dataISO)}</td><td>${t.turno}</td><td><b>${S.nrAberto === t.id ? '▾' : '▸'} ${esc(t.prefixo)}</b></td><td class="small">${esc(t.os || '–')}</td><td>${esc(t.linha)}</td><td>${st(t)}</td><td class="num">${t.vagoes.length}</td><td class="num">${ok}</td><td class="num"><b style="color:${n ? 'var(--bad)' : 'var(--ok)'}">${n}</b></td></tr>${S.nrAberto === t.id ? ficha(t) : ''}`).join('')}
     </tbody></table></div>` : '<p class="muted small" style="margin:0">Nenhum trem do app neste filtro. O histórico do Forms não tem a ficha vagão a vagão.</p>'}</div>`;
 }
+// ---------- Freio isolado: isolamentos e normalizações dos vagões (trens do app) ----------
+const FRE = [['isoFicha', 'Isolados na ficha', 'bad'], ['isoFora', 'Isolados fora da ficha', 'warn'], ['isoTime', 'Isolados pelo time de revistamento', 'info'], ['normFicha', 'Normalizados na ficha', 'ok'], ['normFora', 'Normalizados fora da ficha', 'ok']];
+const FRE_OC = { 'Isolado fora da ficha': 'isoFora', 'Isolado pela mecânica de vagões': 'isoTime', 'Normalizado dentro da ficha': 'normFicha', 'Normalizado fora da ficha': 'normFora' };
+// na ficha do trem: restrição "freio isolado" (motivo da ficha); as demais vêm da ocorrência marcada pela equipe no vagão
+function freioEventos() {
+  const L = [];
+  trensNaoRev().forEach(t => t.vagoes.forEach((c, i) => {
+    const p = i + 1, rf = restrDe(t, p), r = t.reg[p], d = (r && t.dist.find(x => x.n === r.equipe)) || [...t.dist].reverse().find(x => p >= x.ini && p <= x.fim), eq = d ? 'Equipe ' + d.n : '';
+    if (rf && /isol/i.test(rf.motivo || '') && !/normaliz/i.test(rf.motivo || '')) L.push({ k: 'isoFicha', t, p, c, det: rf.motivo + (rf.data ? ' (desde ' + rf.data + ')' : ''), h: '', eq });
+    ((r && r.oc) || []).forEach(o => { if (FRE_OC[o]) L.push({ k: FRE_OC[o], t, p, c, det: r.obs || '', h: r.h || '', eq }); });
+  }));
+  return L;
+}
+const freioFiltrado = () => { const l = freioEventos(); return S.freSt ? l.filter(e => e.k === S.freSt) : l; };
+function vistaFreio() {
+  const todas = linhasHist(), ev = freioEventos(), l = S.freSt ? ev.filter(e => e.k === S.freSt) : ev, lim = 400, [, , nomePer] = periodoDe(F.per);
+  const por = k => ev.filter(e => e.k === k), vd = a => new Set(a.map(e => normVag(e.c))).size;
+  const rot = k => FRE.find(x => x[0] === k)[1], cor = k => FRE.find(x => x[0] === k)[2];
+  return `${barraFiltros(todas, `<span class="filtro-acoes"><button class="btn sm" data-act="exportar-freio" ${l.length ? '' : 'disabled'}>⬇ Excel (${fmt(l.length)})</button></span>`)}
+  <p class="nota">Vagões com <b>freio isolado</b> e normalizados nos trens lançados no app (${esc(nomePer)}). <b>Na ficha</b>: restrição “freio isolado” que veio na ficha do trem. As demais linhas vêm da ocorrência marcada pela equipe no vagão.</p>
+  <div class="kpis">${FRE.map(([k, n]) => kpi(n, fmt(vd(por(k))), por(k).length === vd(por(k)) ? 'vagões' : 'vagões · ' + fmt(por(k).length) + ' ocorrências')).join('')}</div>
+  <div class="card"><h2>Vagões por status <span class="dir">${fmt(l.length)} linha(s)</span></h2>
+    <div class="chips"><button class="chip ${S.freSt ? '' : 'on'}" data-act="fre-st" data-v="">Todos (${fmt(ev.length)})</button>${FRE.map(([k, n]) => `<button class="chip ${S.freSt === k ? 'on' : ''}" data-act="fre-st" data-v="${k}">${esc(n)} (${fmt(por(k).length)})</button>`).join('')}</div>
+    ${l.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Status</th><th>Vagão</th><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Pos.</th><th>Equipe</th><th>Hora</th><th>Detalhe</th></tr></thead><tbody>
+      ${l.slice(0, lim).map(e => `<tr><td><span class="tag ${cor(e.k)}">${esc(rot(e.k))}</span></td><td><a href="#" data-act="ver-vagao" data-v="${esc(e.c)}"><b>${esc(e.c)}</b></a></td><td>${diaRot(e.t.dataISO)}</td><td>${e.t.turno}</td><td><b>${esc(e.t.prefixo)}</b></td><td>${esc(e.t.linha)}</td><td class="num">${posF(e.t, e.p)}</td><td class="small">${esc(e.eq)}</td><td>${esc(e.h)}</td><td class="small">${esc(e.det)}</td></tr>`).join('')}
+    </tbody></table></div>${l.length > lim ? `<p class="muted small">Mostrando ${lim} de ${fmt(l.length)}. O Excel traz todas.</p>` : ''}` : '<p class="muted small" style="margin:0">Nenhum vagão neste filtro. O histórico do Forms não tem isolamento por vagão.</p>'}</div>`;
+}
+async function exportarFreio() {
+  const l = freioFiltrado(), ev = freioEventos(), [, , nomePer] = periodoDe(F.per);
+  try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
+  const rot = k => FRE.find(x => x[0] === k)[1], br = d => d.split('-').reverse().join('/');
+  const a1 = [['Indicador', 'Vagões distintos', 'Ocorrências'], ...FRE.map(([k, n]) => { const a = ev.filter(e => e.k === k); return [n, new Set(a.map(e => normVag(e.c))).size, a.length]; }), [], ['Período', nomePer]];
+  const a2 = [['Status', 'Vagão', 'Data', 'Turno', 'Trem', 'OS', 'Linha', 'Posição na ficha', 'Equipe', 'Hora', 'Detalhe']];
+  l.forEach(e => a2.push([rot(e.k), e.c, br(e.t.dataISO), e.t.turno, e.t.prefixo, e.t.os || '', e.t.linha, posF(e.t, e.p), e.eq, e.h, e.det]));
+  const w1 = XLSX.utils.aoa_to_sheet(a1), w2 = XLSX.utils.aoa_to_sheet(a2);
+  w1['!cols'] = [38, 16, 12].map(w => ({ wch: w })); w2['!cols'] = [34, 15, 12, 6, 10, 10, 8, 10, 12, 8, 50].map(w => ({ wch: w })); w2['!autofilter'] = { ref: 'A1:K1' };
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, w1, 'Indicadores'); XLSX.utils.book_append_sheet(wb, w2, 'Vagões');
+  XLSX.writeFile(wb, `revistamento-zto-freio-isolado${S.freSt ? '-' + arqNome(rot(S.freSt)) : ''}-${arqNome(nomePer)}.xlsx`);
+  toast('Planilha gerada (' + fmt(l.length) + ' linhas)');
+}
 const arqNome = sem => sem.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
 async function exportarSemRev() {
   const l = semRevFiltrada(), t0 = S.srTrem ? tremPorId(S.srTrem) : null;
@@ -3908,12 +3948,12 @@ function camRetorno(a, comObs) {
 }
 
 const VIEWS = {
-  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, notas: vistaNotas },
+  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
-  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, notas: vistaNotas },
-  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, cadastros: progCadastros },
-  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, notas: vistaNotas, camhist: camHist, camdash: camDash },
-  vis: { geral: progGeral, aderencia: progAderencia },
+  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas },
+  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, cadastros: progCadastros },
+  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camhist: camHist, camdash: camDash },
+  vis: { geral: progGeral, aderencia: progAderencia, freio: vistaFreio },
   cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   camsup: { camnovo: camNovo, camhist: camHist, cammeus: camMeus, camdash: camDash }
 };
@@ -4199,6 +4239,8 @@ document.addEventListener('click', async e => {
     case 'res-turno': S.resTurno = S.resTurno === v ? null : v; break;
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
+    case 'fre-st': S.freSt = v || ''; break;
+    case 'exportar-freio': exportarFreio(); return;
     case 'nr-so': S.nrSo = v === '1'; break;
     case 'exportar-naorev': exportarNaoRev(v); return;
     case 'exportar-semrev': exportarSemRev(); return;
