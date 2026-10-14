@@ -347,6 +347,11 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 @media (max-width: 1000px) { .rep { grid-template-columns: 1fr; } .rep-main { grid-template-columns: repeat(6, minmax(0, 1fr)); } .rep-main > * { grid-column: span 3 !important; grid-row: auto !important; } .rep-main .c3, .rep-main .c9, .rep-main .c10, .rep-main .c11, .rep-main .c12, .rep-main .c13, .rep-main .c14 { grid-column: 1 / -1 !important; } .rep-planos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } .rep-planos h3 { grid-column: 1 / -1; } }
 @media (max-width: 560px) { .rep-main .c6 { grid-column: 1 / -1 !important; } .rcard { padding: 10px 12px; } .rcard .rv { font-size: 24px; } .rgauge .grande-pct { font-size: 24px; } }
 .c14 { grid-column: 1 / -1; }
+.tabela.ind th:first-child, .tabela.ind td:first-child { position: sticky; left: 0; background: var(--card); z-index: 2; text-align: left; white-space: nowrap; }
+.tabela.ind thead th:first-child { z-index: 3; }
+.tabela.ind td, .tabela.ind th { white-space: nowrap; }
+.tabela.ind tr.grp td { background: var(--bg); font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); border-bottom: 0; }
+.tabela.ind td.ano, .tabela.ind th.ano { border-left: 2px solid var(--line); font-weight: 700; }
 .tabela tr.tot td { border-top: 2px solid var(--line); font-weight: 700; }
 .upload.plan-up { margin: 0; padding: 10px 12px; border-radius: 14px; }
 .upload.plan-up .ic { font-size: 22px; }
@@ -656,7 +661,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.76';
+const VERSAO = '1.77';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1537,12 +1542,12 @@ function entrarDemo() {
 // ---------- render geral ----------
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
-  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
-  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
+  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
+  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
-  vis: [['geral', 'Painel geral'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado']],
+  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['cadastros', 'Cadastros']],
+  pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
+  vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado']],
   cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard']],
   camsup: [['camnovo', 'Novo apontamento'], ['camhist', 'Ocorrências da equipe'], ['cammeus', 'Minhas ocorrências'], ['camdash', 'Dashboard']]
 };
@@ -3373,7 +3378,7 @@ function trensNaoRev() {
 }
 // ---------- consultas por vagão no banco, sem o limite de 35 dias do aparelho (23-historico-vagoes.sql, v1.74) ----------
 // devolve as linhas, null (usar os trens do aparelho: sem o SQL, modo demonstração, sem internet ou erro) ou undefined (carregando)
-const HV = { fre: {}, sr: {}, fi: {}, vg: {} };          // cada consulta guarda o seu estado (o SQL 24 pode faltar com o 23 rodado)
+const HV = { fre: {}, sr: {}, fi: {}, vg: {}, ind: {} };          // cada consulta guarda o seu estado (o SQL 24 pode faltar com o 23 rodado)
 function consultaHV(o, chave, fn, args) {
   if (DEMO || OFFLINE || o.semSql || o.falhou === chave) { o.local = true; return null; }
   const tem = o.chave === chave && o.rows; if (tem) o.local = false;
@@ -3484,8 +3489,11 @@ function freioEventos() {
     return rows.map(x => ({ k: x.tipo, t: trHV(m, x), p: x.posicao, pf: x.pos_ficha ?? x.posicao, c: x.vagao, det: x.detalhe || '', h: x.hora ? x.hora.slice(0, 5) : '', eq: x.equipe != null ? 'Equipe ' + x.equipe : '' }))
       .filter(e => passaF(e.t)).sort((x, y) => y.t.dataISO.localeCompare(x.t.dataISO) || x.t.prefixo.localeCompare(y.t.prefixo) || x.p - y.p);
   }
+  return freioLocal(trensNaoRev());
+}
+function freioLocal(trens) {
   const L = [];
-  trensNaoRev().forEach(t => t.vagoes.forEach((c, i) => {
+  trens.forEach(t => t.vagoes.forEach((c, i) => {
     const p = i + 1, rf = restrDe(t, p), r = t.reg[p], d = (r && t.dist.find(x => x.n === r.equipe)) || [...t.dist].reverse().find(x => p >= x.ini && p <= x.fim), eq = d ? 'Equipe ' + d.n : '';
     if (rf && /isol/i.test(rf.motivo || '') && !/normalizad/i.test(rf.motivo || '')) L.push({ k: 'isoFicha', t, p, pf: posF(t, p), c, det: rf.motivo + (rf.data ? ' (desde ' + rf.data + ')' : ''), h: '', eq });
     ((r && r.oc) || []).forEach(o => { if (FRE_OC[o]) L.push({ k: FRE_OC[o], t, p, pf: posF(t, p), c, det: r.obs || '', h: r.h || '', eq }); });
@@ -3522,6 +3530,101 @@ async function exportarFreio() {
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, w1, 'Indicadores'); XLSX.utils.book_append_sheet(wb, w2, 'Vagões');
   XLSX.writeFile(wb, `revistamento-zto-freio-isolado${S.freSt ? '-' + arqNome(rot(S.freSt)) : ''}-${arqNome(nomePer)}.xlsx`);
   toast('Planilha gerada (' + fmt(l.length) + ' linhas)');
+}
+// ---------- Indicadores: visão anual, mês a mês ----------
+// tudo sai do histórico completo (resumo_trens + Forms), dos apontamentos da planilha e do freio isolado (freio_vagoes, ano inteiro)
+const passaInd = t => (F.turno === 'todos' || t.turno === F.turno) && (F.linha === 'todas' || t.linha === F.linha) && (F.prefixo === 'todos' || t.prefixo === F.prefixo);
+// supervisor e especializado não carregam o histórico por conta própria: busca ao abrir a aba (no máximo a cada 5 min)
+function histIndic() {
+  if (veIndic() || DEMO || OFFLINE || HIST.buscando || Date.now() - (HIST.tentou || 0) < 5 * 60e3) return;
+  HIST.buscando = true; HIST.tentou = Date.now();
+  carregarHist().catch(() => {}).finally(() => { HIST.buscando = false; render(); });
+}
+// freio isolado do ano: [{ k, mes, c }] (undefined = carregando)
+function freioAno(ano) {
+  const rows = consultaHV(HV.ind, ano, 'freio_vagoes', { p_de: ano + '-01-01', p_ate: ano + '-12-31' });
+  if (rows === undefined) return undefined;
+  const ev = rows ? rows.map(x => ({ k: x.tipo, mes: x.data.slice(0, 7), c: x.vagao, turno: x.turno, linha: x.linha, prefixo: x.prefixo }))
+    : freioLocal(DB.trens.filter(t => t.vagoes.length)).map(e => ({ k: e.k, mes: e.t.dataISO.slice(0, 7), c: e.c, turno: e.t.turno, linha: e.t.linha, prefixo: e.t.prefixo }));
+  return ev.filter(e => e.mes.startsWith(ano) && passaInd(e));
+}
+function indMetricas(rs, fr, ap) {
+  const A = agrega(rs), cr = rs.filter(r => r.rev && r.durMin > 0), dentro = cr.filter(r => r.durMin <= META_MIN).length, sapata = MAT.sapata?.nome;
+  const vd = k => fr ? new Set(fr.filter(e => e.k === k).map(e => normVag(e.c))).size : null;
+  return { n: A.n, rev: A.nRev, nao: A.nNao, pRev: A.n ? A.nRev / A.n * 100 : null, porDia: A.nRev ? A.porDia : null,
+    total: A.total, insp: A.insp, falt: A.falt, ader: A.total ? A.ader : null, vagTrem: A.nRev ? A.vagTrem : null,
+    tMed: A.tMed || null, pTempo: cr.length ? dentro / cr.length * 100 : null, segVag: A.segVag || null,
+    ret: A.retidos, desv: rs.filter(r => r.nDesv).length, itens: A.itens, sap: rs.reduce((a, r) => a + ((r.mats || {})[sapata] || 0), 0),
+    ...Object.fromEntries(FRE.map(([k]) => [k, vd(k)])), ap, taxaAp: ap && A.insp ? ap / A.insp * 100 : null };
+}
+const pctI = v => dec1(v) + '%';
+// [rótulo, chave, formato, regra de cor, meta]  (linha só com o rótulo = título de grupo)
+const IND_DEF = [['Trens'], ['Trens registrados', 'n', fmt], ['Trens revistados', 'rev', fmt], ['Trens não revistados', 'nao', fmt], ['% de trens revistados', 'pRev', pctI], ['Trens revistados por dia (média)', 'porDia', dec1],
+  ['Vagões'], ['Vagões nos trens', 'total', fmt], ['Vagões inspecionados', 'insp', fmt], ['Vagões não inspecionados', 'falt', fmt], ['Aderência (inspecionados ÷ vagões)', 'ader', pctI, '+', META_ADER], ['Vagões por trem revistado (média)', 'vagTrem', v => fmt(Math.round(v))],
+  ['Tempo de revisão'], ['Tempo médio por trem', 'tMed', dur, '-', META_MIN], ['Trens dentro do tempo padrão (até ' + META_MIN + ' min)', 'pTempo', pctI], ['Revisão por vagão (média)', 'segVag', v => Math.round(v) + ' s'],
+  ['Ocorrências e materiais'], ['Vagões retidos', 'ret', fmt], ['Trens com desvio', 'desv', fmt], ['Materiais aplicados (itens)', 'itens', fmt], ['Sapatas aplicadas', 'sap', fmt],
+  ['Freio isolado (vagões distintos)'], ...FRE.map(([k, n]) => [n, k, fmt]),
+  ['Apontamentos (planilha)'], ['Apontamentos', 'ap', fmt], ['Taxa de apontamento (÷ vagões inspecionados)', 'taxaAp', pctI]];
+function dadosIndic() {
+  const todas = linhasHist(), ano = S.indAno || String(new Date().getFullYear());
+  const rows = todas.filter(r => passaInd(r) && r.dataISO.startsWith(ano)), fr = freioAno(ano);
+  const apMes = {}; if (AP.carga && ano === String(ANO_APONT)) AP.dias.forEach(x => { const k = x.data.slice(0, 7); apMes[k] = (apMes[k] || 0) + x.qtd; });
+  const temAp = !!AP.carga && ano === String(ANO_APONT), mm = mesesDoAno(rows, ano);
+  const M = mm.map((m, i) => { const k = ano + '-' + pad(i + 1); return { rot: m.rot, k, ...indMetricas(m.rows, fr && fr.filter(e => e.mes === k), temAp ? apMes[k] || 0 : null) }; });
+  const Y = indMetricas(rows, fr, temAp ? Object.values(apMes).reduce((a, b) => a + b, 0) : null);
+  return { todas, ano, M, Y, fr, temAp };
+}
+function vistaIndic() {
+  histIndic();
+  const D = dadosIndic(), { todas, ano, M, Y, fr, temAp } = D;
+  const anos = [...new Set(todas.map(r => r.mes.slice(0, 4)).concat(String(new Date().getFullYear())))].sort().reverse(), prefs = [...new Set(todas.map(r => r.prefixo))].sort();
+  const sel = (k, rot, ops) => `<label class="filtro"><span>${rot}</span><select data-act="f" data-k="${k}">${ops.map(([v, l]) => `<option value="${esc(v)}" ${F[k] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+  const barra = `<div class="filtros-bar"><label class="filtro"><span>Ano</span><select data-act="ind-ano">${anos.map(a => `<option ${a === ano ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
+    ${sel('linha', 'Linha', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}${sel('prefixo', 'Prefixo', [['todos', 'Todos'], ...prefs.map(p => [p, p])])}${sel('turno', 'Equipe (turno)', [['todos', 'Todas'], ...'ABCD'.split('').map(t => [t, 'Turno ' + t])])}
+    <span class="filtro-acoes"><button class="btn sm" data-act="exportar-indic" ${M.length ? '' : 'disabled'}>⬇ Excel (mês a mês)</button></span></div>`;
+  if (!veIndic() && !HIST.ok && HIST.buscando) return barra + carregandoHV('o histórico do ano');
+  const notas = [];
+  if (!HIST.ok && !DEMO) notas.push('Mostrando só os trens guardados no aparelho (últimos ' + diasPerfil() + ' dias). O histórico completo não carregou: atualize para tentar de novo.');
+  else if (!veIndic() && HIST.ok && !HIST.trens.some(r => r.origem === 'forms')) notas.push('O histórico do Forms ainda não está liberado para o seu perfil. Peça para rodar o <b>25-indicadores-anuais.sql</b> no Supabase.');
+  if (fr === undefined) notas.push('Carregando o freio isolado do ano…');
+  else if (HV.ind.local && !DEMO) notas.push('Freio isolado: só os trens guardados no aparelho' + (HV.ind.semSql ? ' (rode o <b>23-historico-vagoes.sql</b> para o ano inteiro)' : '') + '.');
+  const cor = (d, v) => v == null || !d[3] ? '' : (d[3] === '+' ? v >= d[4] : v <= d[4]) ? 'color:var(--ok)' : 'color:var(--bad)';
+  const cel = (d, m) => { const v = m[d[1]]; return v == null ? '<span class="muted">–</span>' : `<span style="${cor(d, v)}">${d[2](v)}</span>`; };
+  const tabela = `<div class="rolagem"><table class="tabela compacta ind"><thead><tr><th>Indicador</th>${M.map(m => `<th class="num">${m.rot}</th>`).join('')}<th class="num ano">${ano}</th></tr></thead><tbody>
+    ${IND_DEF.map(d => d.length === 1 ? `<tr class="grp"><td colspan="${M.length + 2}">${esc(d[0])}</td></tr>`
+      : `<tr><td>${esc(d[0])}${d[4] != null ? ` <span class="small muted">· meta ${d[2](d[4])}</span>` : ''}</td>${M.map(m => `<td class="num">${cel(d, m)}</td>`).join('')}<td class="num ano">${cel(d, Y)}</td></tr>`).join('')}
+  </tbody></table></div>`;
+  const it = (f, fv = fmt, rotv = 'valor') => M.map(m => ({ rot: m.rot, v: m[f] || 0, tip: `${m.rot}/${ano}: ${m[f] == null ? '–' : fv(m[f])}` }));
+  const ln = (nome, cor, f) => ({ nome, cor, vals: M.map(m => m[f]) });
+  const itL = M.map(m => ({ rot: m.rot }));
+  return `${barra}${notas.map(n => `<p class="nota">${n}</p>`).join('')}
+  <div class="kpis">${kpi('Trens revistados', fmt(Y.rev), Y.n ? pctI(Y.pRev) + ' dos ' + fmt(Y.n) + ' trens' : '')}${kpi('Vagões inspecionados', fmt(Y.insp), 'de ' + fmt(Y.total) + ' nos trens')}${kpi('Aderência', Y.ader == null ? '–' : pctI(Y.ader), 'meta ' + META_ADER + '%')}
+    ${kpi('Tempo médio por trem', Y.tMed ? dur(Y.tMed) : '–', 'meta ' + META_MIN + ' min')}${kpi('Trens no tempo padrão', Y.pTempo == null ? '–' : pctI(Y.pTempo), 'até ' + META_MIN + ' min')}${kpi('Vagões retidos', fmt(Y.ret), fmt(Y.desv) + ' trens com desvio')}</div>
+  <div class="card"><h2>Mês a mês <span class="dir">${ano} · soma ou média de cada mês, coluna ${ano} = o ano todo</span></h2>${M.length && Y.n ? tabela : semDados}</div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr))">
+    <div class="card"><h2>Trens revistados <span class="dir">${ano}</span></h2>${colunas(it('rev'), { larg: 40 })}</div>
+    <div class="card"><h2>Vagões inspecionados <span class="dir">${ano}</span></h2>${colunas(it('insp'), { cor: 'var(--s2)', fmtV: milC, larg: 46 })}</div>
+    <div class="card"><h2>Aderência <span class="dir">% dos vagões inspecionados</span></h2>${linhas(itL, [ln('Aderência', 'var(--s1)', 'ader')], { meta: META_ADER, rotMeta: 'meta ' + META_ADER + '%', fmtV: pctI, max: 100, larg: 40 })}</div>
+    <div class="card"><h2>Tempo médio por trem <span class="dir">${ano}</span></h2>${colunas(M.map(m => ({ rot: m.rot, v: m.tMed || 0, tip: `${m.rot}/${ano}: ${m.tMed ? dur(m.tMed) : '–'}` })), { meta: META_MIN, rotMeta: 'meta ' + META_MIN + ' min', fmtV: durC, larg: 40 })}</div>
+    <div class="card"><h2>Trens dentro do tempo padrão <span class="dir">% · até ${META_MIN} min</span></h2>${linhas(itL, [ln('Dentro do tempo', 'var(--s3)', 'pTempo')], { fmtV: pctI, max: 100, larg: 40 })}</div>
+    <div class="card"><h2>Vagões retidos <span class="dir">${ano}</span></h2>${colunas(it('ret'), { cor: 'var(--s4)', larg: 40 })}</div>
+    <div class="card"><h2>Freio isolado <span class="dir">vagões distintos por mês</span></h2>${fr === undefined ? '<span class="muted small">Carregando…</span>' : linhas(itL, FRE.slice(0, 3).map(([k, n], i) => ln(n, ['var(--s1)', 'var(--s4)', 'var(--s2)'][i], k)), { larg: 40 })}</div>
+    <div class="card"><h2>Freio normalizado <span class="dir">vagões distintos por mês</span></h2>${fr === undefined ? '<span class="muted small">Carregando…</span>' : linhas(itL, FRE.slice(3).map(([k, n], i) => ln(n, ['var(--s3)', 'var(--s2)'][i], k)), { larg: 40 })}</div>
+    <div class="card larga"><h2>Apontamentos e taxa de apontamento <span class="dir">${ano}</span></h2>${temAp ? colunasTaxa(M.map(m => ({ rot: m.rot, v: m.ap || 0, taxa: m.taxaAp, tip: `${m.rot}/${ano}: ${fmt(m.ap || 0)} apontamentos · ${fmt(m.insp)} vagões inspecionados${m.taxaAp != null ? ' · taxa ' + dec1(m.taxaAp) + '%' : ''}` }))) : `<p class="muted small" style="margin:0">${AP.carga ? 'A planilha considera só ' + ANO_APONT + '.' : 'Sem a planilha de apontamentos enviada.'}</p>`}
+      <p class="small muted" style="margin:6px 0 0">Os apontamentos da planilha não se dividem por turno, linha ou prefixo: esses filtros não valem para eles.</p></div>
+  </div>`;
+}
+async function exportarIndic() {
+  const { ano, M, Y } = dadosIndic();
+  try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
+  const txt = (d, m) => { const v = m[d[1]]; return v == null ? '' : v; };
+  const aoa = [['Indicador', ...M.map(m => m.rot + '/' + ano), 'Ano ' + ano]];
+  IND_DEF.forEach(d => aoa.push(d.length === 1 ? [d[0].toUpperCase()] : [d[0] + (d[4] != null ? ' (meta ' + d[2](d[4]) + ')' : ''), ...M.map(m => txt(d, m)), txt(d, Y)]));
+  aoa.push([], ['Filtros', 'Linha: ' + (F.linha === 'todas' ? 'todas' : F.linha), 'Turno: ' + (F.turno === 'todos' ? 'todos' : F.turno), 'Prefixo: ' + (F.prefixo === 'todos' ? 'todos' : F.prefixo)]);
+  const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!cols'] = [46, ...M.map(() => 11), 12].map(w => ({ wch: w }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Indicadores ' + ano);
+  XLSX.writeFile(wb, `revistamento-zto-indicadores-${ano}.xlsx`);
+  toast('Planilha gerada');
 }
 const arqNome = sem => sem.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
 async function exportarSemRev() {
@@ -4040,12 +4143,12 @@ function camRetorno(a, comObs) {
 }
 
 const VIEWS = {
-  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas },
+  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, notas: vistaNotas },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
-  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas },
-  prog: { geral: progGeral, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, cadastros: progCadastros },
-  pcm: { geral: progGeral, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camhist: camHist, camdash: camDash },
-  vis: { geral: progGeral, aderencia: progAderencia, freio: vistaFreio },
+  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, notas: vistaNotas },
+  prog: { geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, cadastros: progCadastros },
+  pcm: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camhist: camHist, camdash: camDash },
+  vis: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, freio: vistaFreio },
   cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   camsup: { camnovo: camNovo, camhist: camHist, cammeus: camMeus, camdash: camDash }
 };
@@ -4179,7 +4282,7 @@ document.addEventListener('click', async e => {
       await processarFila(); HIST.em = 0; await atualizar(true);
       if (!FILA.length && n) toast('☁ Tudo enviado'); return;
     }
-    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; HIST.pesadoEm = 0; HV.fre = {}; HV.sr = {}; HV.fi = {}; HV.vg = {}; ANT.clear(); ANT_FALHA.clear(); await processarFila(); await atualizar(true); return;
+    case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; HIST.pesadoEm = 0; HV.fre = {}; HV.sr = {}; HV.fi = {}; HV.vg = {}; HV.ind = {}; ANT.clear(); ANT_FALHA.clear(); await processarFila(); await atualizar(true); return;
     case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
     case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
@@ -4332,6 +4435,7 @@ document.addEventListener('click', async e => {
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'fre-st': S.freSt = v || ''; break;
+    case 'exportar-indic': exportarIndic(); return;
     case 'exportar-freio': exportarFreio(); return;
     case 'nr-so': S.nrSo = v === '1'; break;
     case 'exportar-naorev': exportarNaoRev(v); return;
@@ -4621,6 +4725,7 @@ document.addEventListener('change', async e => {
   else if (a === 'aba-sel') { S.aba[S.papel] = el.value; render(); window.scrollTo(0, 0); }
   else if (a === 'rel-turno') { S.relTurno = el.value; S.relPref = 'todos'; render(); }
   else if (a === 'rel-pref') { S.relPref = el.value; render(); }
+  else if (a === 'ind-ano') { S.indAno = el.value; render(); }
   else if (a === 'sr-trem') { S.srTrem = el.value; render(); }
   else if (a === 'sr-dias') { S.srDias = +el.value || DIAS_SEM_REV; S.srTrem = ''; render(); }
   else if (a === 'nr-exp') { S.nrExp = el.value; render(); }
