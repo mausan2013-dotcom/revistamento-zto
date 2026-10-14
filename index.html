@@ -661,7 +661,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.77';
+const VERSAO = '1.78';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1584,9 +1584,9 @@ function render() {
   const pendTec = S.papel === 'tec' ? DB.planos.filter(p => p.turno === t && (n == null || p.eq === n) && ['aberta', 'reaberta'].includes(p.status)).length : 0;
   const nVal = S.papel === 'esp' ? filaValidacao().length : 0, nPlan = S.papel === 'esp' ? DB.planos.filter(p => p.status === 'feita' && (S.espFiltro === 'todos' || p.turno === t)).length : 0;
   const prontos = S.papel === 'sup' ? atuais().filter(x => x.turno === t && x.dist.length && x.dist.every(d => d.termino)).length : 0;
-  // programador: muitas abas, então vira lista suspensa
-  if (S.papel === 'prog') $('tabs').innerHTML = `<label class="aba-sel"><span>Tela</span><select data-act="aba-sel" aria-label="Escolher a tela">${ABAS.prog.map(([k, l]) => `<option value="${k}" ${k === aba ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
-  else $('tabs').innerHTML = ABAS[S.papel].map(([k, l]) => `<button data-act="aba" data-v="${k}" class="${k === aba ? 'on' : ''}">${l}${k === 'tarefas' && pendTec ? `<span class="n">${pendTec}</span>` : ''}${k === 'validacao' && nVal ? `<span class="n">${nVal}</span>` : ''}${k === 'planos' && nPlan ? `<span class="n">${nPlan}</span>` : ''}${k === 'turno' && prontos ? `<span class="n">${prontos}</span>` : ''}</button>`).join('');
+  // todos os perfis: lista suspensa (os avisos de pendência vão entre parênteses)
+  const avisoAba = k => { const n = k === 'tarefas' ? pendTec : k === 'validacao' ? nVal : k === 'planos' ? nPlan : k === 'turno' ? prontos : 0; return n ? ` (${n})` : ''; };
+  $('tabs').innerHTML = `<label class="aba-sel"><span>Tela</span><select data-act="aba-sel" aria-label="Escolher a tela">${ABAS[S.papel].map(([k, l]) => `<option value="${k}" ${k === aba ? 'selected' : ''}>${l}${avisoAba(k)}</option>`).join('')}</select></label>`;
   $('main').className = S.papel === 'tec' ? 'estreito' : ''; document.body.classList.toggle('so-leitura', S.papel === 'vis');
   $('main').innerHTML = VIEWS[S.papel][aba]();
   document.querySelectorAll('.rol-x').forEach(e => e.scrollLeft = e.scrollWidth);
@@ -4722,7 +4722,7 @@ document.addEventListener('change', async e => {
   }
   else if (a === 'fech-hora') { lerCampos(); M[el.dataset.k] = el.value; renderModal(); }
   else if (a === 'rel-data') { S.relData = el.value || isoData(new Date()); render(); }
-  else if (a === 'aba-sel') { S.aba[S.papel] = el.value; render(); window.scrollTo(0, 0); }
+  else if (a === 'aba-sel') { const v = el.value; if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); render(); window.scrollTo(0, 0); }
   else if (a === 'rel-turno') { S.relTurno = el.value; S.relPref = 'todos'; render(); }
   else if (a === 'rel-pref') { S.relPref = el.value; render(); }
   else if (a === 'ind-ano') { S.indAno = el.value; render(); }
