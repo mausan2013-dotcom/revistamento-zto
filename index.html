@@ -656,7 +656,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.74';
+const VERSAO = '1.75';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3452,7 +3452,7 @@ function freioEventos() {
   const L = [];
   trensNaoRev().forEach(t => t.vagoes.forEach((c, i) => {
     const p = i + 1, rf = restrDe(t, p), r = t.reg[p], d = (r && t.dist.find(x => x.n === r.equipe)) || [...t.dist].reverse().find(x => p >= x.ini && p <= x.fim), eq = d ? 'Equipe ' + d.n : '';
-    if (rf && /isol/i.test(rf.motivo || '') && !/normaliz/i.test(rf.motivo || '')) L.push({ k: 'isoFicha', t, p, pf: posF(t, p), c, det: rf.motivo + (rf.data ? ' (desde ' + rf.data + ')' : ''), h: '', eq });
+    if (rf && /isol/i.test(rf.motivo || '') && !/normalizad/i.test(rf.motivo || '')) L.push({ k: 'isoFicha', t, p, pf: posF(t, p), c, det: rf.motivo + (rf.data ? ' (desde ' + rf.data + ')' : ''), h: '', eq });
     ((r && r.oc) || []).forEach(o => { if (FRE_OC[o]) L.push({ k: FRE_OC[o], t, p, pf: posF(t, p), c, det: r.obs || '', h: r.h || '', eq }); });
   }));
   return L;
