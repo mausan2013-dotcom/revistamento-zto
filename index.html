@@ -662,7 +662,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.83';
+const VERSAO = '1.84';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3031,6 +3031,13 @@ function vistaNotas() {
     ${NS.total > NS.lista.length ? `<button class="btn" style="margin-top:10px" data-act="notas-mais" ${NS.buscando ? 'disabled' : ''}>Mostrar mais ${fmt(Math.min(NOTAS_PAG, NS.total - NS.lista.length))}</button>` : ''}</div>`;
 }
 
+// "com desvio" (gráficos de desvio, Performance e Indicadores): no app vale desvio lançado pelo líder, troca de material
+// ou parada no cronômetro dos técnicos, como o líder escrevia na observação do desvio no Forms (v1.84, SQL 27)
+function desvioApp(app, n, min, obs, mats, par) {
+  if (!app) return { nDesv: n, desvMin: min, desvObs: obs };
+  const txt = [obs, mats.length ? 'Troca de material: ' + mats.map(([nm, q]) => q + '× ' + nm).join(', ') : '', par ? `Paradas dos técnicos: ${par.n}× · ${durMinS(par.min)}` : ''].filter(Boolean).join(' | ');
+  return { nDesv: n + (mats.length ? 1 : 0) + (par ? 1 : 0), desvMin: min + (par ? par.min : 0), desvObs: txt };
+}
 // junta o histórico (trens antigos) com os trens carregados em detalhe (mais recentes e sempre atualizados)
 function linhasHist() {
   const vistos = new Set(DB.trens.map(t => t.id)), mats = {}, ret = {};
@@ -3039,7 +3046,7 @@ function linhasHist() {
   const velhos = HIST.trens.filter(r => !vistos.has(r.id)).map(r => ({ id: r.id, dataISO: r.data, turno: r.turno, linha: r.linha, prefixo: r.prefixo, status: r.status,
     lider: r.lider_nome || (r.lider_id ? C(r.lider_id).nome : liderDe(r.turno)), backup: r.lider_backup || '', motivoNao: r.motivo_nao || '', motivoParcial: r.motivo_parcial || '',
     ini: hm(r.inicio) || '', fimH: hm(r.fim) || '', durMin: r.inicio && r.fim ? difMin(hm(r.inicio), hm(r.fim)) : 0, total: r.total, insp: r.insp, retidos: r.retidos, itens: r.itens,
-    nDesv: r.n_desvios, desvMin: r.desvio_min, desvObs: r.desvio_obs || '', obsFech: r.obs_fechamento || '', motAtraso: r.motivo_atraso || '', mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms',
+    ...desvioApp(r.origem === 'app', r.n_desvios, r.desvio_min, r.desvio_obs || '', r.itens > 0 ? Object.entries(mats[r.id] || {}) : [], r.n_paradas > 0 ? { n: r.n_paradas, min: +r.parada_min || 0 } : null), obsFech: r.obs_fechamento || '', motAtraso: r.motivo_atraso || '', mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms',
     apl: (HIST.det[r.id] || []).flatMap(m => (m.vagoes || []).map(x => ({ vagao: x.v, id: m.id, nome: m.nome, qtd: x.q, pos: x.p || [] }))) }));
   const novos = fechadosT().map(t => {
     const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => m[x.nome] = (m[x.nome] || 0) + x.qtd));
@@ -3048,7 +3055,8 @@ function linhasHist() {
       return r.mats.map(x => ({ vagao: t.vagoes[p - 1], id: x.id, nome: x.nome, qtd: x.qtd, pos: x.pos || [], posTrem: posF(t, +p), hora: r.h, equipe: d ? `Equipe ${d.n} · ${nomesEquipe(d.membros)}` : '' })); });
     return { ini: t.inicio || '', fimH: t.fim || '', id: t.id, dataISO: t.dataISO, turno: t.turno, linha: t.linha, prefixo: t.prefixo, status: t.status, lider: t.lider, backup: t.backup, motivoNao: t.motivoNao, motivoParcial: t.motivoParcial,
       durMin: t.durMin, total: t.vagoes.length, insp: inspecionados(t), retidos: rt.length, itens: Object.values(m).reduce((a, b) => a + b, 0),
-      nDesv: t.desvios.length, desvMin: t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), desvObs: t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), obsFech: t.obsFech, motAtraso: t.motAtraso, mats: m, ret: rt, apl };
+      ...desvioApp(true, t.desvios.length, t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), Object.entries(m),
+        (ev => ev.length ? { n: ev.length, min: ev.reduce((a, e) => a + e.min, 0) } : null)(eventosParada(t))), obsFech: t.obsFech, motAtraso: t.motAtraso, mats: m, ret: rt, apl };
   });
   return velhos.concat(novos).map(r => ({ ...r, rev: r.status === 'concluido', mes: r.dataISO.slice(0, 7), falt: r.status === 'concluido' ? Math.max(0, r.total - r.insp) : r.total }))
     .sort((a, b) => a.dataISO.localeCompare(b.dataISO));
@@ -3198,7 +3206,7 @@ function progTemporal() {
   const faixas = [['1 a 15 min', 0, 15], ['16 a 30 min', 15, 30], ['31 a 60 min', 30, 60], ['61 a 120 min', 60, 120], ['Mais de 120 min', 120, 1e9]].map(([l, a, b]) => [l, rev.filter(r => r.durMin > a && r.durMin <= b).length]);
   const obs = rows.filter(r => r.nDesv).reverse();
   const g = rs => rs.length ? gauge(media(rs), { meta: META_MIN, max: Math.max(META_MIN * 2, media(rs) * 1.1), txt: dur(media(rs)), rotMeta: 'meta ' + META_MIN + ' min', cor: rs === sem ? 'var(--s3)' : 'var(--s1)' }) + `<p class="centro muted">${rs.length} trem(ns)</p>` : semDados;
-  const nota = 'Número abaixo da data = trens no dia. Linha tracejada = meta.';
+  const nota = 'Número abaixo da data = trens no dia. Linha tracejada = meta. Com desvio: no app, desvio lançado pelo líder, troca de material ou parada no cronômetro dos técnicos; no Forms, o desvio preenchido pelo líder.';
   return `${barraFiltros(todas)}
   <div class="kpis">${kpi('Trens revistados', fmt(A.nRev))}${kpi('Média trens / dia', dec1(A.porDia))}${kpi('Vagões inspecionados', fmt(A.insp))}${kpi('Média vagões / trem', fmt(Math.round(A.vagTrem)))}</div>
   <div class="grid">
