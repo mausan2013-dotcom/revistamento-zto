@@ -462,6 +462,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .btn.finalizar { margin-top: 12px; flex-direction: column; gap: 2px; line-height: 1.25; }
 .btn.finalizar .small { font-weight: 600; opacity: .9; }
 .tabela.rel td, .tabela.rel th { white-space: normal; }
+.tabela.rel td, .tabela.rel th { padding: 6px 4px; font-size: 12px; } .tabela.rel td.small { min-width: 0; }
 .para-print, .relatorio-print { --bg: #ebf0f2; --card: #ffffff; --ink: #2b3a48; --title: #043865; --muted: #5f7180; --line: #d3dde3; --mark: #043865; --track: #e3eaee;
   --ok: #138a6c; --ok-bg: #e1f4ee; --bad: #c62828; --bad-bg: #fdeaea; --warn: #c45a12; --warn-bg: #fff0e5; --info: #0b6fa8; --info-bg: #e3f2fb; --s1: #1b5fa8; --s2: #2ea3e3; --s3: #1f8a6a; --s4: #e0701f; --meta: #c62828; }
 .relatorio-print { background: var(--card); color: var(--ink); }      /* fundo branco e letra escura também no modo escuro do celular */
@@ -661,7 +662,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.82';
+const VERSAO = '1.83';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1770,15 +1771,21 @@ function supVisaoTec() {
 function cardComposicoes(tt) {
   const dia = dataOp(), ts = DB.trens.filter(t => t.turno === tt && t.dataISO === dia).sort((a, b) => (a.ordem ?? 1e9) - (b.ordem ?? 1e9) || a.criadoEm.localeCompare(b.criadoEm));
   if (!ts.length) return '';
-  const sapatas = t => Object.values(t.reg).reduce((a, r) => a + r.mats.filter(m => m.id === 'sapata').reduce((x, m) => x + (+m.qtd || 0), 0), 0);
+  // todos os materiais trocados no trem (sapata primeiro) e o resumo das paradas dos técnicos por motivo (paradas juntas contam uma vez)
+  const materiais = t => { const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => { m[x.nome] = (m[x.nome] || 0) + (+x.qtd || 0); }));
+    const l = Object.entries(m).sort((a, b) => (b[0] === MAT.sapata.nome) - (a[0] === MAT.sapata.nome) || b[1] - a[1]);
+    return l.length ? l.map(([n, q]) => `<b>${q}×</b> ${esc(n)}`).join(' · ') : '<span class="muted">nenhum</span>'; };
+  const paradas = t => { const ev = eventosParada(t); if (!ev.length) return '<span class="muted">nenhuma</span>';
+    return Object.keys(MOT_PARADA).map(k => ev.filter(e => e.motivo === k)).filter(l => l.length).map(l => `<b>${MOT_PARADA_C[l[0].motivo]}</b>: ${l.length}× · ${durMinS(l.reduce((a, e) => a + e.min, 0))}`).join(' · '); };
   const linha = t => { const nao = []; t.vagoes.forEach((c, i) => { const r = t.reg[i + 1]; if (!r || r.st === 'pend') nao.push(+posF(t, i + 1)); });
     const pct = t.vagoes.length ? (t.vagoes.length - nao.length) / t.vagoes.length * 100 : 0, st = t.status === 'andamento' ? 'em revista' : t.status === 'nao_revistado' ? 'não revistado' : 'fechado';
     // tempo de revisão: entrega → término apontados pelo líder (em revista: desde a entrega até agora)
     const tempo = t.status === 'concluido' && t.inicio && t.fim ? `<b style="color:${t.durMin > META_MIN ? 'var(--bad)' : 'var(--ok)'}">${t.durMin > META_MIN ? '⚠ ' : ''}${dur(t.durMin)}</b><br><span class="small muted">${t.inicio}–${t.fim}</span>`
       : t.status === 'andamento' && t.inicio ? `<b>${dur(difMin(t.inicio, agora()))}</b><br><span class="small muted">desde ${t.inicio}</span>` : '<span class="muted">–</span>';
-    return `<tr><td style="white-space:nowrap"><b>${esc(t.prefixo)}</b> <span class="small muted">${esc(t.linha)}</span><br><span class="small">OS <b>${esc(t.os || '–')}</b></span><br><span class="small muted">${st}</span></td><td class="num" style="white-space:nowrap">${tempo}</td><td class="num"><b style="color:${pct >= 100 ? 'var(--ok)' : pct >= META_ADER ? 'var(--ink)' : 'var(--bad)'}">${t.status === 'nao_revistado' ? '0' : pct1(t.vagoes.length - nao.length, t.vagoes.length)}%</b><br><span class="small muted">${t.vagoes.length - nao.length}/${t.vagoes.length}</span></td><td class="small">${t.status === 'nao_revistado' ? 'trem não revistado' : nao.length ? `<b>${nao.length}</b> · pos. ${faixasPos(nao.sort((a, b) => a - b))}` : '<span style="color:var(--ok);font-weight:700">todos revisados</span>'}</td><td class="num"><b>${sapatas(t)}</b></td></tr>`; };
+    return `<tr><td style="white-space:nowrap"><b>${esc(t.prefixo)}</b> <span class="small muted">${esc(t.linha)}</span><br><span class="small">OS <b>${esc(t.os || '–')}</b></span><br><span class="small muted">${st}</span></td><td class="num" style="white-space:nowrap">${tempo}</td><td class="num"><b style="color:${pct >= 100 ? 'var(--ok)' : pct >= META_ADER ? 'var(--ink)' : 'var(--bad)'}">${t.status === 'nao_revistado' ? '0' : pct1(t.vagoes.length - nao.length, t.vagoes.length)}%</b><br><span class="small muted">${t.vagoes.length - nao.length}/${t.vagoes.length}</span></td><td class="small">${t.status === 'nao_revistado' ? 'trem não revistado' : nao.length ? `<b>${nao.length}</b> · pos. ${faixasPos(nao.sort((a, b) => a - b))}` : '<span style="color:var(--ok);font-weight:700">todos revisados</span>'}</td></tr>
+      <tr><td colspan="4" class="small" style="border-top:0;padding-top:0"><span class="muted">Materiais trocados:</span> ${materiais(t)}<br><span class="muted">Paradas dos técnicos:</span> ${paradas(t)}</td></tr>`; };
   return `<div class="card relatorio-print" id="rel-comp"><h2>Composições do turno <span class="dir">${dataBR(deISO(dia))} · turno ${tt} · ${esc(liderDe(tt))}</span></h2>
-    <table class="tabela compacta rel"><thead><tr><th>Trem</th><th class="num">Tempo</th><th class="num">Revisados</th><th>Não revisados (posição na ficha)</th><th class="num">Sapatas trocadas</th></tr></thead><tbody>${ts.map(linha).join('')}</tbody></table>
+    <table class="tabela compacta rel"><thead><tr><th>Trem</th><th class="num">Tempo</th><th class="num">Revisados</th><th>Não revisados (posição na ficha)</th></tr></thead><tbody>${ts.map(linha).join('')}</tbody></table>
     <p class="small muted" style="margin:8px 0 0">Revistamento ZTO · ${dataBR(new Date())} ${agora()}</p>
     <div class="acoes" data-sem-print><button class="btn sm primary" data-act="print-comp">📸 Print e enviar pelo WhatsApp</button></div></div><div style="height:12px"></div>`;
 }
@@ -4472,7 +4479,7 @@ document.addEventListener('click', async e => {
       S.modal = null; toast('Término do ' + M.prefixo + ' alterado para ' + novo); break;
     }
     case 'copiar-planos': copiarTexto(textoRelPlanos(), 'Texto copiado. Cole na conversa do WhatsApp.'); return;
-    case 'print-comp': printDe('rel-comp', `composicoes-turno-${T()}-${dataOp()}.png`, `*Composições do turno ${T()} · ${dataBR(deISO(dataOp()))}*\nPercentual revisado e posição dos vagões não revisados.`); return;
+    case 'print-comp': printDe('rel-comp', `composicoes-turno-${T()}-${dataOp()}.png`, `*Composições do turno ${T()} · ${dataBR(deISO(dataOp()))}*\nPercentual revisado, posição dos vagões não revisados, materiais trocados e paradas dos técnicos.`); return;
     case 'print-aderencia': printAderencia(); return;
     case 'passar-trem': {
       if (!precisaNuvem()) return;
