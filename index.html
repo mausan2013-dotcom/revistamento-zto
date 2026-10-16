@@ -662,7 +662,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.85';
+const VERSAO = '1.86';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1547,7 +1547,7 @@ const ABAS = {
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
   prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
+  pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
   vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado']],
   cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard']],
   camsup: [['camnovo', 'Novo apontamento'], ['camhist', 'Ocorrências da equipe'], ['cammeus', 'Minhas ocorrências'], ['camdash', 'Dashboard']]
@@ -4004,7 +4004,7 @@ function camVagDica() {
 }
 const camAtualizaVag = () => { if ($('cam-vag-dica')) $('cam-vag-dica').innerHTML = camVagDica(); if ($('cam-salvar')) $('cam-salvar').disabled = !camFormOk() || CAM.salvando; };
 function camNovo() {
-  if (!ehCam() && !ehProg()) return '<div class="card muted">Só a equipe de câmeras registra apontamentos.</div>';
+  if (!ehCam() && !ehProg() && DB.me?.perfil !== 'pcm') return '<div class="card muted">Só a equipe de câmeras registra apontamentos.</div>';
   camGarantir(); carregarEmpresas();
   const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit), img = fm.foto || (ed && camUrl(ed.foto)), sv = emServico();
   if (ed) camFotos([ed]);
@@ -4128,7 +4128,7 @@ async function camFotoArquivo(arq) {
   render(); setTimeout(() => $('cam-vag')?.focus());
 }
 // colar (Ctrl+V) e arrastar a imagem no formulário
-const camNoForm = () => ['cam', 'camsup', 'prog'].includes(S.papel) && S.aba[S.papel] === 'camnovo' && !S.modal;
+const camNoForm = () => ['cam', 'camsup', 'prog', 'pcm'].includes(S.papel) && S.aba[S.papel] === 'camnovo' && !S.modal;
 document.addEventListener('paste', e => {
   if (!camNoForm()) return;
   const it = [...(e.clipboardData?.items || [])].find(x => x.type.startsWith('image/'));
@@ -4173,7 +4173,7 @@ const VIEWS = {
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
   esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, notas: vistaNotas },
   prog: { geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, cadastros: progCadastros },
-  pcm: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camhist: camHist, camdash: camDash },
+  pcm: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   vis: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, freio: vistaFreio },
   cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   camsup: { camnovo: camNovo, camhist: camHist, cammeus: camMeus, camdash: camDash }
