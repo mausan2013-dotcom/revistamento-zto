@@ -662,7 +662,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.86';
+const VERSAO = '1.87';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3806,12 +3806,15 @@ function historicoVagao(cod, trens = DB.trens) {
   return out.sort((a, b) => b.t.data - a.t.data);
 }
 const cabVagao = (todos, rv) => { const per = rv ? `até ${MESES_HIST} meses` : `${ehGestao() ? 35 : 15} dias`;
-  return `<div class="card"><h2>Buscar vagão <span class="dir">app (${per})${ehGestao() ? ' + materiais do Forms' : ''}</span></h2>
+  return `<div class="card"><h2>Buscar vagão <span class="dir">app (${per})${ehGestao() || HIST.trens.length ? ' + materiais do Forms' : HIST.buscando ? ' · carregando o histórico do Forms…' : ''}</span></h2>
     <div style="display:flex;gap:8px"><input id="busca" value="${esc(S.busca)}" placeholder="Ex.: HPT 031995-3" class="inp"><button class="btn primary" data-act="buscar">Buscar</button></div>
     ${todos.length ? `<p class="small muted" style="margin:8px 0 0">Exemplos: ${todos.slice(-5).map(c => `<a href="#" data-act="ver-vagao" data-v="${esc(c)}">${esc(c)}</a>`).join(' · ')}</p>` : ''}</div>`; };
+// aceita o código no formato do SAP (8405913HPT, v1.79): volta para letras + números (HPT 8405913)
+const desSAP = q => { const m = q.replace(/[\s-]/g, '').match(/^(\d{6,8})([A-Za-z]{2,4})$/); return m ? m[2].toUpperCase() + ' ' + m[1] : q; };
 function progVagao() {
+  histIndic();                                              // validador: baixa o histórico do Forms (SQL 25) também aqui, não só em Indicadores
   const hist = linhasHist().filter(r => r.forms && r.apl.length);
-  const todos = [...new Set(DB.trens.flatMap(t => t.vagoes).concat(hist.flatMap(r => r.apl.map(x => x.vagao))))], q = S.busca.trim();
+  const todos = [...new Set(DB.trens.flatMap(t => t.vagoes).concat(hist.flatMap(r => r.apl.map(x => x.vagao))))], q = desSAP(S.busca.trim());
   let cod = q ? todos.find(c => normCod(c) === normCod(q)) || todos.find(c => normCod(c).includes(normCod(q)) && normCod(q).length >= 6) : null;
   // com o SQL 24: trens antigos (até MESES_HIST meses) em que o vagão passou, baixados sob demanda
   const rv = q && normCod(q).length >= 4 ? consultaHV(HV.vg, normCod(q), 'vagao_trens', { p_vagao: q, p_desde: desdeHist() }) : null;
