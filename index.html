@@ -389,6 +389,8 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .cam-vag-dica { margin: -6px 0 10px; font-weight: 700; line-height: 1.6; } .cam-vag-dica .chip { margin: 4px 4px 0 0; }
 .cam-form label.campo textarea { font-family: inherit; font-size: 16px; min-height: 84px; }
 .cam-chips { margin: -4px 0 10px; } .cam-chips .chip { font-size: 12px; padding: 4px 10px; }
+.cam-chips .chip.on { background: var(--info); border-color: var(--info); color: #fff; }   /* v1.88: componente escolhido fica azul */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cam-chips .chip.on { color: #021a30; } }
 .cam-busca { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; margin-bottom: 10px; }
 .cam-busca label.campo { margin: 0; } .cam-busca .bts { display: flex; gap: 6px; flex-wrap: wrap; }
 .cam-item { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
@@ -662,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.87';
+const VERSAO = '1.88';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3896,7 +3898,9 @@ const ehCam = () => ['camera', 'camera_sup'].includes(DB.me?.perfil);
 const CAM_DIAS = 7;                                   // apontamento espera até 7 dias o vagão passar por uma ficha
 const CAM_ST = { apontado: ['Apontado', 'neu'], enviado: ['Enviado ao revisor', 'info'], retornado: ['Retornado pelo revisor', 'ok'], concluido: ['Concluído', 'ok'], expirado: ['Expirado', 'warn'] };
 const CAM_RET = { realizado: ['✓ Realizado', 'ok'], nao_existia: ['✗ Defeito não existia', 'bad'], cortado: ['🔧 Vagão cortado / oficina', 'warn'], nao_localizado: ['? Não localizado / sem acesso', 'neu'] };
-const CAM_COMP = [...GRUPOS_NOTA.map(g => g[0]), 'Sapata', 'Engate', 'Mangueira de freio', 'Torneira angular'];
+const CAM_COMP = [...GRUPOS_NOTA.map(g => g[0]), 'Sapata', 'Engate', 'Mangueira de freio', 'Torneira angular', 'Sistema de descarga'];
+// componente já escolhido na descrição (botão azul)
+const camCompTem = (d, c) => (d || '').toLowerCase().includes(c.toLowerCase());
 const camStatus = a => a.status === 'apontado' && Date.now() - Date.parse(a.criado_em) > CAM_DIAS * 864e5 ? 'expirado' : a.status;
 const vagNum = s => String(s || '').replace(/\D/g, '');
 // '3019519HPT', 'hpt3019519' ou 'HPT 301951-9' -> 'HPT 301951-9' (formato da ficha); sem a série, fica como veio
@@ -4023,7 +4027,7 @@ function camNovo() {
       <div>
         <label class="campo">Vagão *<input id="cam-vag" data-cf="vagao" value="${esc(fm.vagao)}" placeholder="3019519HPT ou HPT 301951-9" autocomplete="off" autocapitalize="characters" spellcheck="false"></label><div class="small cam-vag-dica" id="cam-vag-dica">${camVagDica()}</div>
         <label class="campo">Descrição do defeito *<textarea id="cam-desc" data-cf="desc" rows="3" placeholder="ex.: Amparo balanço BD sem as chapas">${esc(fm.desc)}</textarea></label>
-        <div class="chips cam-chips">${CAM_COMP.map(c => `<button class="chip" data-act="cam-comp" data-v="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+        <div class="chips cam-chips">${CAM_COMP.map(c => (on => `<button class="chip ${on ? 'on' : ''}" data-act="cam-comp" data-v="${esc(c)}" aria-pressed="${on}">${esc(c)}</button>`)(camCompTem(fm.desc, c))).join('')}</div>
         <div class="linha-campos">
           <label class="campo">Prefixo<input data-cf="prefixo" value="${esc(fm.prefixo)}" placeholder="ex.: G99" autocapitalize="characters" autocomplete="off"></label>
           <label class="campo">Posição<input data-cf="posicao" value="${esc(fm.posicao)}" inputmode="numeric" placeholder="ex.: 48" autocomplete="off"></label>
@@ -4701,7 +4705,7 @@ document.addEventListener('click', async e => {
     case 'buscar': S.busca = $('busca').value; break;
     case 'cam-salvar': camSalvar(); return;
     case 'cam-vag-usar': CAM.form.vagao = v; CAM.form.forcar = false; render(); setTimeout(() => $('cam-desc')?.focus()); return;
-    case 'cam-comp': { const fm = CAM.form, d = fm.desc.trim(); fm.desc = d ? (d.toLowerCase().includes(v.toLowerCase()) ? d : d + ' · ' + v) : v + ' '; render(); const ta = $('cam-desc'); if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = ta.value.length; } return; }
+    case 'cam-comp': { const fm = CAM.form, d = fm.desc.trim(); fm.desc = camCompTem(d, v) ? d.split(/\s*·\s*/).filter(x => x.toLowerCase() !== v.toLowerCase()).join(' · ') : d ? d + ' · ' + v : v + ' ';   /* v1.88: tocar de novo desmarca */ render(); const ta = $('cam-desc'); if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = ta.value.length; } return; }
     case 'cam-editar': { const a = CAM.lista.find(x => x.id === el.dataset.id); if (!a || !camPodeEditar(a)) return;
       CAM.edit = a.id; CAM.form = { vagao: a.vagao, desc: a.descricao, prefixo: a.prefixo || '', posicao: a.posicao ?? '', nota: a.nota_sap == null ? '' : a.nota_sap ? 'sim' : 'nao', foto: null };
       S.aba[S.papel] = 'camnovo'; render(); scrollTo(0, 0); return; }
