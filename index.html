@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.92';
+const VERSAO = '1.93';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -4092,7 +4092,7 @@ function modalCamGrupo(M) {
   const [tit, fn] = CAM_GRUPOS[M.k], l = fn(camDashLista());
   return `<h3>${esc(tit)} <span class="small muted">· ${l.length} apontamento(s)</span></h3><p class="small muted" style="margin:0 0 8px">Mesmo período e filtros do dashboard. Toque no vagão para ver a auditoria.</p>
     ${l.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Vagão</th><th>Trem</th><th>Pos. na ficha</th><th>Status</th><th>Retorno</th><th>Assistente</th><th>Apontado em</th></tr></thead><tbody>
-    ${l.map(a => { const r = a.retorno && CAM_RET[a.retorno], [stl, stc] = CAM_ST[camStatus(a)]; return `<tr><td><button class="btn sm" data-act="cam-eventos" data-id="${a.id}" style="font-weight:800">${esc(a.vagao)}</button></td><td>${esc(a.trem_prefixo || a.prefixo || '–')}${!a.trem_prefixo && a.prefixo ? ' <span class="small muted">(WhatsApp)</span>' : ''}</td><td>${a.trem_pos_ficha ?? '–'}</td>
+    ${l.map(a => { const r = a.retorno && CAM_RET[a.retorno], [stl, stc] = CAM_ST[camStatus(a)]; return `<tr><td><button class="btn sm" data-act="cam-eventos" data-id="${a.id}" style="font-weight:800">${esc(a.vagao)}</button></td><td>${esc(a.trem_prefixo || a.prefixo || '–')}${!a.trem_prefixo && a.prefixo ? ' <span class="small muted">(informado pela assistente)</span>' : ''}</td><td>${a.trem_pos_ficha ?? '–'}</td>
       <td><span class="tag ${stc}">${stl}</span></td><td>${r ? `<span class="tag ${r[1]}">${r[0]}</span>` : '<span class="muted">–</span>'}</td><td class="small">${esc(C(a.por).nome)}</td><td class="small">${quandoCam(a.criado_em)}</td></tr>`; }).join('')}
     </tbody></table></div><button class="btn" style="margin-top:10px" data-act="cam-grupo-csv" data-v="${M.k}">⬇ Planilha</button>` : '<p class="muted">Nenhum apontamento.</p>'}`;
 }
