@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.93';
+const VERSAO = '1.94';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -844,13 +844,15 @@ const planoDe = p => ({ id: p.id, titulo: p.titulo, desc: p.descricao || '', tur
 // paginação de 1000 em 1000: a ordem precisa ser ÚNICA (ex.: trem_id + posicao, ou id). Com ordem que empata
 // (só posicao, só data) o banco devolve os empates em ordem diferente a cada página e linhas somem/repetem (v1.50).
 async function tudo(montar) {
-  const out = [];
-  for (let i = 0; ; i += 1000) {
-    const { data, error } = await montar().range(i, i + 999);
-    if (error) throw error;
-    out.push(...data);
-    if (data.length < 1000) return out;
+  const pag = async i => { const { data, error } = await montar().range(i, i + 999); if (error) throw error; return data; };
+  const out = [...await pag(0)];
+  // a primeira página sozinha (consulta pequena não paga nada a mais); se veio cheia, as seguintes vêm em ondas de 4 ao mesmo tempo (v1.94)
+  for (let i = 1000, cheia = out.length === 1000; cheia; i += 4000) {
+    const ondas = await Promise.all([0, 1, 2, 3].map(k => pag(i + k * 1000)));
+    for (const d of ondas) out.push(...d);
+    cheia = ondas[3].length === 1000;
   }
+  return out;
 }
 async function emLotes(ids, montar) {
   const out = [];
