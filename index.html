@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.88';
+const VERSAO = '1.89';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -793,6 +793,13 @@ function emServico(agoraD = new Date()) {
   return { turno: equipeNoHorario(dia, '22'), h: '22', ini: 22 * 60, data: isoData(dia) };
 }
 let SERVICO = emServico();
+// ---------- escala das turmas do Portal de Câmeras (v1.89 · SQL 30) ----------
+// planilha TURMAS X TURNOS da equipe PIT: um dia defasada da escala dos técnicos, por isso tem a sua
+const CAM_CICLO = ['6', '6', '14', '14', '22', '22', 'F', 'F'];
+const CAM_DESLOC = { 1: 3, 2: 1, 3: 7, 4: 5 };            // em relação a 01/10/2026
+const TURMAS = [1, 2, 3, 4];
+const camEscalaDia = (t, data) => CAM_CICLO[(((diasDesde(data) - CAM_DESLOC[t]) % 8) + 8) % 8];
+function camEmServico(agoraD = new Date()) { const s = emServico(agoraD), dia = new Date(s.data + 'T12:00'); return { turma: TURMAS.find(t => camEscalaDia(t, dia) === s.h), h: s.h, data: s.data }; }
 const hojeD = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
 // ---------- dados (vindos do Supabase) ----------
@@ -1548,11 +1555,11 @@ const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['cadastros', 'Cadastros']],
+  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
   pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
   vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado']],
-  cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard']],
-  camsup: [['camnovo', 'Novo apontamento'], ['camhist', 'Ocorrências da equipe'], ['cammeus', 'Minhas ocorrências'], ['camdash', 'Dashboard']]
+  cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard'], ['camescala', 'Escala']],
+  camsup: [['camnovo', 'Novo apontamento'], ['camhist', 'Ocorrências da equipe'], ['cammeus', 'Minhas ocorrências'], ['camdash', 'Dashboard'], ['camescala', 'Escala e turmas']]
 };
 // apagar trem: programador, ou o líder (supervisor) nos trens do próprio turno
 const podeApagar = t => ehProg() || (DB.me?.perfil === 'supervisor' && t.turno === DB.me.turno);
@@ -1922,7 +1929,7 @@ function tabelaColab(turnos) {
   return `<div class="acoes" style="margin:0 0 10px"><button class="btn sm primary" data-act="colab" data-acao="novo">+ Cadastrar colaborador</button>
       ${nDeslig ? `<button class="chip ${S.gestDeslig ? 'on' : ''}" data-act="gest-deslig">Mostrar desligados (${nDeslig})</button>` : ''}</div>
     <div class="rolagem"><table class="tabela"><thead><tr><th>Colaborador</th>${prog ? '<th>Perfil</th><th>Turno</th>' : ''}<th>Login</th><th>Situação</th><th>Equipe hoje</th><th>Ações</th></tr></thead><tbody>
-    ${lista.map(x => `<tr><td><b>${esc(x.nome)}</b><br><span class="small muted">${esc(x.funcao)} · aparece como “${esc(x.curtoCalc)}”</span></td>${prog ? `<td>${PERFIS[x.perfil] || ''}</td><td>${x.turno || '–'}</td>` : ''}<td class="small">${esc(x.login)}${x.trocar_senha ? '<br><span class="muted">senha provisória</span>' : ''}</td><td>${tagStatus(x)}</td>
+    ${lista.map(x => `<tr><td><b>${esc(x.nome)}</b><br><span class="small muted">${esc(x.funcao)} · aparece como “${esc(x.curtoCalc)}”</span></td>${prog ? `<td>${PERFIS[x.perfil] || ''}</td><td>${x.turma ? 'Turma ' + x.turma : x.turno || '–'}</td>` : ''}<td class="small">${esc(x.login)}${x.trocar_senha ? '<br><span class="muted">senha provisória</span>' : ''}</td><td>${tagStatus(x)}</td>
       <td>${equipeDe(x.id) ? 'Equipe ' + equipeDe(x.id) : '<span class="muted">–</span>'}</td>
       <td><div style="display:flex;gap:6px;flex-wrap:wrap">${x.id === DB.me.id ? '<span class="small muted">você</span>' : (x.status === 'ativo' ? btn('afastar', x.id, 'Afastar') + (x.perfil === 'tecnico' ? btn('transferir', x.id, 'Transferir') : '') + btn('desligar', x.id, 'Desligar')
         : x.status === 'afastado' ? btn('reativar', x.id, 'Reativar') + btn('desligar', x.id, 'Desligar') : btn('reativar', x.id, 'Readmitir')) + (x.status !== 'desligado' ? btn('senha', x.id, '🔑 Nova senha') : '')}</div></td></tr>`).join('')}
@@ -3908,8 +3915,8 @@ const vagFmt = s => { const n = vagNum(s), l = String(s || '').toUpperCase().rep
   return n.length === 7 && l.length === 3 ? `${l} ${n.slice(0, 6)}-${n.slice(6)}` : String(s || '').trim().toUpperCase(); };
 const quandoCam = ts => ts ? dataBR(new Date(ts)) + '/' + String(new Date(ts).getFullYear()).slice(2) + ' ' + horaDe(ts) : '–';
 const CAM = { lista: [], em: 0, marca: '', completaEm: 0, carregando: false, erro: '', de: isoData(new Date(Date.now() - 29 * 864e5)), ate: isoData(new Date()),
-  f: { st: '', vag: '', por: '', ret: '', turno: '' }, ver: 30, urls: {}, form: { vagao: '', desc: '', prefixo: '', posicao: '', nota: '', foto: null }, edit: null, salvando: false };
-const camCampos = 'id,criado_em,por,turno,vagao,vag_num,descricao,foto,prefixo,posicao,nota_sap,status,editado_em,editado_por,enviado_em,trem_id,trem_pos,trem_prefixo,trem_pos_ficha,retorno,retorno_obs,retorno_em,retorno_por,concluido_em,atualizado_em';
+  f: { st: '', vag: '', por: '', ret: '', turno: '', turma: '' }, ver: 30, urls: {}, form: { vagao: '', desc: '', prefixo: '', posicao: '', nota: '', foto: null }, edit: null, salvando: false };
+const camCampos = 'id,criado_em,por,turno,turma,vagao,vag_num,descricao,foto,prefixo,posicao,nota_sap,status,editado_em,editado_por,enviado_em,trem_id,trem_pos,trem_prefixo,trem_pos_ficha,retorno,retorno_obs,retorno_em,retorno_por,concluido_em,atualizado_em';
 const camErro = e => /cam_apontamentos|does not exist|schema cache|42P01/i.test(e?.message || '') ? 'O Portal de Câmeras ainda não está no banco: rode o 21-portal-cameras.sql no Supabase.' : (e?.message || String(e));
 // período inteiro a cada 10 min (ou quando muda o período); no meio, só o que mudou desde a última vez (carimbo)
 async function camCarregar(completa) {
@@ -3972,7 +3979,7 @@ function camCartao(a) {
   </div></div>`;
 }
 const camFiltros = (l, f = CAM.f) => l.filter(a => (!f.st || camStatus(a) === f.st) && (!f.vag || a.vag_num.includes(vagNum(f.vag)) || (!vagNum(f.vag) && semAcento(a.vagao).includes(semAcento(f.vag))))
-  && (!f.por || a.por === f.por) && (!f.turno || a.turno === f.turno) && (!f.ret || (f.ret === 'sem' ? !a.retorno : a.retorno === f.ret)));
+  && (!f.por || a.por === f.por) && (!f.turno || a.turno === f.turno) && (!f.turma || String(a.turma) === f.turma) && (!f.ret || (f.ret === 'sem' ? !a.retorno : a.retorno === f.ret)));
 const camPeriodo = () => `<label class="campo">De<input type="date" data-cam="de" value="${esc(CAM.de)}"></label><label class="campo">Até<input type="date" data-cam="ate" value="${esc(CAM.ate)}"></label>`;
 const camAviso = () => CAM.erro ? `<div class="card"><div class="alerta" style="margin:0"><span>⚠ ${esc(CAM.erro)}</span></div></div>` : '';
 function camLista(l, vazio) {
@@ -4013,11 +4020,11 @@ const camAtualizaVag = () => { if ($('cam-vag-dica')) $('cam-vag-dica').innerHTM
 function camNovo() {
   if (!ehCam() && !ehProg() && DB.me?.perfil !== 'pcm') return '<div class="card muted">Só a equipe de câmeras registra apontamentos.</div>';
   camGarantir(); carregarEmpresas();
-  const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit), img = fm.foto || (ed && camUrl(ed.foto)), sv = emServico();
+  const fm = CAM.form, ed = CAM.edit && CAM.lista.find(x => x.id === CAM.edit), img = fm.foto || (ed && camUrl(ed.foto)), sv = camEmServico();
   if (ed) camFotos([ed]);
   const meus = CAM.lista.filter(a => a.por === DB.me.id).slice(0, 5);
   return camAviso() + `<div class="grid"><div class="card larga cam-form">
-    <h2>${ed ? 'Editar apontamento' : 'Novo apontamento'} <span class="dir">${ed ? 'apontado ' + quandoCam(ed.criado_em) : 'agora'} · ${esc(DB.me.nome)}${!ed && sv.turno ? ' · Turno ' + esc(sv.turno) : ''}</span></h2>
+    <h2>${ed ? 'Editar apontamento' : 'Novo apontamento'} <span class="dir">${ed ? 'apontado ' + quandoCam(ed.criado_em) : 'agora'} · ${esc(DB.me.nome)}${!ed && sv.turma ? ' · Turma ' + sv.turma : ''}</span></h2>
     <div class="cam-grade">
       <label class="upload cam-drop ${img ? 'tem' : ''}" id="cam-drop">
         <input type="file" accept="image/*" data-act="cam-foto" aria-label="Foto do defeito">
@@ -4060,40 +4067,61 @@ function camHist() {
   return camAviso() + `<div class="card"><h2>${S.papel === 'camsup' ? 'Ocorrências da equipe' : 'Histórico do Portal de Câmeras'} <span class="dir">${l.length} de ${CAM.lista.length} no período</span></h2>
     <div class="cam-busca larga">${camPeriodo()}<label class="campo">Vagão<input data-cam="vag" value="${esc(f.vag)}" placeholder="número" inputmode="search" autocomplete="off"></label>
       ${sel('por', 'Assistente', camEquipe().map(x => [x.id, x.nome]))}${sel('st', 'Status', Object.entries(CAM_ST).map(([k, v]) => [k, v[0]]))}
-      ${sel('ret', 'Resultado do revisor', [...Object.entries(CAM_RET).map(([k, v]) => [k, v[0].replace(/^\S+ /, '')]), ['sem', 'Sem retorno']])}${sel('turno', 'Turno', 'ABCD'.split('').map(t => [t, t]))}
+      ${sel('ret', 'Resultado do revisor', [...Object.entries(CAM_RET).map(([k, v]) => [k, v[0].replace(/^\S+ /, '')]), ['sem', 'Sem retorno']])}${sel('turma', 'Turma', TURMAS.map(t => [String(t), 'Turma ' + t]))}${sel('turno', 'Turno ZTO', 'ABCD'.split('').map(t => [t, t]))}
       <span class="bts"><button class="btn" data-act="cam-buscar">↻ Atualizar</button>${Object.values(f).some(Boolean) ? '<button class="btn" data-act="cam-limpar">✕ Limpar</button>' : ''}<button class="btn" data-act="cam-csv" ${l.length ? '' : 'disabled'}>⬇ Planilha</button></span></div>
   </div><div class="card">${camLista(l, 'Nenhuma ocorrência com esse filtro.')}</div>`;
 }
 function camCSV() {
-  const l = camFiltros(CAM.lista), L = [['Apontado em', 'Turno', 'Assistente', 'Vagão', 'Descrição', 'Prefixo (WhatsApp)', 'Posição (WhatsApp)', 'Nota SAP', 'Status', 'Enviado ao revisor em', 'Trem', 'Posição na ficha', 'Retorno', 'Observação do revisor', 'Retorno em', 'Revisor', 'Concluído em', 'Editado em']];
-  l.forEach(a => L.push([quandoCam(a.criado_em), a.turno, C(a.por).nome, a.vagao, a.descricao, a.prefixo, a.posicao, a.nota_sap == null ? '' : a.nota_sap ? 'Sim' : 'Não', CAM_ST[camStatus(a)][0],
+  const l = camFiltros(CAM.lista), L = [['Apontado em', 'Turma', 'Turno ZTO', 'Assistente', 'Vagão', 'Descrição', 'Prefixo (WhatsApp)', 'Posição (WhatsApp)', 'Nota SAP', 'Status', 'Enviado ao revisor em', 'Trem', 'Posição na ficha', 'Retorno', 'Observação do revisor', 'Retorno em', 'Revisor', 'Concluído em', 'Editado em']];
+  l.forEach(a => L.push([quandoCam(a.criado_em), a.turma ? 'Turma ' + a.turma : '', a.turno, C(a.por).nome, a.vagao, a.descricao, a.prefixo, a.posicao, a.nota_sap == null ? '' : a.nota_sap ? 'Sim' : 'Não', CAM_ST[camStatus(a)][0],
     a.enviado_em ? quandoCam(a.enviado_em) : '', a.trem_prefixo, a.trem_pos_ficha, a.retorno ? CAM_RET[a.retorno][0].replace(/^\S+ /, '') : '', a.retorno_obs, a.retorno_em ? quandoCam(a.retorno_em) : '',
     a.retorno_por ? C(a.retorno_por).nome : '', a.concluido_em ? quandoCam(a.concluido_em) : '', a.editado_em ? quandoCam(a.editado_em) : '']));
   baixarCSV(L, 'portal-cameras-' + CAM.de + '-a-' + CAM.ate + '.csv');
 }
-// 5. dashboard: por turno, por assistente, por status e taxa de confirmação
+// 5. dashboard: por turma, por assistente, por status e taxa de confirmação
 function camDash() {
   camGarantir();
   const f = CAM.f, l = camFiltros(CAM.lista, { ...f, st: '', ret: '' }), n = l.length, cont = fn => { const m = {}; l.forEach(a => { const k = fn(a); m[k] = (m[k] || 0) + 1; }); return m; };
   const env = l.filter(a => a.enviado_em).length, ret = l.filter(a => a.retorno), conf = ret.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, nao = ret.filter(a => a.retorno === 'nao_existia').length;
   const aguard = l.filter(a => camStatus(a) === 'enviado').length, exp = l.filter(a => camStatus(a) === 'expirado').length, taxa = conf + nao ? conf / (conf + nao) * 100 : null;
-  const porT = cont(a => a.turno || '–'), porA = cont(a => a.por), porS = cont(camStatus), porR = cont(a => a.retorno || 'sem');
+  const porT = cont(a => a.turma || '–'), porA = cont(a => a.por), porS = cont(camStatus), porR = cont(a => a.retorno || 'sem');
   const porAss = Object.entries(porA).map(([id, v]) => [C(id).nome, v]).sort((a, b) => b[1] - a[1]);
   const confAss = Object.keys(porA).map(id => { const r = l.filter(a => a.por === id && a.retorno), c = r.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, x = r.filter(a => a.retorno === 'nao_existia').length;
     return [C(id).nome, c + x ? Math.round(c / (c + x) * 100) : null, c, x]; }).filter(x => x[1] != null).sort((a, b) => b[1] - a[1]);
   const pc = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
   return camAviso() + `<div class="card"><h2>Dashboard · Portal de Câmeras <span class="dir">${n} apontamento(s)</span></h2>
-    <div class="cam-busca">${camPeriodo()}<label class="campo">Turno<select data-cam="turno"><option value="">Todos</option>${'ABCD'.split('').map(t => `<option ${f.turno === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <div class="cam-busca">${camPeriodo()}<label class="campo">Turma<select data-cam="turma"><option value="">Todas</option>${TURMAS.map(t => `<option value="${t}" ${f.turma === String(t) ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>
       <label class="campo">Assistente<select data-cam="por"><option value="">Todos</option>${camEquipe().map(x => `<option value="${x.id}" ${f.por === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label><span class="bts"><button class="btn" data-act="cam-buscar">↻ Atualizar</button></span></div></div>
   <div class="kpis">${kpi('Apontamentos', fmt(n), 'no período')}${kpi('Enviados ao revisor', fmt(env), pc(env, n) + ' dos apontamentos')}${kpi('Com retorno', fmt(ret.length), pc(ret.length, env) + ' dos enviados')}${kpi('Aguardando retorno', fmt(aguard), 'com o técnico revisor')}
     ${kpi('Taxa de confirmação', taxa == null ? '–' : Math.round(taxa) + '%', `${conf} confirmado(s) × ${nao} não existia`)}${kpi('Expirados', fmt(exp), `vagão não passou em ${CAM_DIAS} dias`)}</div>
   <div class="grid">
-    <div class="card"><h2>Por turno <span class="dir">apontamentos</span></h2>${n ? hbars(['A', 'B', 'C', 'D', ...(porT['–'] ? ['–'] : [])].map(t => ['Turno ' + t, porT[t] || 0]), 'apontamentos') : semDados}</div>
+    <div class="card"><h2>Por turma <span class="dir">apontamentos</span></h2>${n ? hbars([...TURMAS, ...(porT['–'] ? ['–'] : [])].map(t => [t === '–' ? 'Sem turma' : 'Turma ' + t, porT[t] || 0]), 'apontamentos') : semDados}</div>
     <div class="card"><h2>Por status <span class="dir">apontamentos</span></h2>${n ? hbars(Object.keys(CAM_ST).map(k => [CAM_ST[k][0], porS[k] || 0]), 'apontamentos') : semDados}</div>
     <div class="card"><h2>Resultado do revisor <span class="dir">apontamentos</span></h2>${n ? hbars([...Object.keys(CAM_RET).map(k => [CAM_RET[k][0].replace(/^\S+ /, ''), porR[k] || 0]), ['Sem retorno', porR.sem || 0]], 'apontamentos') : semDados}
       <p class="small muted" style="margin:8px 0 0">Taxa de confirmação = defeito existia (realizado + vagão cortado) ÷ (realizado + cortado + não existia). “Não localizado” fica fora da conta.</p></div>
     <div class="card"><h2>Por assistente <span class="dir">apontamentos</span></h2>${porAss.length ? hbars(porAss, 'apontamentos') : semDados}</div>
     <div class="card"><h2>Confirmação por assistente <span class="dir">% · com retorno</span></h2>${confAss.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Assistente</th><th>Confirmação</th><th>Confirmados</th><th>Não existia</th></tr></thead><tbody>${confAss.map(([nm, p, c, x]) => `<tr><td>${esc(nm)}</td><td><b>${p}%</b></td><td>${c}</td><td>${x}</td></tr>`).join('')}</tbody></table></div>` : '<span class="muted small">Aparece quando os revisores derem retorno.</span>'}</div>
+  </div>`;
+}
+// 6. escala das turmas (v1.89 · SQL 30): quem está em serviço, a escala e quem é de cada turma
+function camEscala() {
+  const sv = camEmServico(), agoraD = new Date(), H = hojeD(), sem = 'DSTQQSS', minha = ehCam() ? DB.me.turma : null, pode = ehProg() || DB.me?.perfil === 'camera_sup';
+  const eq = DB.colab.filter(x => x.perfil === 'camera' && x.status !== 'desligado').sort((a, b) => a.nome.localeCompare(b.nome)), de = t => eq.filter(x => (x.turma || null) === t);
+  const nm = x => x.curto || x.nome.split(' ')[0], dias = Array.from({ length: 16 }, (_, i) => { const d = new Date(H); d.setDate(d.getDate() + i - 1); return d; });
+  const fmtD = d => `${'dom seg ter qua qui sex sáb'.split(' ')[d.getDay()]} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+  let prox = null;   // próximo turno da minha turma que ainda não começou
+  if (minha) for (let i = -1; i < 10 && !prox; i++) { const d = new Date(H); d.setDate(d.getDate() + i); const c = camEscalaDia(minha, d); if (c === 'F') continue; const ini = new Date(d); ini.setHours(+c, 0, 0, 0); if (ini > agoraD) prox = [d, c]; }
+  const semColuna = DB.colab.length && !DB.colab.some(x => 'turma' in x);
+  return `${semColuna ? '<div class="card"><div class="alerta" style="margin:0"><span>⚠ As turmas ainda não estão no banco: rode o 30-turmas-cameras.sql no Supabase.</span></div></div>' : ''}
+  <div class="kpis">${kpi('Em serviço agora', sv.turma ? 'Turma ' + sv.turma : '–', HORARIO[sv.h] + (sv.turma ? ' · ' + de(sv.turma).map(nm).join(', ') : ''))}
+    ${minha ? kpi('Sua turma', 'Turma ' + minha, minha === sv.turma ? 'em serviço agora' : prox ? 'próximo turno ' + fmtD(prox[0]) + ' · ' + HORARIO[prox[1]] : '') : ''}</div>
+  <div class="grid"><div class="card larga"><h2>Escala das turmas <span class="dir">o app identifica a turma de serviço por aqui</span></h2>
+    <div class="rolagem"><table class="escala"><thead><tr><th></th>${dias.map(d => `<th class="${+d === +H ? 'hoje' : ''}">${pad(d.getDate())}/${pad(d.getMonth() + 1)}<br><span>${sem[d.getDay()]}</span></th>`).join('')}</tr></thead><tbody>
+    ${TURMAS.map(t => `<tr><th${t === minha ? ' style="color:var(--title)"' : ''}>Turma ${t}<br><span>${esc(de(t).map(nm).slice(0, 3).join(', '))}${de(t).length > 3 ? '…' : ''}</span></th>${dias.map(d => { const c = camEscalaDia(t, d); return `<td class="e${c} ${+d === +H ? 'hoje' : ''} ${isoData(d) === sv.data && t === sv.turma ? 'agora' : ''}">${c}</td>`; }).join('')}</tr>`).join('')}
+    </tbody></table></div>
+    <p class="small muted" style="margin:8px 0 0">6 = 06–14 · 14 = 14–22 · 22 = 22–06 · F = folga. Contorno = turma em serviço agora. Ciclo de 8 dias da planilha “Turmas x turnos” da equipe PIT; o apontamento grava a turma em serviço na hora.</p></div>
+  ${[...TURMAS, null].filter(t => t || de(null).length).map(t => `<div class="card"><h2>${t ? 'Turma ' + t : 'Sem turma'} <span class="dir">${de(t).length} assistente(s)</span></h2><ul class="feed">${de(t).map(x => `<li><span></span><span><b>${esc(x.nome)}</b>${x.status === 'afastado' ? ' <span class="tag warn">afastado</span>' : ''}${x.id === DB.me?.id ? ' <span class="small muted">você</span>' : ''}
+      ${pode ? `<br><select class="small" data-act="cam-turma" data-id="${x.id}" aria-label="Turma de ${esc(x.nome)}" ${semColuna ? 'disabled' : ''}>${[...TURMAS, ''].map(v => `<option value="${v}" ${(x.turma || '') === v ? 'selected' : ''}>${v ? 'Turma ' + v : 'sem turma'}</option>`).join('')}</select>` : ''}</span></li>`).join('') || '<li><span></span><span class="muted small">Ninguém nesta turma.</span></li>'}</ul></div>`).join('')}
   </div>`;
 }
 // auditoria de um apontamento (eventos gravados pelo banco, com o horário do servidor)
@@ -4179,11 +4207,11 @@ const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, notas: vistaNotas },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
   esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, notas: vistaNotas },
-  prog: { geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, cadastros: progCadastros },
+  prog: { geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
   pcm: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   vis: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, freio: vistaFreio },
-  cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
-  camsup: { camnovo: camNovo, camhist: camHist, cammeus: camMeus, camdash: camDash }
+  cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala },
+  camsup: { camnovo: camNovo, camhist: camHist, cammeus: camMeus, camdash: camDash, camescala: camEscala }
 };
 
 // ---------- login, troca de senha, entrada ----------
@@ -4712,7 +4740,7 @@ document.addEventListener('click', async e => {
     case 'cam-cancelar': CAM.edit = null; CAM.form = { vagao: '', desc: '', prefixo: '', posicao: '', nota: '', foto: null }; break;
     case 'cam-st': CAM.f.st = v; CAM.ver = 30; break;
     case 'cam-mais': CAM.ver += 30; break;
-    case 'cam-limpar': CAM.f = { st: '', vag: '', por: '', ret: '', turno: '' }; CAM.ver = 30; break;
+    case 'cam-limpar': CAM.f = { st: '', vag: '', por: '', ret: '', turno: '', turma: '' }; CAM.ver = 30; break;
     case 'cam-buscar': if (!precisaNuvem()) return; toast('Atualizando…'); await camCarregar(true); break;
     case 'cam-csv': camCSV(); return;
     case 'cam-eventos': { if (!precisaNuvem()) return; const id = el.dataset.id; S.modal = { tipo: 'camev', id, ev: null }; renderModal();
@@ -4785,6 +4813,13 @@ document.addEventListener('change', async e => {
   }
   else if (a === 'div-ok') { N.divOk = el.checked; render(); }
   else if (a === 'cam-vag-forcar') { CAM.form.forcar = el.checked; camAtualizaVag(); }
+  else if (a === 'cam-turma') {   // v1.89: supervisor de câmeras / programador muda a turma do assistente
+    const x = C(el.dataset.id), t = el.value ? +el.value : null;
+    if (DEMO || OFFLINE) { toast('⚠ ' + (DEMO ? 'Demonstração: a turma não é gravada' : 'Modo offline: toque no ☁ e religue a nuvem')); render(); return; }
+    const { error } = await sb.rpc('cam_definir_turma', { alvo: x.id, nova: t });
+    if (error) { toast('⚠ ' + (/cam_definir_turma|schema cache|does not exist/i.test(error.message) ? 'Rode o 30-turmas-cameras.sql no Supabase' : error.message)); render(); return; }
+    x.turma = t; toast(x.nome.split(' ')[0] + (t ? ' agora é da Turma ' + t : ' ficou sem turma')); render();
+  }
   else if (a === 'cam-foto') { camFotoArquivo(el.files[0]); el.value = ''; }
   else if (a === 'notas-xlsx') {
     const arq = el.files[0]; if (!arq) return;
