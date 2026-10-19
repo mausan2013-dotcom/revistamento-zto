@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.89';
+const VERSAO = '1.90';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -2374,7 +2374,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, matcad: modalMatCad, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, camgrupo: modalCamGrupo, matcad: modalMatCad, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -4078,6 +4078,22 @@ function camCSV() {
     a.retorno_por ? C(a.retorno_por).nome : '', a.concluido_em ? quandoCam(a.concluido_em) : '', a.editado_em ? quandoCam(a.editado_em) : '']));
   baixarCSV(L, 'portal-cameras-' + CAM.de + '-a-' + CAM.ate + '.csv');
 }
+// v1.90: grupos dos indicadores do dashboard; o botão "ver vagões" abre a lista de vagões e trens de cada um
+const CAM_GRUPOS = {
+  todos: ['Apontamentos', l => l], enviados: ['Enviados ao revisor', l => l.filter(a => a.enviado_em)], comret: ['Com retorno', l => l.filter(a => a.retorno)],
+  aguard: ['Aguardando retorno', l => l.filter(a => camStatus(a) === 'enviado')], conf: ['Com retorno na taxa de confirmação', l => l.filter(a => ['realizado', 'cortado', 'nao_existia'].includes(a.retorno))],
+  ...Object.fromEntries(Object.keys(CAM_ST).map(k => ['st_' + k, [CAM_ST[k][0], l => l.filter(a => camStatus(a) === k)]]))
+};
+const camDashLista = () => camFiltros(CAM.lista, { ...CAM.f, st: '', ret: '' });
+const camVer = (k, n) => n ? `<br><button class="btn sm" style="margin-top:6px" data-act="cam-grupo" data-v="${k}">ver vagões</button>` : '';
+function modalCamGrupo(M) {
+  const [tit, fn] = CAM_GRUPOS[M.k], l = fn(camDashLista());
+  return `<h3>${esc(tit)} <span class="small muted">· ${l.length} apontamento(s)</span></h3><p class="small muted" style="margin:0 0 8px">Mesmo período e filtros do dashboard. Toque no vagão para ver a auditoria.</p>
+    ${l.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Vagão</th><th>Trem</th><th>Pos. na ficha</th><th>Status</th><th>Retorno</th><th>Assistente</th><th>Apontado em</th></tr></thead><tbody>
+    ${l.map(a => { const r = a.retorno && CAM_RET[a.retorno], [stl, stc] = CAM_ST[camStatus(a)]; return `<tr><td><button class="btn sm" data-act="cam-eventos" data-id="${a.id}" style="font-weight:800">${esc(a.vagao)}</button></td><td>${esc(a.trem_prefixo || a.prefixo || '–')}${!a.trem_prefixo && a.prefixo ? ' <span class="small muted">(WhatsApp)</span>' : ''}</td><td>${a.trem_pos_ficha ?? '–'}</td>
+      <td><span class="tag ${stc}">${stl}</span></td><td>${r ? `<span class="tag ${r[1]}">${r[0]}</span>` : '<span class="muted">–</span>'}</td><td class="small">${esc(C(a.por).nome)}</td><td class="small">${quandoCam(a.criado_em)}</td></tr>`; }).join('')}
+    </tbody></table></div><button class="btn" style="margin-top:10px" data-act="cam-grupo-csv" data-v="${M.k}">⬇ Planilha</button>` : '<p class="muted">Nenhum apontamento.</p>'}`;
+}
 // 5. dashboard: por turma, por assistente, por status e taxa de confirmação
 function camDash() {
   camGarantir();
@@ -4092,11 +4108,12 @@ function camDash() {
   return camAviso() + `<div class="card"><h2>Dashboard · Portal de Câmeras <span class="dir">${n} apontamento(s)</span></h2>
     <div class="cam-busca">${camPeriodo()}<label class="campo">Turma<select data-cam="turma"><option value="">Todas</option>${TURMAS.map(t => `<option value="${t}" ${f.turma === String(t) ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>
       <label class="campo">Assistente<select data-cam="por"><option value="">Todos</option>${camEquipe().map(x => `<option value="${x.id}" ${f.por === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label><span class="bts"><button class="btn" data-act="cam-buscar">↻ Atualizar</button></span></div></div>
-  <div class="kpis">${kpi('Apontamentos', fmt(n), 'no período')}${kpi('Enviados ao revisor', fmt(env), pc(env, n) + ' dos apontamentos')}${kpi('Com retorno', fmt(ret.length), pc(ret.length, env) + ' dos enviados')}${kpi('Aguardando retorno', fmt(aguard), 'com o técnico revisor')}
-    ${kpi('Taxa de confirmação', taxa == null ? '–' : Math.round(taxa) + '%', `${conf} confirmado(s) × ${nao} não existia`)}${kpi('Expirados', fmt(exp), `vagão não passou em ${CAM_DIAS} dias`)}</div>
+  <div class="kpis">${kpi('Apontamentos', fmt(n), 'no período' + camVer('todos', n))}${kpi('Enviados ao revisor', fmt(env), pc(env, n) + ' dos apontamentos' + camVer('enviados', env))}${kpi('Com retorno', fmt(ret.length), pc(ret.length, env) + ' dos enviados' + camVer('comret', ret.length))}${kpi('Aguardando retorno', fmt(aguard), 'com o técnico revisor' + camVer('aguard', aguard))}
+    ${kpi('Taxa de confirmação', taxa == null ? '–' : Math.round(taxa) + '%', `${conf} confirmado(s) × ${nao} não existia` + camVer('conf', conf + nao))}${kpi('Expirados', fmt(exp), `vagão não passou em ${CAM_DIAS} dias` + camVer('st_expirado', exp))}</div>
   <div class="grid">
     <div class="card"><h2>Por turma <span class="dir">apontamentos</span></h2>${n ? hbars([...TURMAS, ...(porT['–'] ? ['–'] : [])].map(t => [t === '–' ? 'Sem turma' : 'Turma ' + t, porT[t] || 0]), 'apontamentos') : semDados}</div>
-    <div class="card"><h2>Por status <span class="dir">apontamentos</span></h2>${n ? hbars(Object.keys(CAM_ST).map(k => [CAM_ST[k][0], porS[k] || 0]), 'apontamentos') : semDados}</div>
+    <div class="card"><h2>Por status <span class="dir">apontamentos</span></h2>${n ? hbars(Object.keys(CAM_ST).map(k => [CAM_ST[k][0], porS[k] || 0]), 'apontamentos') : semDados}
+      ${n ? `<div class="chips" style="margin-top:10px">${Object.keys(CAM_ST).filter(k => porS[k]).map(k => `<button class="chip" data-act="cam-grupo" data-v="st_${k}">${CAM_ST[k][0]} · ${porS[k]} ›</button>`).join('')}</div>` : ''}</div>
     <div class="card"><h2>Resultado do revisor <span class="dir">apontamentos</span></h2>${n ? hbars([...Object.keys(CAM_RET).map(k => [CAM_RET[k][0].replace(/^\S+ /, ''), porR[k] || 0]), ['Sem retorno', porR.sem || 0]], 'apontamentos') : semDados}
       <p class="small muted" style="margin:8px 0 0">Taxa de confirmação = defeito existia (realizado + vagão cortado) ÷ (realizado + cortado + não existia). “Não localizado” fica fora da conta.</p></div>
     <div class="card"><h2>Por assistente <span class="dir">apontamentos</span></h2>${porAss.length ? hbars(porAss, 'apontamentos') : semDados}</div>
@@ -4128,7 +4145,7 @@ function camEscala() {
 const CAM_EV = { apontado: '📷 Apontado', editado: '✏ Editado', enviado: '🚆 Enviado ao revisor', retornado: '↩ Retorno do revisor', concluido: '✔ Concluído', expirado: '⌛ Expirado' };
 function modalCamEventos(M) {
   const a = CAM.lista.find(x => x.id === M.id) || {};
-  return `<h3>Auditoria · ${esc(a.vagao || '')}</h3><p class="small muted" style="margin:0 0 8px">Registros do sistema, com o horário do servidor. Não podem ser alterados.</p>
+  return `${M.volta ? '<button class="btn sm" data-act="cam-voltar" style="margin-bottom:8px">‹ Voltar à lista</button>' : ''}<h3>Auditoria · ${esc(a.vagao || '')}</h3><p class="small muted" style="margin:0 0 8px">Registros do sistema, com o horário do servidor. Não podem ser alterados.</p>
     ${M.ev == null ? '<p class="muted">Carregando…</p>' : M.ev.length ? `<ul class="feed">${M.ev.map(e => `<li><span class="h">${quandoCam(e.quando)}</span><span><b>${CAM_EV[e.evento] || esc(e.evento)}</b>${e.por ? ' · ' + esc(C(e.por).nome) : ''}${e.detalhe?.retorno ? ' · ' + (CAM_RET[e.detalhe.retorno]?.[0] || '') : ''}${e.detalhe?.obs ? '<br><span class="small">' + esc(e.detalhe.obs) + '</span>' : ''}${e.evento === 'editado' && e.detalhe?.antes ? `<br><span class="small muted">Antes: ${esc(e.detalhe.antes.vagao || '')} · ${esc(e.detalhe.antes.descricao || '')}</span>` : ''}</span></li>`).join('')}</ul>` : '<p class="muted">Sem eventos.</p>'}`;
 }
 async function camSalvar() {
@@ -4743,7 +4760,12 @@ document.addEventListener('click', async e => {
     case 'cam-limpar': CAM.f = { st: '', vag: '', por: '', ret: '', turno: '', turma: '' }; CAM.ver = 30; break;
     case 'cam-buscar': if (!precisaNuvem()) return; toast('Atualizando…'); await camCarregar(true); break;
     case 'cam-csv': camCSV(); return;
-    case 'cam-eventos': { if (!precisaNuvem()) return; const id = el.dataset.id; S.modal = { tipo: 'camev', id, ev: null }; renderModal();
+    case 'cam-grupo': S.modal = { tipo: 'camgrupo', k: v }; renderModal(); return;
+    case 'cam-voltar': if (S.modal?.volta) { S.modal = S.modal.volta; renderModal(); } return;
+    case 'cam-grupo-csv': { const [tit, fn] = CAM_GRUPOS[v], L = [['Vagão', 'Trem', 'Posição na ficha', 'Status', 'Retorno', 'Observação do revisor', 'Assistente', 'Turma', 'Apontado em', 'Enviado ao revisor em', 'Descrição']];
+      fn(camDashLista()).forEach(a => L.push([a.vagao, a.trem_prefixo || a.prefixo, a.trem_pos_ficha, CAM_ST[camStatus(a)][0], a.retorno ? CAM_RET[a.retorno][0].replace(/^\S+ /, '') : '', a.retorno_obs, C(a.por).nome, a.turma ? 'Turma ' + a.turma : '', quandoCam(a.criado_em), a.enviado_em ? quandoCam(a.enviado_em) : '', a.descricao]));
+      baixarCSV(L, 'portal-cameras-' + semAcento(tit).toLowerCase().replace(/\W+/g, '-') + '-' + CAM.de + '-a-' + CAM.ate + '.csv'); return; }
+    case 'cam-eventos': { if (!precisaNuvem()) return; const id = el.dataset.id; S.modal = { tipo: 'camev', id, ev: null, volta: S.modal?.tipo === 'camgrupo' ? S.modal : null }; renderModal();
       const { data, error } = await sb.from('cam_eventos').select('*').eq('apont_id', id).order('quando').order('id');
       if (S.modal?.tipo === 'camev' && S.modal.id === id) { S.modal.ev = error ? [] : data; renderModal(); } if (error) toast('⚠ ' + error.message); return; }
     case 'cam-ret': {
