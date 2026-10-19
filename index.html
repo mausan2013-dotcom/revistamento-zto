@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.91';
+const VERSAO = '1.92';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -2094,7 +2094,7 @@ function telaValidar(t) {
         ${r.st !== 'pend' ? `<button class="btn sm" data-act="val-corrigir" data-id="${t.id}" data-p="${p}">✏ Corrigir</button>` : ''}</div></div></div>`; }).join('') || `<div class="card muted">${S.valBusca ? 'Nenhum apontamento deste trem com esse vagão.' : 'Nenhum apontamento neste trem: só vagões sem intervenção.'}</div>`}</div>
   <div class="card" style="margin-top:12px"><h2>Concluir validação</h2>
     <label class="campo">Parecer técnico (opcional)<textarea id="parecer" style="font-family:inherit;font-size:15px;min-height:60px"></textarea></label>
-    <button class="btn primary big" data-act="val-concluir" data-id="${t.id}" ${falta || abertos.length ? 'disabled' : ''}>${falta ? `Faltam ${falta} apontamento(s)` : abertos.length ? `Aguardando ${abertos.length} bloco(s) finalizar` : '✓ Concluir validação do trem'}</button></div>`;
+    ${camTravaHtml(t, 'concluir a validação')}<button class="btn primary big" data-act="val-concluir" data-id="${t.id}" ${falta || abertos.length || camSemRetTrem(t).length ? 'disabled' : ''}>${falta ? `Faltam ${falta} apontamento(s)` : abertos.length ? `Aguardando ${abertos.length} bloco(s) finalizar` : camSemRetTrem(t).length ? `Faltam ${camSemRetTrem(t).length} retorno(s) das câmeras` : '✓ Concluir validação do trem'}</button></div>`;
 }
 function espPlanos() {
   const mt = S.espFiltro === 'todos' ? null : meuTurnoV(), lista = DB.planos.filter(p => !mt || p.turno === mt), grupo = (tit, arr, acoes) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(p => `<li><span class="h">${p.criada}</span><span><b>${esc(p.titulo)}</b><br><span class="small">${esc(p.desc)}</span><br><span class="small muted">Turno ${p.turno} · Equipe ${p.eq} · por ${esc(p.por.split(' ')[0])}</span> ${tagPlano(p)}${p.obs ? `<br><span class="small">Retorno da equipe: “${esc(p.obs)}”</span>` : ''}${acoes ? `<div class="acoes" style="margin-top:6px"><button class="btn sm ok" data-act="plano-validar" data-id="${p.id}">✓ Validar</button><input id="coment-${p.id}" class="inp" style="min-height:34px;font-size:14px" placeholder="Motivo para reabrir"><button class="btn sm" data-act="plano-reabrir" data-id="${p.id}">↩ Reabrir</button></div>` : ''}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum.</span></li>'}</ul></div>`;
@@ -2621,7 +2621,7 @@ function modalFechar(M) {
     <div class="secao">Desvios</div>${t.desvios.length ? t.desvios.map(d => `<p class="small" style="margin:0 0 4px">${d.ini}–${d.fim || 'agora'} · ${esc(d.motivo)}${d.obs ? ' · ' + esc(d.obs) : ''}</p>`).join('') : '<p class="small muted">Nenhum.</p>'}
     <div class="secao">Materiais aplicados</div>${Object.keys(mats).length ? `<p class="small" style="margin:0">${Object.entries(mats).map(([n, q]) => `${q}× ${esc(n)}`).join(' · ')}</p>` : '<p class="small muted">Nenhum.</p>'}
     <label class="campo" style="margin-top:12px">Observações do líder<textarea id="obs-fech" style="font-family:inherit;font-size:15px;min-height:60px">${esc(M.obs)}</textarea></label>
-    <button class="btn primary big" data-act="confirmar-fech" ${(naoIns && !M.motivoParcial) || (tf => tf.min == null || (tf.min > META_MIN && !M.motivoAtraso))(tempoModal(M)) ? 'disabled' : ''}>Confirmar e fechar trem</button>`;
+    ${camTravaHtml(t, 'fechar o trem')}<button class="btn primary big" data-act="confirmar-fech" ${camSemRetTrem(t).length || (naoIns && !M.motivoParcial) || (tf => tf.min == null || (tf.min > META_MIN && !M.motivoAtraso))(tempoModal(M)) ? 'disabled' : ''}>Confirmar e fechar trem</button>`;
 }
 // horas apontadas no fechamento: entrega e término; o tempo só vale com as duas certas
 function tempoModal(M) {
@@ -4212,6 +4212,10 @@ async function carregarCamTec() {
 }
 const camDe = (t, pos) => (CAMT.porTrem[t.id] || []).filter(a => a.trem_pos === +pos);
 const txtCam = l => l.map(a => a.descricao).join(' · ');
+// v1.92: apontamentos de câmeras do trem ainda sem retorno: travam o fechamento do líder e a conclusão da validação
+const camSemRetTrem = t => Object.values(CAMT.porTrem[t.id] || []).filter(a => !a.retorno && a.trem_pos).sort((a, b) => a.trem_pos - b.trem_pos);
+const camTravaHtml = (t, acao) => (l => l.length ? `<div class="aviso-cam" style="margin:10px 0"><b>📷 ${l.length} apontamento(s) do Portal de Câmeras sem retorno</b><span class="small">Dê o retorno de cada vagão para ${acao}.</span>
+  ${l.map(a => `<div style="margin-top:8px"><b>Pos. ${posF(t, a.trem_pos)} · ${esc(a.vagao)}</b> <span class="small">${esc(a.descricao)}</span>${camRetorno(a)}</div>`).join('')}</div>` : '')(camSemRetTrem(t));
 const linhasCam = l => l.map(a => `<br><span style="color:var(--cam)">📷 <b>Câmeras:</b> ${esc(a.descricao)} <span class="muted">(${esc(C(a.por).nome.split(' ')[0])}, ${quandoCam(a.criado_em)})</span></span>${a.retorno ? ` <span class="tag ${CAM_RET[a.retorno][1]}">${CAM_RET[a.retorno][0]}</span>` : ''}`).join('');
 // botões de retorno (lista do técnico e cartão do vagão)
 function camRetorno(a, comObs) {
@@ -4614,6 +4618,7 @@ document.addEventListener('click', async e => {
     case 'fechar-trem': S.modal = { tipo: 'fechar', id: el.dataset.id, motivoParcial: '', obs: '', entrega: tremPorId(el.dataset.id)?.inicio || '', termino: agora() }; renderModal(); return;
     case 'confirmar-fech': {
       const t = tremPorId(M.id), tf = tempoModal(M); lerCampos();
+      if (camSemRetTrem(t).length) { toast('📷 Dê o retorno das câmeras antes de fechar: ' + camSemRetTrem(t).map(a => a.vagao).join(', ')); return; }
       if (tf.min == null) { toast(tf.erro); return; }
       if (tf.min > META_MIN && !M.motivoAtraso) { toast('Escolha o motivo do atraso'); return; }
       if (tf.min > META_MIN && M.motivoAtraso === OUTRO_ATRASO && !M.obs.trim()) { toast('Descreva o motivo do atraso nas observações'); $('obs-fech')?.focus(); return; }
@@ -4741,6 +4746,7 @@ document.addEventListener('click', async e => {
     case 'val-corrigir': abrirVagao(+el.dataset.p, el.dataset.id, true); return;
     case 'val-concluir': {
       const t = tremQualquer(el.dataset.id), parecer = ($('parecer')?.value || '').trim();
+      if (camSemRetTrem(t).length) { toast('📷 Dê o retorno das câmeras antes de concluir: ' + camSemRetTrem(t).map(a => a.vagao).join(', ')); return; }
       t.validacao = { status: 'validado', por: DB.me.nome, em: new Date().toISOString(), parecer, corrigidos: apontamentos(t).filter(x => x.r?.val === 'corrigido').length };
       enviar({ tabela: 'trens', acao: 'update', dados: { validacao: 'validado', parecer: parecer || null }, filtro: [['id', 'eq', t.id]], desc: 'Validação do trem ' + t.prefixo });
       S.valTrem = null; toast('Trem ' + t.prefixo + ' validado'); break;
@@ -4775,7 +4781,7 @@ document.addEventListener('click', async e => {
       const obs = ($('cam-obs-' + id)?.value ?? a.retorno_obs ?? '').trim();
       Object.assign(a, { retorno: v, retorno_obs: obs || null, status: 'retornado', retorno_em: new Date().toISOString(), retorno_por: DB.me.id });
       enviar({ acao: 'rpc', fn: 'cam_retorno', args: { p_id: id, p_retorno: v, p_obs: obs || null }, desc: 'Retorno ao Portal de Câmeras · ' + a.vagao });
-      toast('Retorno enviado ao Portal de Câmeras: ' + CAM_RET[v][0]); render(); return;
+      toast('Retorno enviado ao Portal de Câmeras: ' + CAM_RET[v][0]); render(); if (S.modal?.tipo === 'fechar') renderModal(); return;
     }
     case 'notas-buscar': buscarNotas(); return;
     case 'notas-mais': buscarNotas(true); return;
