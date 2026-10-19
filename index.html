@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.94';
+const VERSAO = '1.95';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -2705,16 +2705,18 @@ async function carregarHist() {
     // (os trens do período do perfil vêm sempre de DB.trens, atualizados a cada minuto)
     if (!HIST.lidoAparelho) { HIST.lidoAparelho = true; const c = await IDB.ler('hist'); if (c && c.me === DB.me.id && Date.now() - c.pesadoEm < HIST_PESADO_MS) { Object.assign(HIST, { trens: c.trens, mats: c.mats, det: c.det, pesadoEm: c.pesadoEm, planos: c.planos || null }); if (c.ap) Object.assign(AP, c.ap); } }
     const pesado = !HIST.pesadoEm || Date.now() - HIST.pesadoEm > HIST_PESADO_MS;
-    const [trens, mats, ret, det] = await Promise.all([
+    // planos especiais e apontamentos não dependem do bloco pesado: saem ao mesmo tempo (v1.95)
+    const [trens, mats, ret, det, planos] = await Promise.all([
       pesado ? tudo(() => sb.from('resumo_trens').select('*').order('data').order('id')) : null,
       pesado ? tudo(() => sb.from('resumo_materiais').select('*').order('trem_id').order('material').order('nome')) : null,
       tudo(() => sb.from('registros').select('trem_id,vagao,obs').contains('ocorrencias', ['Retenção de vagão']).order('trem_id').order('posicao')),
-      pesado ? tudo(() => sb.from('trens_historico').select('id,materiais').order('id')).catch(() => []) : null          // vagões e posições lidos do Forms
+      pesado ? tudo(() => sb.from('trens_historico').select('id,materiais').order('id')).catch(() => []) : null,         // vagões e posições lidos do Forms
+      carregarPlanosExt(),
+      carregarApont()
     ]);
     if (pesado) Object.assign(HIST, { trens, mats, det: Object.fromEntries(det.map(x => [x.id, x.materiais])), pesadoEm: Date.now() });
     Object.assign(HIST, { ret, em: Date.now(), ok: true });
-    HIST.planos = await carregarPlanosExt();
-    await carregarApont();
+    HIST.planos = planos;
     IDB.gravar('hist', { me: DB.me.id, pesadoEm: HIST.pesadoEm, trens: HIST.trens, mats: HIST.mats, det: HIST.det, planos: HIST.planos, ap: { carga: AP.carga, dias: AP.dias, erro: AP.erro } });
   } catch (e) {
     if (ehRede(e)) throw e;
