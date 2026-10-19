@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.90';
+const VERSAO = '1.91';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -2018,7 +2018,9 @@ const temDefeito = r => !!r && r.st !== 'pend' && (!!r.obs || r.falhas.length > 
 // planos especiais do vagão que ficaram sem resposta (Realizado / Não realizado) da equipe
 const planosSemResp = (t, p) => planosPend(t.vagoes[p - 1]).filter(x => !((t.pexec || {})[p] || {})[x.plano]);
 // planos especiais sem resposta na faixa da equipe: travam o "Encerrar minha parte"
-const planosAbertosFaixa = (t, d) => { const out = []; for (let p = d.ini; p <= d.fim; p++) planosSemResp(t, p).forEach(x => out.push({ p, cod: t.vagoes[p - 1], plano: x.plano })); return out; };
+// v1.91: o apontamento do Portal de Câmeras sem retorno do técnico também trava (antes o trem fechava e ele ia a "Concluído" sem resposta)
+const planosAbertosFaixa = (t, d) => { const out = []; for (let p = d.ini; p <= d.fim; p++) { planosSemResp(t, p).forEach(x => out.push({ p, cod: t.vagoes[p - 1], plano: x.plano }));
+  if (camDe(t, p).some(a => !a.retorno)) out.push({ p, cod: t.vagoes[p - 1], plano: '📷 Câmeras' }); } return out; };
 const apontamentos = t => { const ps = new Set([...Object.entries(t.reg).filter(([, r]) => r.st === 'int' || temDefeito(r) || r.val === 'corrigido').map(([p]) => +p), ...Object.keys(t.pexec || {}).map(Number),
     ...t.vagoes.map((c, i) => i + 1).filter(p => planosSemResp(t, p).length)]);
   return [...ps].sort((a, b) => a - b).map(p => ({ p, r: t.reg[p], ex: (t.pexec || {})[p] || {} })); };
@@ -2312,7 +2314,7 @@ function tecMeu() {
         ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${linhasNotas(x.nn)}${linhasCam(x.cc)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
-      : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
+      : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial ou câmeras sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado no plano e dê o retorno das câmeras para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
       : `<span class="small muted">Revista iniciada às ${d.inicio}</span>`}</div>
     ${seguintes.length && !d.termino ? `<button class="btn sm avancar" data-act="tec-avancar" data-id="${t.id}" data-nome="${esc(t.prefixo)}" data-prox="${esc(seguintes[0].prefixo)}">⏭ Avançar para o próximo trem (${esc(seguintes[0].prefixo)}) sem encerrar este</button>` : ''}
   </div>
@@ -2322,7 +2324,7 @@ function tecMeu() {
   ${d.inicio || escolhido ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos'], ...(atencaoFaixa(t, d).length ? [['atencao', '⚠ Atenção ' + atencaoFaixa(t, d).length]] : [])].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
   <div class="vagoes">${lista.join('') || '<div class="card muted">Nada nesta lista.</div>'}</div>
   ${(n => n && (!d.termino || escolhido) ? (sr => sr.length
-      ? `<div class="alerta" style="margin:12px 0 8px"><span>📋 <b>Plano especial sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado para finalizar o bloco.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big finalizar" style="opacity:.55" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">responda os planos especiais primeiro</span></button>`
+      ? `<div class="alerta" style="margin:12px 0 8px"><span>📋 <b>Plano especial ou câmeras sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado no plano e dê o retorno das câmeras para finalizar o bloco.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big finalizar" style="opacity:.55" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">responda os planos especiais e as câmeras primeiro</span></button>`
       : `<button class="btn ok big finalizar" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">${n} vagão(ões) sem apontamento serão registrados como OK</span></button>`)(planosAbertosFaixa(t, d)) : '')(p.total - p.n)}` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
 }
 // planos especiais enviados pelo validador para a equipe (ficam no próprio Meu turno)
@@ -4373,7 +4375,7 @@ document.addEventListener('click', async e => {
       if (!livres.length) { toast('Todos os vagões da faixa já estão registrados'); return; }
       // trava: nenhum plano especial da faixa pode ficar sem resposta (Realizado / Não realizado)
       const sr = planosAbertosFaixa(t, d);
-      if (sr.length) { S.tecFiltro = 'atencao'; render(); toast(`📋 Plano especial sem resposta: ${sr.map(x => x.cod).join(', ')}. Responda para finalizar o bloco.`); return; }
+      if (sr.length) { S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial ou câmeras): ${sr.map(x => x.cod).join(', ')}. Responda para finalizar o bloco.`); return; }
       const lista = livres.map(p => `${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)} · ${t.vagoes[p - 1]}`), mostra = lista.slice(0, 25).join('\n') + (lista.length > 25 ? `\n… e mais ${lista.length - 25}` : '');
       if (!confirm(`Registrar como OK (revistado, sem intervenção) estes ${livres.length} vagão(ões) da sua faixa?\n\n${mostra}\n\nConfira se todos foram revistados. Os vagões com defeito ou informação devem ser registrados antes.`)) return;
       const h = agora(), linhas = livres.map(p => ({ trem_id: t.id, posicao: p, vagao: t.vagoes[p - 1], equipe: d.n, hora: h, resultado: 'ok', materiais: [], ocorrencias: [], obs: null, motivo: null, falhas: [] }));
@@ -4401,7 +4403,7 @@ document.addEventListener('click', async e => {
       // fall through
     case 'comeco-sim': case 'encerrar': {
       const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'encerrar' ? 'termino' : 'inicio';
-      if (campo === 'termino' && planosAbertosFaixa(t, d).length) { const sr = planosAbertosFaixa(t, d); S.tecFiltro = 'atencao'; render(); toast(`📋 Plano especial sem resposta: ${sr.map(x => x.cod).join(', ')}`); return; }
+      if (campo === 'termino' && planosAbertosFaixa(t, d).length) { const sr = planosAbertosFaixa(t, d); S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial ou câmeras): ${sr.map(x => x.cod).join(', ')}`); return; }
       if (a === 'comeco-sim') S.modal = null;
       d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: campo === 'inicio' ? 'Início da revista' : 'Fim da revista' });
       if (campo === 'termino') (t.paradas || []).filter(x => x.tec === uidTec() && !x.fim).forEach(x => { x.fim = new Date().toISOString(); enviar({ tabela: 'paradas', acao: 'update', dados: { fim: x.fim }, filtro: [['id', 'eq', x.id]], desc: 'Parada finalizada' }); });
