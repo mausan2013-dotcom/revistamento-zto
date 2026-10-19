@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.95';
+const VERSAO = '1.96';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -848,7 +848,13 @@ async function tudo(montar) {
   const out = [...await pag(0)];
   // a primeira página sozinha (consulta pequena não paga nada a mais); se veio cheia, as seguintes vêm em ondas de 4 ao mesmo tempo (v1.94)
   for (let i = 1000, cheia = out.length === 1000; cheia; i += 4000) {
-    const ondas = await Promise.all([0, 1, 2, 3].map(k => pag(i + k * 1000)));
+    // se a onda falhar (ex.: limite de tempo do banco com consultas pesadas ao mesmo tempo), refaz essas 4 páginas uma de cada vez (v1.96)
+    const ondas = await Promise.all([0, 1, 2, 3].map(k => pag(i + k * 1000))).catch(async e => {
+      console.warn('tudo: onda paralela falhou, refazendo em fila', e && e.message);
+      const seq = []; for (let k = 0; k < 4; k++) { const d = await pag(i + k * 1000); seq.push(d); if (d.length < 1000) break; }
+      while (seq.length < 4) seq.push([]);
+      return seq;
+    });
     for (const d of ondas) out.push(...d);
     cheia = ondas[3].length === 1000;
   }
@@ -2720,6 +2726,7 @@ async function carregarHist() {
     IDB.gravar('hist', { me: DB.me.id, pesadoEm: HIST.pesadoEm, trens: HIST.trens, mats: HIST.mats, det: HIST.det, planos: HIST.planos, ap: { carga: AP.carga, dias: AP.dias, erro: AP.erro } });
   } catch (e) {
     if (ehRede(e)) throw e;
+    console.warn('carregarHist falhou', e && (e.message || e));
     Object.assign(HIST, { trens: [], mats: [], ret: [], det: {}, em: Date.now(), ok: false });   // 03 ainda não rodado: usa só os 35 dias
   }
 }
