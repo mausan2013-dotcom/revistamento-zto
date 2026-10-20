@@ -664,7 +664,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '1.98';
+const VERSAO = '1.99';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3970,9 +3970,9 @@ function camFotos(lista) {
   });
 }
 const camThumb = a => { const u = camUrl(a.foto); return u ? `<a class="cam-foto" href="${esc(u)}" target="_blank" rel="noopener" title="Abrir a foto"><img src="${esc(u)}" alt="Foto do defeito no ${esc(a.vagao)}" loading="lazy"></a>` : '<span class="cam-foto vazia" aria-hidden="true">📷</span>'; };
-// v1.98 (SQL 36): editar e excluir só enquanto "Apontado" e dentro do turno em que foi feito (blocos de 8 h a partir das 06:00); o Programador não tem a trava do turno
+// v1.98 (SQL 36): editar e excluir só enquanto "Apontado" e dentro do turno em que foi feito (blocos de 8 h a partir das 06:00); o Supervisor de Câmeras e o Programador não têm a trava do turno (v1.99)
 const camMesmoTurno = ts => { const b = d => Math.floor((d.getTime() - 3 * 36e5 - 6 * 36e5) / 288e5); return b(new Date(ts)) === b(new Date()); };   // Brasília = UTC−3
-const camPodeEditar = a => camStatus(a) === 'apontado' && (DB.me.perfil === 'programador' || (camMesmoTurno(a.criado_em) && (a.por === DB.me.id || DB.me.perfil === 'camera_sup')));
+const camPodeEditar = a => camStatus(a) === 'apontado' && (['programador', 'camera_sup'].includes(DB.me.perfil) || (camMesmoTurno(a.criado_em) && a.por === DB.me.id));
 function camCartao(a) {
   const st = camStatus(a), [stl, stc] = CAM_ST[st], r = a.retorno && CAM_RET[a.retorno];
   const passos = [
