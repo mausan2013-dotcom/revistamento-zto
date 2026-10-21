@@ -260,6 +260,14 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .erro-login { color: var(--bad); font-weight: 700; font-size: 14px; margin: 0 0 10px; }
 @media (max-width: 560px) { header.top .quem, header.top .sub, header.top .divisor { display: none; } header.top h1 { font-size: 15px; } .topo-acoes { margin-left: auto; gap: 6px; } .sinc { padding: 4px 7px; font-size: 11px; } }
 @media (max-width: 520px) { .barra-prog .seg button { padding: 4px 7px; font-size: 12px; } }
+.barra-prog .bp-campo { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.barra-prog .bp-campo select { font-size: 14px; font-weight: 700; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.barra-prog .bp-papel select { min-width: 170px; }
+body.demo .barra-prog select { border-color: #8b6fd6; color: #3d2a7a; }
+@media (max-width: 560px) { .barra-prog { display: grid; grid-template-columns: 1fr auto; padding: 8px 16px; gap: 8px; }
+  .barra-prog .bp-tit { align-self: center; } .barra-prog > .btn { justify-self: end; } .barra-prog .demo-tag { grid-column: 1 / -1; justify-self: start; }
+  .barra-prog .bp-campo { grid-column: 1 / -1; display: grid; grid-template-columns: 82px 1fr; }
+  .barra-prog .bp-campo select { width: 100%; max-width: none; font-size: 16px; padding: 8px 10px; } }
 /* indicadores do programador (v1.1) */
 :root { --s1: #1b5fa8; --s2: #2ea3e3; --s3: #1f8a6a; --s4: #e0701f; --meta: #c62828; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s1: #5b7fe8; --s2: #14a8ad; --s3: #239a74; --s4: #d9782f; --meta: #ff7272; } }
@@ -304,6 +312,20 @@ body.demo .barra-prog .seg button { color: #3d2a7a; } body.demo .barra-prog .seg
 .rosca .rl div { display: grid; grid-template-columns: 12px auto auto auto; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; }
 .rosca .rl i { width: 10px; height: 10px; border-radius: 2px; }
 .rosca .rl b { font-variant-numeric: tabular-nums; text-align: right; }
+.rosca .rl button { display: grid; grid-template-columns: 12px auto auto auto 8px; gap: 8px; align-items: center; font: inherit; font-size: 13px; color: inherit; background: none; border: 0; border-radius: 4px; padding: 3px 6px; margin: 0 -6px; cursor: pointer; text-align: left; width: calc(100% + 12px); }
+.rosca .rl button:hover, .rosca .rl button:focus-visible { background: var(--track); }
+.rosca .rl button::after { content: '›'; color: var(--muted); font-weight: 700; }
+.rosca.com-miolo svg { width: 160px; height: 160px; }
+.rosca .rc-v { font-size: 7.5px; font-weight: 800; fill: var(--title); font-variant-numeric: tabular-nums; }
+.rosca .rc-r { font-size: 2.6px; font-weight: 700; fill: var(--muted); text-transform: uppercase; letter-spacing: .1px; }
+.rosca circle[data-tip] { transition: stroke-width .15s; } .rosca circle[data-tip]:hover { stroke-width: 7.4; } .rosca circle.clic { cursor: pointer; }
+.cam-funil { display: grid; gap: 8px; }
+.cam-funil .fl { display: grid; grid-template-columns: minmax(110px, 36%) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+.cam-funil .fl .t { height: 22px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.cam-funil .fl .t i { display: block; height: 100%; border-radius: 0 4px 4px 0; min-width: 2px; }
+.cam-funil .fl b { font-variant-numeric: tabular-nums; text-align: right; } .cam-funil .fl b span { color: var(--muted); font-weight: 600; margin-left: 4px; }
+.cam-pct { display: inline-block; width: 60px; height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; vertical-align: middle; margin-right: 6px; } .cam-pct i { display: block; height: 100%; }
+.cam-taxa { text-align: center; } .cam-taxa .gauge { max-width: 230px; }
 .rolagem.alto { max-height: 360px; overflow-y: auto; }
 .tabela.compacta { font-size: 13px; }
 .tabela.compacta td, .tabela.compacta th { padding: 6px; white-space: nowrap; }
@@ -664,7 +686,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.00';
+const VERSAO = '2.01';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1581,9 +1603,10 @@ function barraProg() {
   if (S.papel === 'tec' && !tecs.includes(S.verTec)) S.verTec = tecs[0] || null;
   const demo = DEMO ? '<span class="demo-tag">🎬 DEMONSTRAÇÃO · dados fictícios, nada é gravado</span><button class="btn sm" data-act="demo-sair">Sair da demonstração</button>'
     : podeDemo() ? '<button class="btn sm" data-act="demo-entrar" title="Dados fictícios; nada é gravado">🎬 Modo demonstração</button>' : '';
-  return `${demo}<b>Acesso total</b><span>ver como:</span><span class="seg">${papeis.map(([k, l]) => `<button data-act="papel" data-v="${k}" class="${S.papel === k ? 'on' : ''}">${l}</button>`).join('')}</span>
-    ${!['prog', 'pcm', 'vis', 'cam', 'camsup'].includes(S.papel) ? `<span>turno <select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></span>` : ''}
-    ${S.papel === 'tec' ? `<span>mecânico <select data-act="ver-tec">${tecs.map(id => `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select></span>` : ''}`;
+  // v2.01: "ver como" virou lista suspensa (no celular os 8 botões quebravam em várias linhas)
+  return `<b class="bp-tit">Acesso total</b>${demo}<label class="bp-campo bp-papel"><span>Ver como</span><select data-act="papel-sel" aria-label="Ver o app como">${papeis.map(([k, l]) => `<option value="${k}" ${S.papel === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    ${!['prog', 'pcm', 'vis', 'cam', 'camsup'].includes(S.papel) ? `<label class="bp-campo"><span>Turno</span><select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
+    ${S.papel === 'tec' ? `<label class="bp-campo bp-tec"><span>Mecânico</span><select data-act="ver-tec">${tecs.map(id => `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select></label>` : ''}`;
 }
 function render() {
   if (!DB.me) return;
@@ -3167,14 +3190,16 @@ function gauge(v, { meta, max, txt, rotMeta = '', cor = 'var(--s1)' }) {
     ${meta != null ? `<path d="M${P(meta, 62)} L${P(meta, 96)}" stroke="var(--meta)" stroke-width="3"/><text class="gm" x="${tx}" y="${ty}" text-anchor="middle">${esc(rotMeta)}</text>` : ''}
     <text class="gv" x="100" y="100" text-anchor="middle">${esc(txt)}</text></svg>`;
 }
-function rosca(partes) {                                  // [[nome, valor, cor]]
+function rosca(partes, o = {}) {                          // [[nome, valor, cor, atributos do clique?]] · o.centro / o.rot: número e rótulo no miolo
   const tot = partes.reduce((a, p) => a + p[1], 0), vis = partes.filter(p => p[1]).length; let acc = 0;
   if (!tot) return semDados;
-  const arcos = partes.map(([n, v, c]) => { const len = v / tot * 100, gap = vis > 1 ? 0.8 : 0;
-    const s = v ? `<circle r="15.9155" cx="21" cy="21" fill="none" stroke="${c}" stroke-width="6" stroke-dasharray="${Math.max(0.1, len - gap)} ${100 - len + gap}" stroke-dashoffset="${25 - acc}" data-tip="${esc(n + ': ' + fmt(v) + ' (' + pct1(v, tot) + '%)')}"/>` : '';
+  const arcos = partes.map(([n, v, c, at]) => { const len = v / tot * 100, gap = vis > 1 ? 0.8 : 0;
+    const s = v ? `<circle r="15.9155" cx="21" cy="21" fill="none" stroke="${c}" stroke-width="6" stroke-dasharray="${Math.max(0.1, len - gap)} ${100 - len + gap}" stroke-dashoffset="${25 - acc}" data-tip="${esc(n + ': ' + fmt(v) + ' (' + pct1(v, tot) + '%)' + (at ? ' · toque para ver os vagões' : ''))}"${at ? ' ' + at + ' class="clic"' : ''}/>` : '';
     acc += len; return s; }).join('');
-  return `<div class="rosca"><svg viewBox="0 0 42 42" role="img" aria-label="${esc(partes.map(p => p[0] + ' ' + pct1(p[1], tot) + '%').join(', '))}"><circle r="15.9155" cx="21" cy="21" fill="none" stroke="var(--track)" stroke-width="6"/>${arcos}</svg>
-    <div class="rl">${partes.map(([n, v, c]) => `<div><i style="background:${c}"></i><span>${esc(n)}</span><b>${fmt(v)}</b><span class="muted">${pct1(v, tot)}%</span></div>`).join('')}</div></div>`;
+  const miolo = o.centro != null ? `<text class="rc-v" x="21" y="${o.rot ? 21.6 : 23}" text-anchor="middle">${esc(o.centro)}</text>${o.rot ? `<text class="rc-r" x="21" y="26.4" text-anchor="middle">${esc(o.rot)}</text>` : ''}` : '';
+  return `<div class="rosca${o.centro != null ? ' com-miolo' : ''}"><svg viewBox="0 0 42 42" role="img" aria-label="${esc(partes.map(p => p[0] + ' ' + pct1(p[1], tot) + '%').join(', '))}"><circle r="15.9155" cx="21" cy="21" fill="none" stroke="var(--track)" stroke-width="6"/>${arcos}${miolo}</svg>
+    <div class="rl">${partes.map(([n, v, c, at]) => at && v ? `<button ${at}><i style="background:${c}"></i><span>${esc(n)}</span><b>${fmt(v)}</b><span class="muted">${pct1(v, tot)}%</span></button>`
+      : `<div><i style="background:${c}"></i><span>${esc(n)}</span><b>${fmt(v)}</b><span class="muted">${pct1(v, tot)}%</span></div>`).join('')}</div></div>`;
 }
 function pilhas(itens, nomes, cores = ['var(--s1)', 'var(--s2)']) {
   const max = Math.max(...itens.map(i => i.partes.reduce((a, b) => a + b, 0)), 1);
@@ -4097,7 +4122,9 @@ function camCSV() {
 const CAM_GRUPOS = {
   todos: ['Apontamentos', l => l], enviados: ['Enviados ao revisor', l => l.filter(a => a.enviado_em)], comret: ['Com retorno', l => l.filter(a => a.retorno)],
   aguard: ['Aguardando retorno', l => l.filter(a => camStatus(a) === 'enviado')], conf: ['Com retorno na taxa de confirmação', l => l.filter(a => ['realizado', 'cortado', 'nao_existia'].includes(a.retorno))],
-  ...Object.fromEntries(Object.keys(CAM_ST).map(k => ['st_' + k, [CAM_ST[k][0], l => l.filter(a => camStatus(a) === k)]]))
+  ...Object.fromEntries(Object.keys(CAM_ST).map(k => ['st_' + k, [CAM_ST[k][0], l => l.filter(a => camStatus(a) === k)]])),
+  ...Object.fromEntries(Object.keys(CAM_RET).map(k => ['ret_' + k, ['Retorno: ' + CAM_RET[k][0].replace(/^\S+ /, ''), l => l.filter(a => a.retorno === k)]])), ret_sem: ['Sem retorno do revisor', l => l.filter(a => !a.retorno)],
+  ...Object.fromEntries(TURMAS.map(t => ['tu_' + t, ['Turma ' + t, l => l.filter(a => String(a.turma) === String(t))]])), tu_sem: ['Sem turma', l => l.filter(a => !a.turma)]
 };
 const camDashLista = () => camFiltros(CAM.lista, { ...CAM.f, st: '', ret: '' });
 const camVer = (k, n) => n ? `<br><button class="btn sm" style="margin-top:6px" data-act="cam-grupo" data-v="${k}">ver vagões</button>` : '';
@@ -4110,29 +4137,40 @@ function modalCamGrupo(M) {
     </tbody></table></div><button class="btn" style="margin-top:10px" data-act="cam-grupo-csv" data-v="${M.k}">⬇ Planilha</button>` : '<p class="muted">Nenhum apontamento.</p>'}`;
 }
 // 5. dashboard: por turma, por assistente, por status e taxa de confirmação
+// v2.01: roscas com o total no miolo, medidor da taxa e funil; toque na fatia ou na legenda abre os vagões
+const COR_CAM_ST = { apontado: 'var(--muted)', enviado: 'var(--s2)', retornado: 'var(--s1)', concluido: 'var(--s3)', expirado: 'var(--s4)' };
+const COR_CAM_RET = { realizado: 'var(--ok)', cortado: 'var(--warn)', nao_existia: 'var(--bad)', nao_localizado: 'var(--muted)' };
+const COR_TURMA = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)'];
+const camClique = k => `data-act="cam-grupo" data-v="${k}"`;
 function camDash() {
   camGarantir();
   const f = CAM.f, l = camFiltros(CAM.lista, { ...f, st: '', ret: '' }), n = l.length, cont = fn => { const m = {}; l.forEach(a => { const k = fn(a); m[k] = (m[k] || 0) + 1; }); return m; };
   const env = l.filter(a => a.enviado_em).length, ret = l.filter(a => a.retorno), conf = ret.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, nao = ret.filter(a => a.retorno === 'nao_existia').length;
   const aguard = l.filter(a => camStatus(a) === 'enviado').length, exp = l.filter(a => camStatus(a) === 'expirado').length, taxa = conf + nao ? conf / (conf + nao) * 100 : null;
   const porT = cont(a => a.turma || '–'), porA = cont(a => a.por), porS = cont(camStatus), porR = cont(a => a.retorno || 'sem');
-  const porAss = Object.entries(porA).map(([id, v]) => [C(id).nome, v]).sort((a, b) => b[1] - a[1]);
   const confAss = Object.keys(porA).map(id => { const r = l.filter(a => a.por === id && a.retorno), c = r.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, x = r.filter(a => a.retorno === 'nao_existia').length;
     return [C(id).nome, c + x ? Math.round(c / (c + x) * 100) : null, c, x]; }).filter(x => x[1] != null).sort((a, b) => b[1] - a[1]);
+  const porAss = Object.keys(porA).map(id => { const m = l.filter(a => a.por === id), c = m.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, x = m.filter(a => a.retorno === 'nao_existia').length;
+    return { rot: C(id).nome, partes: [c, x, m.length - c - x] }; }).sort((a, b) => b.partes.reduce((s, v) => s + v, 0) - a.partes.reduce((s, v) => s + v, 0));
   const pc = (a, b) => b ? Math.round(a / b * 100) + '%' : '–';
+  const funil = [['Apontados', n, 'todos'], ['Enviados ao revisor', env, 'enviados'], ['Com retorno', ret.length, 'comret'], ['Defeito confirmado', conf, 'conf']];
   return camAviso() + `<div class="card"><h2>Dashboard · Portal de Câmeras <span class="dir">${n} apontamento(s)</span></h2>
     <div class="cam-busca">${camPeriodo()}<label class="campo">Turma<select data-cam="turma"><option value="">Todas</option>${TURMAS.map(t => `<option value="${t}" ${f.turma === String(t) ? 'selected' : ''}>Turma ${t}</option>`).join('')}</select></label>
       <label class="campo">Assistente<select data-cam="por"><option value="">Todos</option>${camEquipe().map(x => `<option value="${x.id}" ${f.por === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label><span class="bts"><button class="btn" data-act="cam-buscar">↻ Atualizar</button></span></div></div>
   <div class="kpis">${kpi('Apontamentos', fmt(n), 'no período' + camVer('todos', n))}${kpi('Enviados ao revisor', fmt(env), pc(env, n) + ' dos apontamentos' + camVer('enviados', env))}${kpi('Com retorno', fmt(ret.length), pc(ret.length, env) + ' dos enviados' + camVer('comret', ret.length))}${kpi('Aguardando retorno', fmt(aguard), 'com o técnico revisor' + camVer('aguard', aguard))}
-    ${kpi('Taxa de confirmação', taxa == null ? '–' : Math.round(taxa) + '%', `${conf} confirmado(s) × ${nao} não existia` + camVer('conf', conf + nao))}${kpi('Expirados', fmt(exp), `vagão não passou em ${CAM_DIAS} dias` + camVer('st_expirado', exp))}</div>
+    ${kpi('Expirados', fmt(exp), `vagão não passou em ${CAM_DIAS} dias` + camVer('st_expirado', exp))}</div>
   <div class="grid">
-    <div class="card"><h2>Por turma <span class="dir">apontamentos</span></h2>${n ? hbars([...TURMAS, ...(porT['–'] ? ['–'] : [])].map(t => [t === '–' ? 'Sem turma' : 'Turma ' + t, porT[t] || 0]), 'apontamentos') : semDados}</div>
-    <div class="card"><h2>Por status <span class="dir">apontamentos</span></h2>${n ? hbars(Object.keys(CAM_ST).map(k => [CAM_ST[k][0], porS[k] || 0]), 'apontamentos') : semDados}
-      ${n ? `<div class="chips" style="margin-top:10px">${Object.keys(CAM_ST).filter(k => porS[k]).map(k => `<button class="chip" data-act="cam-grupo" data-v="st_${k}">${CAM_ST[k][0]} · ${porS[k]} ›</button>`).join('')}</div>` : ''}</div>
-    <div class="card"><h2>Resultado do revisor <span class="dir">apontamentos</span></h2>${n ? hbars([...Object.keys(CAM_RET).map(k => [CAM_RET[k][0].replace(/^\S+ /, ''), porR[k] || 0]), ['Sem retorno', porR.sem || 0]], 'apontamentos') : semDados}
-      <p class="small muted" style="margin:8px 0 0">Taxa de confirmação = defeito existia (realizado + vagão desanexado) ÷ (realizado + desanexado + não existia). “Não localizado” fica fora da conta.</p></div>
-    <div class="card"><h2>Por assistente <span class="dir">apontamentos</span></h2>${porAss.length ? hbars(porAss, 'apontamentos') : semDados}</div>
-    <div class="card"><h2>Confirmação por assistente <span class="dir">% · com retorno</span></h2>${confAss.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Assistente</th><th>Confirmação</th><th>Confirmados</th><th>Não existia</th></tr></thead><tbody>${confAss.map(([nm, p, c, x]) => `<tr><td>${esc(nm)}</td><td><b>${p}%</b></td><td>${c}</td><td>${x}</td></tr>`).join('')}</tbody></table></div>` : '<span class="muted small">Aparece quando os revisores derem retorno.</span>'}</div>
+    <div class="card cam-taxa"><h2>Taxa de confirmação <span class="dir">defeito existia</span></h2>${taxa == null ? semDados : `${gauge(taxa, { max: 100, txt: Math.round(taxa) + '%', cor: taxa >= 80 ? 'var(--ok)' : taxa >= 60 ? 'var(--warn)' : 'var(--bad)' })}
+      <p class="small" style="margin:4px 0 0"><b style="color:var(--ok)">${conf} confirmado(s)</b> × <b style="color:var(--bad)">${nao} não existia</b></p>${camVer('conf', conf + nao)}`}
+      <p class="small muted" style="margin:8px 0 0">(realizado + vagão desanexado) ÷ (realizado + desanexado + não existia). “Não localizado” fica fora da conta.</p></div>
+    <div class="card"><h2>Funil do apontamento <span class="dir">% dos apontados</span></h2>${n ? `<div class="cam-funil">${funil.map(([r, v, k]) => `<div class="fl"><span>${r}</span><span class="t" data-tip="${esc(r + ': ' + fmt(v) + ' (' + pc(v, n) + ')')}"><i style="width:${v / n * 100}%;background:var(--s1)"></i></span><b>${fmt(v)}<span>${pc(v, n)}</span></b></div>`).join('')}</div>
+      <div class="chips" style="margin-top:10px">${funil.filter(x => x[1]).map(([r, v, k]) => `<button class="chip" ${camClique(k)}>${r} ›</button>`).join('')}</div>` : semDados}</div>
+    <div class="card"><h2>Por status <span class="dir">toque para ver os vagões</span></h2>${n ? rosca(Object.keys(CAM_ST).map(k => [CAM_ST[k][0], porS[k] || 0, COR_CAM_ST[k], camClique('st_' + k)]), { centro: fmt(n), rot: 'apontamentos' }) : semDados}</div>
+    <div class="card"><h2>Resultado do revisor <span class="dir">toque para ver os vagões</span></h2>${ret.length ? rosca(Object.keys(CAM_RET).map(k => [CAM_RET[k][0].replace(/^\S+ /, ''), porR[k] || 0, COR_CAM_RET[k], camClique('ret_' + k)]), { centro: fmt(ret.length), rot: 'com retorno' }) : semDados}
+      ${porR.sem ? `<p class="small muted centro" style="margin:8px 0 0">${fmt(porR.sem)} apontamento(s) ainda sem retorno · <button class="btn sm" ${camClique('ret_sem')}>ver</button></p>` : ''}</div>
+    <div class="card"><h2>Por turma <span class="dir">toque para ver os vagões</span></h2>${n ? rosca([...TURMAS.map((t, i) => ['Turma ' + t, porT[t] || 0, COR_TURMA[i % 4], camClique('tu_' + t)]), ...(porT['–'] ? [['Sem turma', porT['–'], 'var(--muted)', camClique('tu_sem')]] : [])], { centro: fmt(n), rot: 'apontamentos' }) : semDados}</div>
+    <div class="card"><h2>Por assistente <span class="dir">confirmados / não existia / demais</span></h2>${porAss.length ? pilhas(porAss, ['Confirmado', 'Não existia', 'Sem retorno ou não localizado'], ['var(--ok)', 'var(--bad)', 'var(--muted)']) : semDados}</div>
+    <div class="card"><h2>Confirmação por assistente <span class="dir">% · com retorno</span></h2>${confAss.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Assistente</th><th>Confirmação</th><th>Confirmados</th><th>Não existia</th></tr></thead><tbody>${confAss.map(([nm, p, c, x]) => `<tr><td>${esc(nm)}</td><td><span class="cam-pct"><i style="width:${p}%;background:${p >= 80 ? 'var(--ok)' : p >= 60 ? 'var(--warn)' : 'var(--bad)'}"></i></span><b>${p}%</b></td><td>${c}</td><td>${x}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
   </div>`;
 }
 // 6. escala das turmas (v1.89 · SQL 30): quem está em serviço, a escala e quem é de cada turma
@@ -4836,6 +4874,7 @@ document.addEventListener('change', async e => {
   }
   else if (a === 'fech-hora') { lerCampos(); M[el.dataset.k] = el.value; renderModal(); }
   else if (a === 'rel-data') { S.relData = el.value || isoData(new Date()); render(); }
+  else if (a === 'papel-sel') { const v = el.value; S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); render(); window.scrollTo(0, 0); }
   else if (a === 'aba-sel') { const v = el.value; if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); render(); window.scrollTo(0, 0); }
   else if (a === 'rel-turno') { S.relTurno = el.value; S.relPref = 'todos'; render(); }
   else if (a === 'rel-pref') { S.relPref = el.value; render(); }

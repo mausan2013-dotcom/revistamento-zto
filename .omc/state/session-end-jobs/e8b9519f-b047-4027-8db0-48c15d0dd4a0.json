@@ -1,0 +1,376 @@
+{
+  "version": 1,
+  "jobId": "e4fd95a9-275b-45ac-99de-b90c14393e00",
+  "sessionId": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+  "scopeKey": "68a8599875b57e1b5be83fef002cdba0149ff279dbdc8b0935bfccc01b62d382",
+  "revision": 63,
+  "createdAt": "2026-10-20T13:12:19.976Z",
+  "updatedAt": "2026-10-20T13:12:52.374Z",
+  "producerGraceExpiresAt": "2026-10-20T13:12:49.976Z",
+  "bestEffortDeadlineAt": "2026-10-20T13:13:42.976Z",
+  "producers": {
+    "core": {
+      "state": "sealed",
+      "intentKey": "d2902fd2311847e74b83cd26615e418d535774d69b4ebeba406e11092c6d64a3",
+      "payloadDigest": "d2902fd2311847e74b83cd26615e418d535774d69b4ebeba406e11092c6d64a3",
+      "sealedAt": "2026-10-20T13:12:50.334Z",
+      "sealedBy": "recovery"
+    },
+    "wiki": {
+      "state": "no-op",
+      "sealedAt": "2026-10-20T13:12:19.989Z",
+      "sealedBy": "wiki-producer"
+    }
+  },
+  "actions": {
+    "foreground-cleanup": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "completed",
+      "attempts": 1,
+      "idempotencyKey": "e1197538593348bb62767982f655e2820bbdf232a54286d525d33f27b4dfa0f4",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {},
+        "metrics": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "ended_at": "2026-10-20T13:12:50.205Z",
+          "reason": "other",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        }
+      },
+      "budgetMs": 9000,
+      "claimedAt": "2026-10-20T13:12:50.017Z",
+      "runner": {
+        "attempt": 1,
+        "runnerNonce": "10a320d9-cfde-4448-b560-4a16a4c07db3",
+        "phase": "terminal",
+        "deadlineAt": "2026-10-20T13:12:59.978Z"
+      },
+      "lastOutcomeCode": "completed",
+      "completedAt": "2026-10-20T13:12:50.328Z"
+    },
+    "wiki-capture": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "completed",
+      "attempts": 0,
+      "idempotencyKey": "12ce57c6548fec8002fa628e61259936a078a246938a95d61722f803a53dcc42",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {}
+      },
+      "budgetMs": 9000,
+      "completedAt": "2026-10-20T13:12:19.989Z"
+    },
+    "team-cleanup": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "completed",
+      "attempts": 1,
+      "idempotencyKey": "f97573a4f6b2a21c687679eb566fa315f470bd07a0d4bc0c341851f279cfb618",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {},
+        "metrics": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "ended_at": "2026-10-20T13:12:50.205Z",
+          "reason": "other",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        }
+      },
+      "budgetMs": 9000,
+      "claimedAt": "2026-10-20T13:12:50.352Z",
+      "runner": {
+        "attempt": 1,
+        "runnerNonce": "d3f40b9d-d10b-487e-88a6-5595228c2895",
+        "phase": "terminal",
+        "deadlineAt": "2026-10-20T13:12:59.978Z"
+      },
+      "lastOutcomeCode": "completed",
+      "completedAt": "2026-10-20T13:12:50.569Z"
+    },
+    "python-cleanup": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "completed",
+      "attempts": 1,
+      "idempotencyKey": "7f0f70a6a910738d589834346014e0c6c1823d2af5eb27d7f78c1cd834c6ab43",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {},
+        "metrics": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "ended_at": "2026-10-20T13:12:50.205Z",
+          "reason": "other",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        }
+      },
+      "budgetMs": 9000,
+      "claimedAt": "2026-10-20T13:12:50.587Z",
+      "runner": {
+        "attempt": 1,
+        "runnerNonce": "7e6ccd95-db9e-495a-bfaf-449822ab6b4e",
+        "phase": "terminal",
+        "deadlineAt": "2026-10-20T13:12:59.978Z"
+      },
+      "lastOutcomeCode": "completed",
+      "completedAt": "2026-10-20T13:12:51.282Z"
+    },
+    "reply-cleanup": {
+      "class": "required",
+      "phase": "deferred-required",
+      "status": "completed",
+      "attempts": 1,
+      "idempotencyKey": "02372d148883df6ff29385cf7fccb87c2db2528f6c37f6097bdde76acf9e3f3c",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {}
+      },
+      "budgetMs": 9000,
+      "claimedAt": "2026-10-20T13:12:51.302Z",
+      "runner": {
+        "attempt": 1,
+        "runnerNonce": "d0947ef8-0a87-483f-b376-1bfdf8139d36",
+        "phase": "terminal",
+        "deadlineAt": "2026-10-20T13:12:59.978Z"
+      },
+      "lastOutcomeCode": "completed",
+      "completedAt": "2026-10-20T13:12:51.504Z"
+    },
+    "callback": {
+      "class": "best-effort",
+      "phase": "deferred-best-effort",
+      "status": "completed",
+      "attempts": 1,
+      "idempotencyKey": "bbadfa682a8b2c99ff36cb762a2315e5025c4af660b48efea82507c9ede7bdcc",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {},
+        "metrics": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "ended_at": "2026-10-20T13:12:50.205Z",
+          "reason": "other",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        }
+      },
+      "budgetMs": 2000,
+      "claimedAt": "2026-10-20T13:12:51.518Z",
+      "runner": {
+        "attempt": 1,
+        "runnerNonce": "b14be09d-f4ce-46bf-8db2-b1900afe6a1a",
+        "phase": "terminal",
+        "deadlineAt": "2026-10-20T13:12:59.978Z"
+      },
+      "lastOutcomeCode": "completed",
+      "completedAt": "2026-10-20T13:12:51.715Z"
+    },
+    "notification": {
+      "class": "best-effort",
+      "phase": "deferred-best-effort",
+      "status": "completed",
+      "attempts": 1,
+      "idempotencyKey": "18d6b506d6220a94858c903c1ef40b5df163396a944014a31063bf9c88b1d77f",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {},
+        "metrics": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "ended_at": "2026-10-20T13:12:50.205Z",
+          "reason": "other",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        }
+      },
+      "budgetMs": 2000,
+      "claimedAt": "2026-10-20T13:12:51.735Z",
+      "runner": {
+        "attempt": 1,
+        "runnerNonce": "977b4955-477a-4f0c-a8ca-45301e54e62e",
+        "phase": "terminal",
+        "deadlineAt": "2026-10-20T13:12:59.978Z"
+      },
+      "lastOutcomeCode": "completed",
+      "completedAt": "2026-10-20T13:12:51.929Z"
+    },
+    "openclaw": {
+      "class": "best-effort",
+      "phase": "deferred-best-effort",
+      "status": "completed",
+      "attempts": 1,
+      "idempotencyKey": "912906fb5bc690a6c7523f2fe53026aa3a34404544650597e9ddcd10b3680108",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {},
+        "metrics": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "ended_at": "2026-10-20T13:12:50.205Z",
+          "reason": "other",
+          "agents_spawned": 0,
+          "agents_completed": 0,
+          "modes_used": []
+        }
+      },
+      "budgetMs": 2000,
+      "claimedAt": "2026-10-20T13:12:51.945Z",
+      "runner": {
+        "attempt": 1,
+        "runnerNonce": "1a2e4bfd-1cc9-40f7-8b36-9cbb450e94b2",
+        "phase": "terminal",
+        "deadlineAt": "2026-10-20T13:12:59.978Z"
+      },
+      "lastOutcomeCode": "completed",
+      "completedAt": "2026-10-20T13:12:52.143Z"
+    },
+    "spawn-next": {
+      "class": "best-effort",
+      "phase": "deferred-best-effort",
+      "status": "completed",
+      "attempts": 1,
+      "idempotencyKey": "2439974033688f2440e1a5318d55bd74414337c28b8c9703ef1340f33ff1ece5",
+      "payload": {
+        "transcriptPath": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+        "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+        "reason": "other",
+        "input": {
+          "session_id": "e8b9519f-b047-4027-8db0-48c15d0dd4a0",
+          "transcript_path": "/Users/velumbrasil/.claude/projects/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0.jsonl",
+          "cwd": "/Users/velumbrasil/Developer/revistamento-zto",
+          "scratchpad_dir": "/private/tmp/claude-501/-Users-velumbrasil/e8b9519f-b047-4027-8db0-48c15d0dd4a0/scratchpad",
+          "prompt_id": "e6b31f0f-6e77-415e-b11a-4db78ea1b154",
+          "hook_event_name": "SessionEnd",
+          "reason": "other"
+        },
+        "initialTeamNames": [],
+        "openClawRouting": {}
+      },
+      "budgetMs": 2000,
+      "claimedAt": "2026-10-20T13:12:52.159Z",
+      "runner": {
+        "attempt": 1,
+        "runnerNonce": "07887b99-e797-4ea2-9ec3-8cb15fb1a837",
+        "phase": "terminal",
+        "deadlineAt": "2026-10-20T13:12:59.978Z"
+      },
+      "lastOutcomeCode": "completed",
+      "completedAt": "2026-10-20T13:12:52.345Z"
+    }
+  },
+  "owner": null,
+  "phase": "complete",
+  "recoverableFailure": {
+    "reason": "actions-settled",
+    "releasedAt": "2026-10-20T13:12:52.361Z",
+    "ownerNonce": "9d985bcf-feee-4561-aecc-d7ef7cb87869"
+  },
+  "completion": {
+    "completedAt": "2026-10-20T13:12:52.361Z",
+    "terminalDigest": "7cba3e9041ddd920869dbd08821dd1794adefd2ce355cb1ab62439667f4e3a80",
+    "terminalRevision": 62
+  }
+}
