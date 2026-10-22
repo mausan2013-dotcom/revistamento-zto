@@ -426,6 +426,9 @@ body.demo .barra-prog select { border-color: #8b6fd6; color: #3d2a7a; }
 .aviso-plano { display: flex; gap: 8px; align-items: flex-start; background: var(--info-bg); color: var(--info); border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 2px; font-size: 14px; }
 .aviso-plano b { color: var(--info); }
 .tag.plano { background: var(--info-bg); color: var(--info); white-space: normal; }
+.pl-bloco { border-left: 3px solid var(--info); padding: 2px 0 2px 10px; margin: 0 0 10px; }
+.pl-bloco-tit { font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin-bottom: 2px; }
+.pl-vag { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 2px 10px 2px 0; font-size: 14px; }
 .pl-item { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
 .btn.perigo { color: var(--bad); border-color: var(--bad); }
 .vg.atencao { border-left: 4px solid var(--warn); }
@@ -686,7 +689,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.02';
+const VERSAO = '2.03';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -2129,11 +2132,23 @@ function telaValidar(t) {
     <label class="campo">Parecer técnico (opcional)<textarea id="parecer" style="font-family:inherit;font-size:15px;min-height:60px"></textarea></label>
     ${camTravaHtml(t, 'concluir a validação')}<button class="btn primary big" data-act="val-concluir" data-id="${t.id}" ${falta || abertos.length || camSemRetTrem(t).length ? 'disabled' : ''}>${falta ? `Faltam ${falta} apontamento(s)` : abertos.length ? `Aguardando ${abertos.length} bloco(s) finalizar` : camSemRetTrem(t).length ? `Faltam ${camSemRetTrem(t).length} retorno(s) das câmeras` : '✓ Concluir validação do trem'}</button></div>`;
 }
+// v2.03: planos especiais da ficha nos trens em revista, por trem e por bloco, assim que o líder divide as equipes
+function planosDoTurno() {
+  const trens = atuais().filter(t => S.espFiltro === 'todos' || t.turno === meuTurnoV()).map(t => ({ t, l: comPlano(t) })).filter(x => x.l.length);
+  const linha = (t, x) => `<li><span class="h">${posF(t, x.p)}</span><span><b>${esc(x.c)}</b><br>${x.pp.map(y => `<span class="pl-vag">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="small muted">(prioridade ${esc(y.prioridade)})</span>` : ''} ${tagExec(x.ex[y.plano])}</span>`).join('')}</span></li>`;
+  return `<div class="card"><h2>Planos especiais nos trens em revista <span class="dir">${trens.reduce((a, x) => a + x.l.length, 0)} vagão(ões)</span></h2>
+    ${trens.length ? trens.map(({ t, l }) => { const blocos = new Map(); l.forEach(x => { const d = donoPos(t, x.p), k = d ? d.n : 0; if (!blocos.has(k)) blocos.set(k, { d, l: [] }); blocos.get(k).l.push(x); });
+      return `<div class="secao">🚂 Trem ${esc(t.prefixo)} <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">${dataBR(t.data)} · turno ${t.turno} · ${esc(t.linha)} · líder ${esc(t.lider)} · ${l.length} vagão(ões) com plano</span></div>
+      ${[...blocos.entries()].sort((a, b) => (a[0] || 99) - (b[0] || 99)).map(([k, { d, l }]) => `<div class="pl-bloco"><div class="pl-bloco-tit">${d ? `<b>Bloco da Equipe ${d.n}</b> · ${esc(nomesEquipe(d.membros))} <span class="small muted">· pos. ${posF(t, d.ini)} a ${posF(t, d.fim)}</span> ${d.termino ? '<span class="tag ok">finalizado</span>' : '<span class="tag warn">em revista</span>'}` : '<b>Fora dos blocos</b> <span class="small muted">· sem equipe definida</span>'}</div>
+        <ul class="feed">${l.map(x => linha(t, x)).join('')}</ul></div>`).join('')}`; }).join('')
+    : `<p class="muted small" style="margin:0">Nenhum vagão com plano especial nos trens em revista${S.espFiltro === 'todos' ? '' : ' do turno ' + meuTurnoV()}. A lista aparece assim que o líder lê a ficha e divide as equipes.</p>`}</div>`;
+}
 function espPlanos() {
   const mt = S.espFiltro === 'todos' ? null : meuTurnoV(), lista = DB.planos.filter(p => !mt || p.turno === mt), grupo = (tit, arr, acoes) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(p => `<li><span class="h">${p.criada}</span><span><b>${esc(p.titulo)}</b><br><span class="small">${esc(p.desc)}</span><br><span class="small muted">Turno ${p.turno} · Equipe ${p.eq} · por ${esc(p.por.split(' ')[0])}</span> ${tagPlano(p)}${p.obs ? `<br><span class="small">Retorno da equipe: “${esc(p.obs)}”</span>` : ''}${acoes ? `<div class="acoes" style="margin-top:6px"><button class="btn sm ok" data-act="plano-validar" data-id="${p.id}">✓ Validar</button><input id="coment-${p.id}" class="inp" style="min-height:34px;font-size:14px" placeholder="Motivo para reabrir"><button class="btn sm" data-act="plano-reabrir" data-id="${p.id}">↩ Reabrir</button></div>` : ''}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum.</span></li>'}</ul></div>`;
   const eqs = EQ(S.planoTurno);
   return `<p class="nota">O validador técnico cria o plano, a equipe executa e devolve, e o validador valida ou reabre. O líder acompanha pelo painel do turno.</p>
   ${filtroTurnoV()}
+  ${planosDoTurno()}
   <div class="grid">
     <div class="card"><h2>Novo plano especial</h2>
       <label class="campo">Título<input id="t-tit" placeholder="Ex.: Conferir travas dual da série PCT"></label>
