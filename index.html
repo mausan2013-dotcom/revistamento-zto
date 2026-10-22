@@ -428,6 +428,8 @@ body.demo .barra-prog select { border-color: #8b6fd6; color: #3d2a7a; }
 .tag.plano { background: var(--info-bg); color: var(--info); white-space: normal; }
 .pl-bloco { border-left: 3px solid var(--info); padding: 2px 0 2px 10px; margin: 0 0 10px; }
 .pl-bloco-tit { font-size: 14px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin-bottom: 2px; }
+.pl-resp { margin: 4px 0 6px; }
+.pl-bts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .pl-vag { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 2px 10px 2px 0; font-size: 14px; }
 .pl-item { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--line); }
 .btn.perigo { color: var(--bad); border-color: var(--bad); }
@@ -468,7 +470,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .pl-linha { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; font-size: 13px; font-weight: 700; color: var(--info); }
 .pl-linha + .pl-linha { margin-top: 6px; }
 .pl-linha .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
-.pl-linha .btn.nao { background: var(--bad); border-color: var(--bad); color: #fff; }
+.pl-linha .btn.nao, .pl-bts .btn.nao { background: var(--bad); border-color: var(--bad); color: #fff; }
 @media (max-width: 420px) { .pl-linha { grid-template-columns: 1fr 1fr; } .pl-linha span { grid-column: 1 / -1; } }
 .fila-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 8px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
 .fila-item:first-of-type { border-top: 0; }
@@ -689,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.03';
+const VERSAO = '2.04';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -2135,7 +2137,10 @@ function telaValidar(t) {
 // v2.03: planos especiais da ficha nos trens em revista, por trem e por bloco, assim que o líder divide as equipes
 function planosDoTurno() {
   const trens = atuais().filter(t => S.espFiltro === 'todos' || t.turno === meuTurnoV()).map(t => ({ t, l: comPlano(t) })).filter(x => x.l.length);
-  const linha = (t, x) => `<li><span class="h">${posF(t, x.p)}</span><span><b>${esc(x.c)}</b><br>${x.pp.map(y => `<span class="pl-vag">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="small muted">(prioridade ${esc(y.prioridade)})</span>` : ''} ${tagExec(x.ex[y.plano])}</span>`).join('')}</span></li>`;
+  // v2.04: o validador também responde (ou corrige) Realizado / Não realizado daqui, pela mesma ação da tela de validação
+  const linha = (t, x) => `<li><span class="h">${posF(t, x.p)}</span><span><b>${esc(x.c)}</b>${x.pp.map(y => { const e = x.ex[y.plano];
+    return `<div class="pl-resp"><span class="pl-vag">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="small muted">(prioridade ${esc(y.prioridade)})</span>` : ''} ${tagExec(e)}${e?.por ? ` <span class="small muted">por ${esc(e.por.split(' ').slice(0, 2).join(' '))}</span>` : ''}</span>
+      <span class="pl-bts"><button class="btn sm ${e?.ok === true ? 'ok' : ''}" data-act="val-plano" data-id="${t.id}" data-p="${x.p}" data-plano="${esc(y.plano)}" data-v="1">✓ Realizado</button><button class="btn sm ${e?.ok === false ? 'nao' : ''}" data-act="val-plano" data-id="${t.id}" data-p="${x.p}" data-plano="${esc(y.plano)}" data-v="0">✗ Não realizado</button></span></div>`; }).join('')}</span></li>`;
   return `<div class="card"><h2>Planos especiais nos trens em revista <span class="dir">${trens.reduce((a, x) => a + x.l.length, 0)} vagão(ões)</span></h2>
     ${trens.length ? trens.map(({ t, l }) => { const blocos = new Map(); l.forEach(x => { const d = donoPos(t, x.p), k = d ? d.n : 0; if (!blocos.has(k)) blocos.set(k, { d, l: [] }); blocos.get(k).l.push(x); });
       return `<div class="secao">🚂 Trem ${esc(t.prefixo)} <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">${dataBR(t.data)} · turno ${t.turno} · ${esc(t.linha)} · líder ${esc(t.lider)} · ${l.length} vagão(ões) com plano</span></div>
