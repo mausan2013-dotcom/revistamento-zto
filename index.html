@@ -378,9 +378,9 @@ body.demo .barra-prog select { border-color: #8b6fd6; color: #3d2a7a; }
 .upload.plan-up { margin: 0; padding: 10px 12px; border-radius: 14px; }
 .upload.plan-up .ic { font-size: 22px; }
 .so-leitura .plan-up, .so-leitura .so-envio { display: none !important; }   /* visualizador: sem envio de planilhas (o banco também recusa) */
-.notas-busca { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
+.notas-busca { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
 .notas-busca label.campo { margin: 0; } .notas-busca .bts { display: flex; gap: 6px; }
-@media (max-width: 760px) { .notas-busca { grid-template-columns: 1fr 1fr; } .notas-busca .vag, .notas-busca .tipo, .notas-busca .bts { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .notas-busca { grid-template-columns: 1fr 1fr; } .notas-busca .pref, .notas-busca .vag, .notas-busca .tipo, .notas-busca .bts { grid-column: 1 / -1; } }
 .nsap { padding: 10px 0; border-bottom: 1px solid var(--line); } .nsap:last-child { border-bottom: 0; }
 .nsap .topo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; } .nsap .topo a { font-weight: 800; color: var(--title); }
 .nsap .desc { margin: 4px 0 2px; font-weight: 600; } .nsap .det { font-size: 13px; color: var(--muted); }
@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.04';
+const VERSAO = '2.05';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3000,8 +3000,12 @@ async function enviarPlanilhaPlanos(arq) {
 // ---------- Notas Abertas SAP (planilha Z369, notas M1/M2/M8) · 19-notas-sap.sql ----------
 // A gestão envia a planilha (cada envio substitui o anterior); todos os perfis buscam por vagão, tipo de nota e período.
 // A busca roda no servidor, 100 notas por vez: o celular não baixa as ~27 mil linhas.
-const NS = { carga: undefined, erro: null, lista: [], total: 0, buscando: false, carregando: false, feita: false, em: 0, q: { vag: '', tipo: '', de: '', ate: '' } };
+const NS = { carga: undefined, erro: null, lista: [], total: 0, buscando: false, carregando: false, feita: false, em: 0, q: { vag: '', pref: '', trem: '', tipo: '', de: '', ate: '' } };
 const NOTAS_PAG = 100;
+// v2.05: busca por prefixo: trens do app com esse prefixo e a ficha já lida (mais recente primeiro); a escolha fica em q.trem
+const normPref = x => String(x || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const trensPref = pf => !normPref(pf) ? [] : DB.trens.filter(t => t.vagoes.length && normPref(t.prefixo) === normPref(pf)).sort((a, b) => b.dataISO.localeCompare(a.dataISO) || b.criadoEm.localeCompare(a.criadoEm));
+const tremNotas = () => { const l = trensPref(NS.q.pref); return l.find(t => t.id === NS.q.trem) || l[0] || null; };
 const erroNotas = m => /relation|does not exist|schema cache/i.test(m || '') ? 'Rode o 19-notas-sap.sql no Supabase' : m;
 async function carregarNotasCarga() {
   if (DEMO) { NS.carga = null; NS.erro = 'Indisponível no modo demonstração'; return; }
@@ -3017,6 +3021,18 @@ async function buscarNotas(mais) {
   if (!NS.carga) return;
   const q = NS.q, dig = q.vag.replace(/\D/g, ''), ser = q.vag.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
   NS.buscando = true; render();
+  if (normPref(q.pref)) {                                          // por prefixo: todas as notas dos vagões do trem, na ordem da ficha
+    const t = tremNotas(); NS.lista = []; NS.total = 0;
+    try {
+      if (t) { const cods = [...new Set(t.vagoes)], pos = new Map(t.vagoes.map((c, i) => [c, i])), rows = [];
+        for (let i = 0; i < cods.length; i += 100) rows.push(...await tudo(() => { let r = sb.from('notas_sap').select('*').eq('carga_id', NS.carga.id).in('vagao', cods.slice(i, i + 100));
+          if (q.tipo) r = r.eq('tp_nota', q.tipo); if (q.de) r = r.gte('data_nota', q.de); if (q.ate) r = r.lte('data_nota', q.ate); return r.order('id'); }));
+        NS.lista = rows.filter(n => casaVag(n.vagao, q.vag)).sort((a, b) => pos.get(a.vagao) - pos.get(b.vagao) || String(b.data_nota).localeCompare(String(a.data_nota)));
+        NS.lista.forEach(n => n._pos = posF(t, pos.get(n.vagao) + 1)); NS.total = NS.lista.length; }
+      NS.erro = null; NS.feita = true;
+    } catch (e) { NS.erro = erroNotas(e.message); toast('⚠ ' + NS.erro); }
+    NS.buscando = false; render(); return;
+  }
   try {
     let r = sb.from('notas_sap').select('*', { count: 'exact' }).eq('carga_id', NS.carga.id);
     if (dig) r = r.ilike('vag_num', '%' + dig + '%');
@@ -3088,18 +3104,25 @@ function vistaNotas() {
     <p class="small muted" style="margin:0 0 10px">Notas M1, M2 e M8 abertas no SAP (planilha Z369)${c?.resumo?.de ? `, de ${dBR(c.resumo.de)} a ${dBR(c.resumo.ate)}` : ''}${Object.keys(tipos).length ? ': ' + Object.entries(tipos).sort().map(([t, n]) => `<b>${esc(t)}</b> ${fmt(n)}`).join(' · ') : ''}.${ehGestao() ? ' A planilha nova substitui a anterior.' : ''}</p>
     ${ehGestao() ? `<div style="max-width:420px;margin-bottom:12px">${upNotas()}</div>` : ''}
     <div class="notas-busca">
+      <label class="campo pref">Prefixo do trem<input id="notas-pref" data-nq="pref" value="${esc(q.pref)}" placeholder="ex.: C63" autocomplete="off" autocapitalize="characters"></label>
       <label class="campo vag">Vagão<input id="notas-vag" data-nq="vag" value="${esc(q.vag)}" placeholder="ex.: 350552 ou HTT 350552-9" inputmode="search" autocomplete="off"></label>
       <label class="campo tipo">Tipo de nota<select data-nq="tipo"><option value="">Todos</option>${Object.keys(tipos).sort().map(t => `<option ${q.tipo === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
       <label class="campo">De<input type="date" data-nq="de" value="${esc(q.de)}"></label>
       <label class="campo">Até<input type="date" data-nq="ate" value="${esc(q.ate)}"></label>
-      <span class="bts"><button class="btn primary" data-act="notas-buscar">🔍 Buscar</button>${q.vag || q.tipo || q.de || q.ate ? '<button class="btn" data-act="notas-limpar">✕ Limpar</button>' : ''}</span>
+      <span class="bts"><button class="btn primary" data-act="notas-buscar">🔍 Buscar</button>${q.vag || q.pref || q.tipo || q.de || q.ate ? '<button class="btn" data-act="notas-limpar">✕ Limpar</button>' : ''}</span>
     </div></div>`;
   if (NS.carga === undefined || (NS.carregando && !NS.feita)) return cab + '<div class="card muted">Carregando as notas do SAP…</div>';
   if (!c) return cab + `<div class="card muted">${NS.erro ? esc(NS.erro) : ehGestao() ? 'Nenhuma planilha enviada ainda. Envie a Z369 no campo acima.' : 'Nenhuma planilha de notas enviada ainda. A gestão (Programador ou PCM) envia a Z369.'}</div>`;
-  const lista = NS.lista.map(n => `<div class="nsap"><div class="topo"><a href="#" data-act="notas-vag" data-v="${esc(n.vagao)}">${esc(n.vagao)}</a><span class="tag info">${esc(n.tp_nota || '–')}</span><span class="small muted">${dBR(n.data_nota)}${n.hora_nota ? ' ' + esc(n.hora_nota.slice(0, 5)) : ''} · Nota ${esc(n.nota || '–')}</span>${n.status_sis ? `<span class="tag neu">${esc(n.status_sis)}</span>` : ''}${n.parada ? '<span class="tag warn">Parada</span>' : ''}</div>
+  const tp = normPref(q.pref) ? tremNotas() : null, tps = normPref(q.pref) ? trensPref(q.pref) : [];
+  const cabPref = !normPref(q.pref) ? '' : !tp ? `<div class="card"><p class="muted small" style="margin:0">Nenhum trem com o prefixo <b>${esc(q.pref)}</b> e ficha lida nos trens do app. Confira o prefixo.</p></div>`
+    : `<div class="card"><h2>Trem ${esc(tp.prefixo)} <span class="dir">${dataBR(tp.data)} · turno ${tp.turno} · ${esc(tp.linha)} · ${tp.vagoes.length} vagões</span></h2>
+      <p class="small" style="margin:0">${NS.buscando ? 'Buscando…' : `<b>${new Set(NS.lista.map(n => n.vagao)).size}</b> vagão(ões) com nota aberta · <b>${fmt(NS.total)}</b> nota(s)`}</p>
+      ${tps.length > 1 ? `<div class="chips" style="margin-top:8px">${tps.map(t => `<button class="chip ${t === tp ? 'on' : ''}" data-act="notas-trem" data-v="${t.id}">${dataBR(t.data)} · turno ${t.turno}${t.status === 'andamento' ? ' · em revista' : ''}</button>`).join('')}</div>` : ''}</div>`;
+  if (normPref(q.pref) && !tp) return cab + cabPref;
+  const lista = NS.lista.map(n => `<div class="nsap"><div class="topo">${n._pos != null && tp ? `<span class="tag neu">pos. ${esc(n._pos)}</span>` : ''}<a href="#" data-act="notas-vag" data-v="${esc(n.vagao)}">${esc(n.vagao)}</a><span class="tag info">${esc(n.tp_nota || '–')}</span><span class="small muted">${dBR(n.data_nota)}${n.hora_nota ? ' ' + esc(n.hora_nota.slice(0, 5)) : ''} · Nota ${esc(n.nota || '–')}</span>${n.status_sis ? `<span class="tag neu">${esc(n.status_sis)}</span>` : ''}${n.parada ? '<span class="tag warn">Parada</span>' : ''}</div>
     <div class="desc">${esc(partesSap(n.descricao) || partesSap(n.texto) || '–')}</div>
     <div class="det">${[n.texto_causa && 'Causa: ' + partesSap(n.texto_causa), n.cod_falha && 'Falha ' + n.cod_falha, n.resp && 'Resp. ' + n.resp, n.ordem && 'Ordem ' + n.ordem, n.centrab && 'CenTrab ' + n.centrab].filter(Boolean).map(esc).join(' · ')}</div></div>`).join('');
-  return cab + `<div class="card"><h2>${NS.buscando && !NS.lista.length ? 'Buscando…' : `${fmt(NS.total)} nota(s)`} <span class="dir">${NS.total > NS.lista.length ? `mostrando ${fmt(NS.lista.length)}` : ''}${NS.buscando ? ' · buscando…' : ''}</span></h2>
+  return cab + cabPref + `<div class="card"><h2>${NS.buscando && !NS.lista.length ? 'Buscando…' : `${fmt(NS.total)} nota(s)`} <span class="dir">${NS.total > NS.lista.length ? `mostrando ${fmt(NS.lista.length)}` : ''}${NS.buscando ? ' · buscando…' : ''}</span></h2>
     ${lista || `<p class="muted small" style="margin:0">${NS.buscando ? 'Buscando…' : 'Nenhuma nota aberta com esse filtro.'}</p>`}
     ${NS.total > NS.lista.length ? `<button class="btn" style="margin-top:10px" data-act="notas-mais" ${NS.buscando ? 'disabled' : ''}>Mostrar mais ${fmt(Math.min(NOTAS_PAG, NS.total - NS.lista.length))}</button>` : ''}</div>`;
 }
@@ -4870,7 +4893,8 @@ document.addEventListener('click', async e => {
     }
     case 'notas-buscar': buscarNotas(); return;
     case 'notas-mais': buscarNotas(true); return;
-    case 'notas-limpar': NS.q = { vag: '', tipo: '', de: '', ate: '' }; buscarNotas(); return;
+    case 'notas-limpar': NS.q = { vag: '', pref: '', trem: '', tipo: '', de: '', ate: '' }; buscarNotas(); return;
+    case 'notas-trem': NS.q.trem = v; buscarNotas(); return;
     case 'notas-vag': e.preventDefault(); NS.q.vag = v; buscarNotas(); return;
     default: return;
   }
@@ -4979,7 +5003,7 @@ document.addEventListener('change', async e => {
 });
 document.addEventListener('input', e => {
   if (e.target.dataset?.cf) { CAM.form[e.target.dataset.cf] = e.target.value; if (e.target.dataset.cf === 'vagao') CAM.form.forcar = false; camAtualizaVag(); return; }
-  if (e.target.dataset?.nq) { NS.q[e.target.dataset.nq] = e.target.value.trim(); return; }
+  if (e.target.dataset?.nq) { NS.q[e.target.dataset.nq] = e.target.value.trim(); if (e.target.dataset.nq === 'pref') NS.q.trem = ''; return; }
   if (e.target.id === 'retro-busca' && S.modal?.tipo === 'retro') { S.modal.q = e.target.value; $('retro-res').innerHTML = retroLista(S.modal); return; }
   if (e.target.id !== 'busca-falha') return;
   const q = semAcento(e.target.value.trim());
@@ -4989,7 +5013,7 @@ document.addEventListener('input', e => {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.target.id === 'busca') { S.busca = e.target.value; render(); }
   if (e.key === 'Enter' && e.target.dataset?.cam === 'vag') { CAM.f.vag = e.target.value.trim(); CAM.ver = 30; render(); }
-  if (e.key === 'Enter' && e.target.id === 'notas-vag') { NS.q.vag = e.target.value.trim(); buscarNotas(); }
+  if (e.key === 'Enter' && (e.target.id === 'notas-vag' || e.target.id === 'notas-pref')) { NS.q[e.target.dataset.nq] = e.target.value.trim(); if (e.target.id === 'notas-pref') NS.q.trem = ''; buscarNotas(); }
   if (e.key === 'Escape' && S.modal) { S.modal = null; renderModal(); }
 });
 document.addEventListener('mousemove', e => {
