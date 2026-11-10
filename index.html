@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.05';
+const VERSAO = '2.06';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -4356,10 +4356,21 @@ function telaLogin(msg) {
     entrar();
   };
 }
+// v2.06: o Supabase recusa senhas vazadas/comuns (proteção de senha) com mensagem em inglês; traduzir para o mecânico
+function msgSenha(e) {
+  const m = String(e?.message || e || ''), c = e?.code || '';
+  if (/weak|easy to guess|pwned|leaked/i.test(m) || c === 'weak_password') return 'Essa senha é muito comum e foi recusada. Escolha outra, misturando letras e números (ex.: uma palavra sua + sua matrícula). Não use 123456, senha123 ou seu nome.';
+  if (/different|same_password/i.test(m) || c === 'same_password') return 'Escolha uma senha diferente da provisória.';
+  if (/at least|characters|short/i.test(m)) return 'A senha é curta demais. Use pelo menos 6 caracteres, com letras e números.';
+  if (/session|jwt|expired|reauth/i.test(m)) return 'A sessão expirou. Toque em Sair e entre de novo com a senha provisória.';
+  if (/fetch|network/i.test(m)) return 'Sem internet. Tente de novo quando tiver sinal.';
+  return 'Não consegui salvar a senha: ' + m;
+}
 function telaTrocarSenha() {
   mostrarTela('tela-login');
   $('login-caixa').innerHTML = `<form id="f-senha"><h3 style="margin:0 0 4px;color:var(--title)">Olá, ${esc(DB.me.nome.split(' ')[0])}!</h3>
       <p class="small muted" style="margin:0 0 12px">Crie sua senha pessoal para continuar. Use pelo menos 6 caracteres e não compartilhe.</p>
+      <p class="small" style="margin:0 0 12px">⚠️ Senhas muito comuns são recusadas (ex.: 123456, senha123, abc123, seu nome). Misture letras e números de um jeito só seu, por exemplo <b>vagao</b> + sua matrícula.</p>
       <label class="campo">Nova senha<input id="s-nova" type="password" autocomplete="new-password" minlength="6" required></label>
       <label class="campo">Repita a nova senha<input id="s-rep" type="password" autocomplete="new-password" minlength="6" required></label>
       <p class="erro-login" id="s-erro" hidden></p>
@@ -4372,7 +4383,7 @@ function telaTrocarSenha() {
     if (a !== b) return erro('As duas senhas não são iguais.');
     $('s-ok').disabled = true;
     const { error } = await sb.auth.updateUser({ password: a });
-    if (error) { $('s-ok').disabled = false; return erro(/different/i.test(error.message) ? 'Escolha uma senha diferente da provisória.' : error.message); }
+    if (error) { $('s-ok').disabled = false; return erro(msgSenha(error)); }
     const r2 = await sb.rpc('marcar_senha_trocada');
     if (r2.error) { $('s-ok').disabled = false; return erro('A senha foi trocada, mas não consegui registrar: ' + r2.error.message); }
     toast('Senha criada. Bem-vindo!'); entrar();
