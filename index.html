@@ -530,7 +530,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
       <span id="logo"></span><span class="divisor"></span>
       <div><h1>Revistamento ZTO</h1><span class="sub" id="sub"></span></div>
       <div class="quem" id="quem"></div>
-      <div class="topo-acoes"><button class="sinc" id="sinc" data-act="nuvem" title="Conexão com a nuvem">☁</button><button class="sair" data-act="sair">Sair</button></div>
+      <div class="topo-acoes"><button class="sinc" data-act="sug-abrir" title="Enviar melhoria, sugestão ou feedback" style="font-size:15px">💡</button><button class="sinc" id="sinc" data-act="nuvem" title="Conexão com a nuvem">☁</button><button class="sair" data-act="sair">Sair</button></div>
     </div>
     <nav class="tabs" id="tabs"></nav>
   </header>
@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.08';
+const VERSAO = '2.09';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1593,7 +1593,7 @@ const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
+  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
   pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
   vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado']],
   cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard'], ['camescala', 'Escala']],
@@ -1634,7 +1634,7 @@ function render() {
   const nVal = S.papel === 'esp' ? filaValidacao().length : 0, nPlan = S.papel === 'esp' ? DB.planos.filter(p => p.status === 'feita' && (S.espFiltro === 'todos' || p.turno === t)).length : 0;
   const prontos = S.papel === 'sup' ? atuais().filter(x => x.turno === t && x.dist.length && x.dist.every(d => d.termino)).length : 0;
   // todos os perfis: lista suspensa (os avisos de pendência vão entre parênteses)
-  const avisoAba = k => { const n = k === 'tarefas' ? pendTec : k === 'validacao' ? nVal : k === 'planos' ? nPlan : k === 'turno' ? prontos : 0; return n ? ` (${n})` : ''; };
+  const avisoAba = k => { const n = k === 'sugestoes' ? SUG.lista.filter(x => x.status === 'novo').length : k === 'tarefas' ? pendTec : k === 'validacao' ? nVal : k === 'planos' ? nPlan : k === 'turno' ? prontos : 0; return n ? ` (${n})` : ''; };
   $('tabs').innerHTML = `<label class="aba-sel"><span>Tela</span><select data-act="aba-sel" aria-label="Escolher a tela">${ABAS[S.papel].map(([k, l]) => `<option value="${k}" ${k === aba ? 'selected' : ''}>${l}${avisoAba(k)}</option>`).join('')}</select></label>`;
   $('main').className = S.papel === 'tec' ? 'estreito' : ''; document.body.classList.toggle('so-leitura', S.papel === 'vis');
   $('main').innerHTML = VIEWS[S.papel][aba]();
@@ -1790,7 +1790,7 @@ function cardTrem(t) {
     ${eqs}
     ${(l => l.length ? `<div class="alerta" style="margin:10px 0 0"><span>⚠ <b>Faixas sobrepostas:</b> ${l.map(x => `Equipe ${x.a} e Equipe ${x.b} nas ${t.posFicha ? 'posições' : 'vagões'} ${posF(t, x.ini)} a ${posF(t, x.fim)}`).join('; ')}. Esses vagões aparecem para as duas equipes: combine quem faz.</span></div>` : '')(sobrepostas(t))}
     ${t.status === 'andamento' && !t.dist.some(d => d.membros.some(m => C(m).turno === t.turno)) ? `<div class="alerta" style="margin:10px 0 0"><span>👥 <b>Sem equipes deste turno neste trem.</b> ${t.dist.length ? 'Recebido do turno anterior: o que já foi registrado fica; divida o restante.' : ''}</span><button class="btn sm primary" data-act="dividir-trem" data-id="${t.id}">Dividir entre as equipes</button></div>` : ''}
-    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}" data-data="${n.data}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${t.status === 'andamento' && addEqCands(t).length ? `<button class="btn sm" data-act="add-eq" data-id="${t.id}">➕ Adicionar equipe</button>` : ''}<button class="btn sm" data-act="trem-nao-rev" data-id="${t.id}">🚫 Marcar não revistado</button>${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
+    <div class="acoes">${aberto ? '' : `<button class="btn sm" data-act="novo-desvio" data-id="${t.id}">⏱ Registrar desvio</button>`}${(n => t.status === 'andamento' && n.turno && n.turno !== t.turno ? `<button class="btn sm" data-act="passar-trem" data-id="${t.id}" data-turno="${n.turno}" data-data="${n.data}">➡ Passar para o turno ${n.turno} (${esc(liderDe(n.turno).split(' ')[0])})</button>` : '')(proximoDe(t.turno))}${t.status === 'andamento' && addEqCands(t).length ? `<button class="btn sm" data-act="trem-add-eq" data-id="${t.id}">➕ Adicionar equipe</button>` : ''}<button class="btn sm" data-act="trem-nao-rev" data-id="${t.id}">🚫 Marcar não revistado</button>${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}">🗑 Apagar trem</button>` : ''}
       <button class="btn sm ${pronto ? 'primary' : ''}" data-act="fechar-trem" data-id="${t.id}">${pronto ? '✓ Conferir e fechar trem' : 'Fechar trem'}</button></div>
     ${pronto ? '<p class="small" style="margin:8px 0 0;color:var(--ok);font-weight:700">Todas as equipes terminaram. Falta a conferência do líder.</p>' : ''}
   </div>`;
@@ -2430,7 +2430,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, addeq: modalAddEq, naorevtrem: modalNaoRevTrem, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, camgrupo: modalCamGrupo, matcad: modalMatCad, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, sug: modalSug, addeq: modalAddEq, naorevtrem: modalNaoRevTrem, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, camgrupo: modalCamGrupo, matcad: modalMatCad, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -2664,6 +2664,39 @@ function modalNaoRevTrem(M) {
     <p class="small muted" style="margin:0 0 8px">O trem sai do celular das equipes e do histórico dos técnicos e passa a contar como não revistado, com a justificativa escolhida.${n ? ` <b>Atenção: ${n} vagão(ões) já tinham registro das equipes.</b>` : ''}</p>
     <label class="campo">Justificativa<select data-act="nr-motivo"><option value="">Escolha…</option>${MOTIVOS_NAO_REV.map(m => `<option ${m === M.motivo ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
     <button class="btn primary big" data-act="confirmar-trem-nao-rev" ${M.motivo ? '' : 'disabled'}>Marcar como não revistado</button>`;
+}
+// ---------- v2.09: sugestões, melhorias e feedbacks do time (40-sugestoes.sql) ----------
+const SUG = { lista: [], ok: false, erro: '', buscando: false, tentou: false };
+const SUG_TIPOS = { melhoria: '🔧 Melhoria', sugestao: '💡 Sugestão', feedback: '💬 Feedback' };
+const SUG_ST = { novo: ['Novo', 'warn'], andamento: ['Em andamento', 'info'], realizado: ['Realizado', 'ok'], descartado: ['Descartado', 'neu'] };
+async function carregarSug() {
+  SUG.tentou = true; if (DEMO || !ehProg() || SUG.buscando) return; SUG.buscando = true;
+  try { const { data, error } = await sb.from('sugestoes').select('*').order('criado_em', { ascending: false }).limit(500);
+    if (error) { SUG.erro = /relation|schema cache|does not exist/i.test(error.message) ? 'sql' : error.message; SUG.ok = false; } else { SUG.lista = data || []; SUG.erro = ''; SUG.ok = true; } }
+  finally { SUG.buscando = false; }
+}
+function modalSug(M) {
+  return `<h3>Melhorias, sugestões e feedbacks</h3>
+    <p class="small muted" style="margin:0 0 8px">Conte o que pode melhorar no app, uma ideia nova ou o que você achou. O programador lê tudo.</p>
+    <label class="campo">Tipo<select data-act="sug-tipo">${Object.entries(SUG_TIPOS).map(([k, l]) => `<option value="${k}" ${k === M.kind ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="campo">O que você quer dizer<textarea id="sug-txt" rows="5" maxlength="2000" placeholder="Escreva aqui…">${esc(M.texto || '')}</textarea></label>
+    <button class="btn primary big" data-act="sug-enviar">Enviar</button>`;
+}
+function progSugestoes() {
+  if (!SUG.tentou && !SUG.buscando) { carregarSug().then(render).catch(() => {}); }
+  if (SUG.erro === 'sql') return '<div class="card"><p class="nota">Para receber as sugestões, rode o <b>40-sugestoes.sql</b> no Supabase (SQL Editor).</p></div>';
+  if (SUG.erro) return `<div class="card"><p class="nota">Não consegui carregar: ${esc(SUG.erro)}</p></div>`;
+  const f = S.sugFiltro || 'abertas', tp = S.sugTipo || 'todos', L = SUG.lista, n = k => L.filter(x => x.status === k).length;
+  const lst = L.filter(x => (f === 'abertas' ? ['novo', 'andamento'].includes(x.status) : f === 'todas' || x.status === f) && (tp === 'todos' || x.tipo === tp));
+  const fil = [['abertas', 'Abertas (' + (n('novo') + n('andamento')) + ')'], ['novo', 'Novas (' + n('novo') + ')'], ['andamento', 'Em andamento (' + n('andamento') + ')'], ['realizado', 'Realizadas (' + n('realizado') + ')'], ['descartado', 'Descartadas (' + n('descartado') + ')'], ['todas', 'Todas (' + L.length + ')']];
+  const dt = x => new Date(x.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return `<div class="card"><h2>Sugestões do time <span class="dir">${lst.length} de ${L.length}</span></h2>
+    <div class="linha-campos"><label class="campo">Situação<select data-act="sug-filtro">${fil.map(([k, l]) => `<option value="${k}" ${k === f ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label class="campo">Tipo<select data-act="sug-filtro-tipo"><option value="todos">Todos</option>${Object.entries(SUG_TIPOS).map(([k, l]) => `<option value="${k}" ${k === tp ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div></div>
+    ${lst.map(x => `<div class="card"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><span><b>${SUG_TIPOS[x.tipo] || x.tipo}</b> <span class="tag ${SUG_ST[x.status][1]}">${SUG_ST[x.status][0]}</span></span><span class="small muted">${esc(x.autor_nome || '–')} · ${esc(x.perfil || '')}${x.turno ? ' · turno ' + esc(x.turno) : ''} · ${dt(x)}</span></div>
+      <p style="margin:8px 0;white-space:pre-wrap">${esc(x.texto)}</p>
+      <label class="campo" style="margin:0 0 8px">Sua anotação<input type="text" data-act="sug-nota" data-id="${x.id}" value="${esc(x.nota || '')}" placeholder="Opcional: o que foi feito ou por que descartou"></label>
+      <div class="acoes">${Object.keys(SUG_ST).filter(k => k !== x.status).map(k => `<button class="btn sm ${k === 'realizado' ? 'primary' : ''}" data-act="sug-status" data-id="${x.id}" data-v="${k}">${k === 'novo' ? '↩ Voltar para novo' : k === 'andamento' ? '▶ Em andamento' : k === 'realizado' ? '✓ Realizado' : '✕ Descartar'}</button>`).join('')}<button class="btn sm perigo" data-act="sug-apagar" data-id="${x.id}" title="Apagar">🗑</button></div></div>`).join('') || '<div class="card muted">Nada nesta lista.</div>'}`;
 }
 function modalNaoInsp(M) {
   const t = tremPorId(M.id), l = [];
@@ -4358,7 +4391,7 @@ const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, notas: vistaNotas },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
   esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, notas: vistaNotas },
-  prog: { geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
+  prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
   pcm: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   vis: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, freio: vistaFreio },
   cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala },
@@ -4457,7 +4490,7 @@ async function atualizar(forcar) {
   SERVICO = emServico();
   const ocupado = S.modal || FILA.length || enviando || (document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && $('main').contains(document.activeElement));
   if (ocupado && !forcar) return;
-  try { await carregar(forcar); semSinal = false; render(); } catch (e) { if (ehRede(e)) { semSinal = true; indicador(); } }
+  try { await carregar(forcar); if (ehProg()) await carregarSug().catch(() => {}); semSinal = false; render(); } catch (e) { if (ehRede(e)) { semSinal = true; indicador(); } }
 }
 const RECARGA_MS = 30e3;                                  // recarga leve (o app também atualiza ao voltar para a tela)
 setInterval(() => atualizar(false), RECARGA_MS);
@@ -4715,7 +4748,26 @@ document.addEventListener('click', async e => {
       teq.forEach(e => t.dist.push({ rowId: e.id, n: e.numero, membros: e.membros, ini: e.ini, fim: e.fim, inicio: null, termino: null }));
       S.modal = null; toast('Trem ' + t.prefixo + ' dividido entre ' + teq.length + ' equipes'); break;
     }
-    case 'add-eq': S.modal = { tipo: 'addeq', id: el.dataset.id, sel: {} }; renderModal(); return;
+    case 'sug-abrir': S.modal = { tipo: 'sug', kind: 'sugestao', texto: '' }; renderModal(); return;
+    case 'sug-enviar': {
+      const txt = ($('sug-txt')?.value || '').trim(); if (!txt) { toast('Escreva a mensagem antes de enviar'); return; }
+      if (!precisaNuvem()) return;
+      const { error } = await sb.from('sugestoes').insert({ tipo: M.kind, texto: txt, autor_nome: DB.me.nome, perfil: DB.me.perfil, turno: DB.me.turno || null });
+      if (error) { toast('⚠ ' + (/relation|schema cache|does not exist/i.test(error.message) ? 'Ainda não está liberado: peça ao programador para rodar o 40-sugestoes.sql' : error.message)); return; }
+      S.modal = null; toast('✓ Enviado. Obrigado!'); if (ehProg()) carregarSug().then(render).catch(() => {}); break;
+    }
+    case 'sug-status': {
+      const x = SUG.lista.find(y => y.id === el.dataset.id); if (!x || !ehProg() || !precisaNuvem()) return;
+      const { error } = await sb.from('sugestoes').update({ status: v, atualizado_em: new Date().toISOString() }).eq('id', x.id);
+      if (error) { toast('⚠ ' + error.message); return; } x.status = v; toast('Marcado como ' + SUG_ST[v][0].toLowerCase()); break;
+    }
+    case 'sug-apagar': {
+      const x = SUG.lista.find(y => y.id === el.dataset.id); if (!x || !ehProg() || !precisaNuvem()) return;
+      if (!confirm('Apagar esta mensagem de ' + (x.autor_nome || 'alguém') + '? Não dá para desfazer.')) return;
+      const { error } = await sb.from('sugestoes').delete().eq('id', x.id); if (error) { toast('⚠ ' + error.message); return; }
+      SUG.lista = SUG.lista.filter(y => y.id !== x.id); toast('Apagada'); break;
+    }
+    case 'trem-add-eq': S.modal = { tipo: 'addeq', id: el.dataset.id, sel: {} }; renderModal(); return;
     case 'confirmar-add-eq': {
       const M = S.modal, t = tremPorId(M.id), sels = addEqCands(t).filter((e, i) => M.sel[i]); if (!sels.length) return;
       const novos = criaEqsNovas(t, sels); t.dist.push(...novos);
@@ -5005,6 +5057,10 @@ document.addEventListener('change', async e => {
   else if (a === 'div-sel') { S.modal.sel[+el.dataset.i] = el.checked; renderModal(); }
   else if (a === 'eq-membro') { M.membros = el.checked ? [...M.membros, el.value] : M.membros.filter(x => x !== el.value); renderModal(); }
   else if (a === 'eq-motivo') { M.motivo = el.value; }
+  else if (a === 'sug-tipo') { M.kind = el.value; }
+  else if (a === 'sug-filtro') { S.sugFiltro = el.value; render(); }
+  else if (a === 'sug-filtro-tipo') { S.sugTipo = el.value; render(); }
+  else if (a === 'sug-nota') { const x = SUG.lista.find(y => y.id === el.dataset.id); if (x && ehProg() && precisaNuvem()) { x.nota = el.value.trim(); sb.from('sugestoes').update({ nota: x.nota || null, atualizado_em: new Date().toISOString() }).eq('id', x.id).then(r => { if (r.error) toast('⚠ ' + r.error.message); else toast('Anotação salva'); }); } }
   else if (a === 'add-sel') { M.sel[+el.dataset.i] = el.checked; renderModal(); }
   else if (a === 'nr-motivo') { M.motivo = el.value; renderModal(); }
   else if (a === 'val-busca') { S.valBusca = el.value.trim(); render(); }
