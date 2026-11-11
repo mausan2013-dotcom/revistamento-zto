@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.07';
+const VERSAO = '2.08';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1777,7 +1777,7 @@ function cardTrem(t) {
     const pendR = retirada ? (() => { let n = 0; for (let q = d.ini; q <= d.fim; q++) if (!t.reg[q] || t.reg[q].st === 'pend') n++; return n; })() : 0;
     const st = retirada ? `<span class="tag neu">Retirada às ${d.termino} · ${proprios} vagão(ões) feitos</span>`
       : d.termino ? `<span class="tag ok">Terminou ${d.termino}</span>` : d.inicio ? `<span class="tag neu">Desde ${d.inicio}</span>` : naFila(t, d) ? '<span class="tag neu">Na fila</span>' : '<span class="tag warn">Não iniciou</span>';
-    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span>${extra ? ' <span class="tag info">faixa extra</span>' : ''} <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}${txApoio ? `<br><b style="color:var(--info)">${txApoio}</b>` : ''}</span></div><div>${st}${t.status === 'andamento' && !d.termino ? ` <button class="btn sm" data-act="editar-eq" data-id="${t.id}" data-i="${i}" title="Trocar integrantes só neste trem">✏ Editar</button>` : ''}</div>${barra(p.n / p.total * 100)}${retirada && t.status === 'andamento' && doTurnoD && pendR ? `<button class="btn sm reaplicar" data-act="reaplicar-eq" data-id="${t.id}" data-i="${i}" title="Retirou por engano? Devolve os vagões que faltam para esta equipe">↩ Reaplicar a Equipe ${d.n} · ${pendR} vagão(ões) voltam para ela</button>` : ''}</div>`; }).join('');
+    return `<div class="dupla-linha"><div><span class="nome">Equipe ${d.n}</span>${extra ? ' <span class="tag info">faixa extra</span>' : ''} <span class="small muted">${esc(nomesEquipe(d.membros))}</span><br><span class="small muted">${t.posFicha ? 'Posições' : 'Vagões'} ${posF(t, d.ini)} a ${posF(t, d.fim)}${d.comeco > d.ini ? ` (começou na ${posF(t, d.comeco)})` : ''} · ${p.n}/${p.total}${p.int ? ` · ${p.int} c/ intervenção` : ''}${p.oc ? ` · <b style="color:var(--bad)">${p.oc} ocorrência(s)</b>` : ''}${txApoio ? `<br><b style="color:var(--info)">${txApoio}</b>` : ''}</span></div><div>${st}${t.status === 'andamento' && !d.termino ? ` <button class="btn sm" data-act="editar-eq" data-id="${t.id}" data-i="${i}" title="Trocar integrantes só neste trem">✏ Editar</button>` : ''}${t.status === 'andamento' && d.termino && !retirada && doTurnoD ? ` <button class="btn sm" data-act="reabrir-bloco" data-id="${t.id}" data-i="${i}" title="O técnico encerrou por engano? Reabre o bloco no celular da equipe, com a mesma faixa e os registros">↩ Reabrir bloco</button>` : ''}</div>${barra(p.n / p.total * 100)}${retirada && t.status === 'andamento' && doTurnoD && pendR ? `<button class="btn sm reaplicar" data-act="reaplicar-eq" data-id="${t.id}" data-i="${i}" title="Retirou por engano? Devolve os vagões que faltam para esta equipe">↩ Reaplicar a Equipe ${d.n} · ${pendR} vagão(ões) voltam para ela</button>` : ''}</div>`; }).join('');
   return `<div class="card">
     <h2>${(k => k >= 0 ? `<span class="fila-n pequeno">${k + 1}º</span>` : '')(filaTurno(t.turno).indexOf(t))} Trem ${esc(t.prefixo)} ${t.naoEnviado ? '<span class="tag warn">⏳ ainda não está no sistema</span>' : ''}<span class="dir">${esc(t.linha)}</span></h2>
     <div class="os-linha">${t.os ? `<span class="os-tag">OS <b>${esc(t.os)}</b></span>` : '<span class="small muted">OS não informada</span>'}<button class="btn sm" data-act="editar-os" data-id="${t.id}">✏ ${t.os ? 'Corrigir' : 'Informar'} OS</button></div>
@@ -4749,6 +4749,14 @@ document.addEventListener('click', async e => {
       aplicarRedivisao(t, P, h);
       registrarLog(`Trem ${t.prefixo} · Equipe ${R.n} (${nomesEquipe(R.membros)}) retirada (${M.motivo}); nova divisão: ` + P.mud.map(x => `Equipe ${x.d.n} ${posF(t, x.ini)}–${posF(t, x.fim)}`).join(', '));
       S.modal = null; toast(`Equipe ${R.n} retirada do ${t.prefixo} · divisão refeita`); break;
+    }
+    case 'reabrir-bloco': {
+      const t = tremPorId(el.dataset.id), R = t && t.dist[+el.dataset.i]; if (!R || !R.termino || t.status !== 'andamento') return;
+      if (!confirm(`Reabrir o bloco da Equipe ${R.n} (${nomesEquipe(R.membros)}) no trem ${t.prefixo}?\n\nO trem volta para o celular da equipe com a mesma faixa (${posF(t, R.ini)} a ${posF(t, R.fim)}). O que já foi registrado continua. Nenhuma outra equipe é alterada.`)) return;
+      const antes = R.termino; R.termino = null;
+      enviar({ tabela: 'trem_equipes', acao: 'update', dados: { termino: null }, filtro: [['id', 'eq', R.rowId]], desc: 'Bloco da Equipe ' + R.n + ' reaberto no trem ' + t.prefixo });
+      registrarLog(`Trem ${t.prefixo} · bloco da Equipe ${R.n} (${nomesEquipe(R.membros)}) reaberto (encerrado às ${antes})`);
+      toast(`Bloco da Equipe ${R.n} reaberto no ${t.prefixo}`); break;
     }
     case 'reaplicar-eq': {
       const t = tremPorId(el.dataset.id), R = t && t.dist[+el.dataset.i]; if (!R) return;
