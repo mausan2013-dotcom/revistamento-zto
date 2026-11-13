@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.10';
+const VERSAO = '2.11';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -774,6 +774,15 @@ async function carregarMateriais(forca) {
   if (DEMO || (!forca && Date.now() - MAT_EM < 5 * 60e3)) return; MAT_EM = Date.now();
   try { const { data, error } = await sb.from('materiais_lista').select('*').order('ordem').order('criado_em'); if (!error && data) { MAT_CFG = data; lsGravar('rzto_mat_cfg', data); } } catch {}
 }
+// v2.11 (SQL 41): coberturas de validação. O programador indica qual validador assume outro turno (saída, férias, atestado);
+// durante o período ele age como titular daquele turno. Sem o SQL 41 a lista fica vazia e vale só o validador titular.
+let COB = lsLer('rzto_cob', []), COB_EM = 0, COB_SQL = true;
+async function carregarCoberturas(forca) {
+  if (DEMO || (!forca && Date.now() - COB_EM < 5 * 60e3)) return; COB_EM = Date.now();
+  try { const { data, error } = await sb.from('validacao_coberturas').select('*').order('de').order('id');
+    if (!error && data) { COB = data; COB_SQL = true; lsGravar('rzto_cob', data); }
+    else if (error && /relation|schema cache|does not exist|42P01|PGRST205/i.test((error.code || '') + ' ' + (error.message || ''))) COB_SQL = false; } catch {}
+}
 const POSICOES = ['1E','2E','3E','4E','1D','2D','3D','4D'];
 const OCORRENCIAS = ['Retenção de vagão', 'Isolado fora da ficha', 'Normalizado fora da ficha', 'Normalizado dentro da ficha', 'Isolado pela mecânica de vagões'];
 const MOTIVOS_PARCIAL = ['Falta temporária de efetivo', 'Equipe em refeição', 'Movimentação de trens', 'Condições climáticas', 'Intervenção mecânica em vagão', 'Restrição de acesso à área', 'Transposição de composição', 'Passagem de turno', 'Desvios operacionais', 'Outro'];
@@ -838,8 +847,20 @@ const primeiro = id => C(id).curtoCalc || C(id).nome;
 const nomesEquipe = m => m.map(primeiro).join(', ');
 const ativos = t => DB.colab.filter(x => x.perfil === 'tecnico' && x.turno === t && x.status === 'ativo').sort((a, b) => a.nome.localeCompare(b.nome)).map(x => x.id);
 const liderDe = t => DB.colab.find(x => x.perfil === 'supervisor' && x.turno === t && x.status === 'ativo')?.nome || '—';
-const validadorDe = t => DB.colab.find(x => x.perfil === 'especializado' && x.turno === t && x.status === 'ativo') || { nome: '—', codigo: '' };
 const curtoV = v => v.nome.split(' ').slice(0, 2).join(' ');
+// v2.11: com cobertura ativa no dia, quem cobre assume o turno no lugar do titular (pode ser mais de um)
+const cobAtiva = (c, d = hojeISO()) => c.de <= d && (!c.ate || c.ate >= d);
+const cobDoTurno = (t, d) => COB.filter(c => c.turno === t && cobAtiva(c, d) && DB.colab.some(x => x.id === c.validador && x.status === 'ativo'));
+const titularV = t => DB.colab.find(x => x.perfil === 'especializado' && x.turno === t && x.status === 'ativo');
+const validadoresDe = (t, d) => { const cs = cobDoTurno(t, d); if (cs.length) return [...new Set(cs.map(c => c.validador))].map(id => ({ ...C(id), cobrindo: true }));
+  const v = titularV(t); return v ? [v] : []; };
+const validadorDe = t => { const l = validadoresDe(t); return l.length ? { nome: l.map(v => curtoV(v) + (v.cobrindo ? ' (cobrindo)' : '')).join(' e '), codigo: l[0].codigo || '', lista: l } : { nome: '—', codigo: '' }; };
+// turnos que o validador logado responde hoje: o dele + os que está cobrindo
+const minhasCob = () => DB.me?.perfil === 'especializado' ? COB.filter(c => c.validador === DB.me.id && cobAtiva(c)) : [];
+const meusTurnosV = () => DB.me?.perfil === 'especializado' && !ehProg() ? [...new Set([DB.me.turno, ...minhasCob().map(c => c.turno)].filter(Boolean))] : [T()];
+const doMeuTurnoV = t => meusTurnosV().includes(t);
+const rotMeusTurnos = () => meusTurnosV().join(' + ');
+const fmtDiaISO = d => d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4) : '';
 function recalcCurto() {
   DB.colab.forEach(x => {
     const p = x.nome.split(' ')[0], dup = DB.colab.filter(y => y.turno === x.turno && y.status !== 'desligado' && y.nome.split(' ')[0] === p).length > 1;
@@ -1099,6 +1120,7 @@ async function carregar(completa) {
   if (DEMO) return;
   if (ehCam()) return carregarCam(completa);
   await carregarMateriais(completa);
+  await carregarCoberturas(completa);
   await conferirColunas();
   await conferirCarimbo();
   if (completa || !RAW.zeroEm || Date.now() - RAW.zeroEm > CARGA_ZERO_MS || !TEM_CARIMBO && Date.now() - RAW.completaEm > CARGA_COMPLETA_MS) return carregarCompleto();
@@ -1620,7 +1642,7 @@ function render() {
   const t = T(), n = minhaEqN();
   const quem = { sup: ['Turno ' + t + ' · ' + liderDe(t), 'Líder' + (servicoDe(t) ? ' · ' + rotServico(servicoDe(t)) : ' · fora do horário de serviço')],
     tec: [(n ? 'Equipe ' + n : 'Sem equipe hoje') + ' · Turno ' + t, uidTec() ? nomeTec(uidTec()) : ''],
-    esp: ['Validador técnico' + (ehProg() ? '' : ' · ' + curtoV(DB.me)), 'Turno ' + t],
+    esp: ['Validador técnico' + (ehProg() ? '' : ' · ' + curtoV(DB.me)), meusTurnosV().length > 1 ? 'Turnos ' + rotMeusTurnos() + ' (cobrindo)' : 'Turno ' + t],
     prog: ['Programador · ' + DB.me.nome.split(' ')[0], 'Acesso total'],
     pcm: ['PCM/Eng · ' + DB.me.nome.split(' ')[0], 'Indicadores e planilhas'],
     vis: ['Visualizador' + (ehVis() ? ' · ' + DB.me.nome.split(' ')[0] : ''), 'Somente leitura'],
@@ -1631,7 +1653,7 @@ function render() {
   if (!VIEWS[S.papel][S.aba[S.papel]]) S.aba[S.papel] = ABAS[S.papel][0][0];
   const aba = S.aba[S.papel];
   const pendTec = S.papel === 'tec' ? DB.planos.filter(p => p.turno === t && (n == null || p.eq === n) && ['aberta', 'reaberta'].includes(p.status)).length : 0;
-  const nVal = S.papel === 'esp' ? filaValidacao().length : 0, nPlan = S.papel === 'esp' ? DB.planos.filter(p => p.status === 'feita' && (S.espFiltro === 'todos' || p.turno === t)).length : 0;
+  const nVal = S.papel === 'esp' ? filaValidacao().length : 0, nPlan = S.papel === 'esp' ? DB.planos.filter(p => p.status === 'feita' && (S.espFiltro === 'todos' || doMeuTurnoV(p.turno))).length : 0;
   const prontos = S.papel === 'sup' ? atuais().filter(x => x.turno === t && x.dist.length && x.dist.every(d => d.termino)).length : 0;
   // todos os perfis: lista suspensa (os avisos de pendência vão entre parênteses)
   const avisoAba = k => { const n = k === 'sugestoes' ? SUG.lista.filter(x => x.status === 'novo').length : k === 'tarefas' ? pendTec : k === 'validacao' ? nVal : k === 'planos' ? nPlan : k === 'turno' ? prontos : 0; return n ? ` (${n})` : ''; };
@@ -1859,6 +1881,7 @@ function supTurno() {
   eventos.sort((a, b) => b.h.localeCompare(a.h));
   const v = validadorDe(tt);
   return `<div class="faixa-turno"><h2>Turno ${tt}${servicoDe(tt) ? ' · ' + rotServico(servicoDe(tt)) : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(deISO(dataOp()))}/${dataOp().slice(0, 4)} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
+  ${!validadoresDe(tt).length ? `<div class="alerta"><span>⚠ <b>Turno ${tt} sem validador técnico.</b> Os apontamentos ficam aguardando validação. Peça ao programador para cadastrar uma cobertura em Cadastros.</span></div>` : ''}
   ${!S.eqSalvo[tt] ? `<p class="nota">As equipes de hoje ainda não foram confirmadas. <button class="btn sm" data-act="aba" data-v="equipes">Montar equipes →</button></p>` : ''}
   <div class="retro-barra"><button class="btn" data-act="retro">📝 Lançar apontamento retroativo</button><span class="small muted">Para o vagão que o mecânico não conseguiu registrar na hora.</span></div>
   <div class="sup-layout">
@@ -1867,7 +1890,7 @@ function supTurno() {
     <div class="card"><h2>Ocorrências e intervenções <span class="dir">${eventos.length}</span></h2><ul class="feed">${eventos.slice(0, 20).map(e => `<li><span class="h">${e.h}</span><span class="${e.cls === 'bad' ? 'ev-bad' : ''}">${e.txt}</span></li>`).join('') || '<li><span></span><span class="muted">Nada registrado ainda.</span></li>'}</ul></div>
       ${cardParadas(DB.trens.filter(t => t.turno === tt && t.dataISO === dataOp()), 'hoje neste turno')}
       <div class="card"><h2>Fechados no turno <span class="dir">${fechados.length}</span></h2>${fechados.length ? `<table class="tabela"><thead><tr><th>Trem</th><th class="num">Inspec.</th><th class="num">Tempo</th><th>Validação</th><th></th></tr></thead><tbody>${fechados.map(t => `<tr><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span></td><td class="num">${t.status === 'nao_revistado' ? '<span class="tag warn">Não revistado</span>' : Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100) + '%'}</td><td class="num">${t.durMin ? dur(t.durMin) : '–'}</td><td>${tagVal(t)}</td><td>${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}" title="Apagar trem">🗑</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<span class="muted small">Nenhum ainda.</span>'}</div>
-      <div class="card"><h2>Planos especiais <span class="dir">do validador ${esc(curtoV(v))}</span></h2><ul class="feed">${DB.planos.filter(p => p.turno === tt && p.status !== 'validada').map(p => `<li><span class="h">${p.criada}</span><span>${esc(p.titulo)}<br><span class="small muted">Equipe ${p.eq}</span> ${tagPlano(p)}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum plano aberto para este turno.</span></li>'}</ul></div>
+      <div class="card"><h2>Planos especiais <span class="dir">do validador ${esc(v.nome)}</span></h2><ul class="feed">${DB.planos.filter(p => p.turno === tt && p.status !== 'validada').map(p => `<li><span class="h">${p.criada}</span><span>${esc(p.titulo)}<br><span class="small muted">Equipe ${p.eq}</span> ${tagPlano(p)}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum plano aberto para este turno.</span></li>'}</ul></div>
     </div>
   </div>`;
 }
@@ -2089,11 +2112,11 @@ const apsVal = t => apontamentos(t).filter(x => blocoFim(t, x.p));
 const blocosAbertos = t => t.status === 'andamento' ? t.dist.filter(x => !x.termino) : [];
 const aConferir = t => apsVal(t).filter(x => x.r && !x.r.val).length;
 const naFilaVal = t => t.status === 'concluido' ? t.validacao?.status === 'pendente' : t.status === 'andamento' && (aConferir(t) > 0 || (t.validacao?.status === 'pendente' && apsVal(t).length > 0));
-const filaValidacao = () => DB.trens.filter(t => naFilaVal(t) && (S.espFiltro === 'todos' || t.turno === meuTurnoV()));
-const filtroTurnoV = () => `<div class="chips"><button class="chip ${S.espFiltro === 'turno' ? 'on' : ''}" data-act="esp-filtro" data-v="turno">Meu turno (${meuTurnoV()})</button><button class="chip ${S.espFiltro === 'todos' ? 'on' : ''}" data-act="esp-filtro" data-v="todos">Todos os turnos</button></div>`;
+const filaValidacao = () => DB.trens.filter(t => naFilaVal(t) && (S.espFiltro === 'todos' || doMeuTurnoV(t.turno)));
+const filtroTurnoV = () => `<div class="chips"><button class="chip ${S.espFiltro === 'turno' ? 'on' : ''}" data-act="esp-filtro" data-v="turno">${meusTurnosV().length > 1 ? 'Meus turnos' : 'Meu turno'} (${rotMeusTurnos()})</button><button class="chip ${S.espFiltro === 'todos' ? 'on' : ''}" data-act="esp-filtro" data-v="todos">Todos os turnos</button></div>${minhasCob().map(c => `<p class="nota" style="margin:0 0 10px">🔁 Você está cobrindo a validação do <b>turno ${c.turno}</b> (${esc(liderDe(c.turno))}) desde ${fmtDiaISO(c.de)}${c.ate ? ' até ' + fmtDiaISO(c.ate) : ', sem data para terminar'}${c.motivo ? ' · ' + esc(c.motivo) : ''}. A fila, os planos especiais e as câmeras desse turno estão com você.</p>`).join('')}`;
 function espValidacao() {
   if (S.valTrem) return telaValidar(tremQualquer(S.valTrem));
-  const fila = filaValidacao(), andamento = atuais().filter(t => S.espFiltro === 'todos' || t.turno === meuTurnoV());
+  const fila = filaValidacao(), andamento = atuais().filter(t => S.espFiltro === 'todos' || doMeuTurnoV(t.turno));
   return `<p class="nota">Os apontamentos das equipes (sapatas, materiais, ocorrências e pendências) chegam aqui <b>assim que a equipe finaliza o bloco</b> (“Encerrar minha parte”), sem esperar o líder fechar o trem. Valide ou corrija cada um e conclua o trem. O fechamento do líder registra o tempo e os desvios.</p>
   ${filtroTurnoV()}
   ${campoBuscaVal('Buscar vagão para validar')}${resultadosBuscaVal(fila)}
@@ -2137,7 +2160,7 @@ function telaValidar(t) {
 }
 // v2.03: planos especiais da ficha nos trens em revista, por trem e por bloco, assim que o líder divide as equipes
 function planosDoTurno() {
-  const trens = atuais().filter(t => S.espFiltro === 'todos' || t.turno === meuTurnoV()).map(t => ({ t, l: comPlano(t) })).filter(x => x.l.length);
+  const trens = atuais().filter(t => S.espFiltro === 'todos' || doMeuTurnoV(t.turno)).map(t => ({ t, l: comPlano(t) })).filter(x => x.l.length);
   // v2.04: o validador também responde (ou corrige) Realizado / Não realizado daqui, pela mesma ação da tela de validação
   const linha = (t, x) => `<li><span class="h">${posF(t, x.p)}</span><span><b>${esc(x.c)}</b>${x.pp.map(y => { const e = x.ex[y.plano];
     return `<div class="pl-resp"><span class="pl-vag">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="small muted">(prioridade ${esc(y.prioridade)})</span>` : ''} ${tagExec(e)}${e?.por ? ` <span class="small muted">por ${esc(e.por.split(' ').slice(0, 2).join(' '))}</span>` : ''}</span>
@@ -2147,10 +2170,10 @@ function planosDoTurno() {
       return `<div class="secao">🚂 Trem ${esc(t.prefixo)} <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">${dataBR(t.data)} · turno ${t.turno} · ${esc(t.linha)} · líder ${esc(t.lider)} · ${l.length} vagão(ões) com plano</span></div>
       ${[...blocos.entries()].sort((a, b) => (a[0] || 99) - (b[0] || 99)).map(([k, { d, l }]) => `<div class="pl-bloco"><div class="pl-bloco-tit">${d ? `<b>Bloco da Equipe ${d.n}</b> · ${esc(nomesEquipe(d.membros))} <span class="small muted">· pos. ${posF(t, d.ini)} a ${posF(t, d.fim)}</span> ${d.termino ? '<span class="tag ok">finalizado</span>' : '<span class="tag warn">em revista</span>'}` : '<b>Fora dos blocos</b> <span class="small muted">· sem equipe definida</span>'}</div>
         <ul class="feed">${l.map(x => linha(t, x)).join('')}</ul></div>`).join('')}`; }).join('')
-    : `<p class="muted small" style="margin:0">Nenhum vagão com plano especial nos trens em revista${S.espFiltro === 'todos' ? '' : ' do turno ' + meuTurnoV()}. A lista aparece assim que o líder lê a ficha e divide as equipes.</p>`}</div>`;
+    : `<p class="muted small" style="margin:0">Nenhum vagão com plano especial nos trens em revista${S.espFiltro === 'todos' ? '' : ' do(s) turno(s) ' + rotMeusTurnos()}. A lista aparece assim que o líder lê a ficha e divide as equipes.</p>`}</div>`;
 }
 function espPlanos() {
-  const mt = S.espFiltro === 'todos' ? null : meuTurnoV(), lista = DB.planos.filter(p => !mt || p.turno === mt), grupo = (tit, arr, acoes) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(p => `<li><span class="h">${p.criada}</span><span><b>${esc(p.titulo)}</b><br><span class="small">${esc(p.desc)}</span><br><span class="small muted">Turno ${p.turno} · Equipe ${p.eq} · por ${esc(p.por.split(' ')[0])}</span> ${tagPlano(p)}${p.obs ? `<br><span class="small">Retorno da equipe: “${esc(p.obs)}”</span>` : ''}${acoes ? `<div class="acoes" style="margin-top:6px"><button class="btn sm ok" data-act="plano-validar" data-id="${p.id}">✓ Validar</button><input id="coment-${p.id}" class="inp" style="min-height:34px;font-size:14px" placeholder="Motivo para reabrir"><button class="btn sm" data-act="plano-reabrir" data-id="${p.id}">↩ Reabrir</button></div>` : ''}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum.</span></li>'}</ul></div>`;
+  const lista = DB.planos.filter(p => S.espFiltro === 'todos' || doMeuTurnoV(p.turno)), grupo = (tit, arr, acoes) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(p => `<li><span class="h">${p.criada}</span><span><b>${esc(p.titulo)}</b><br><span class="small">${esc(p.desc)}</span><br><span class="small muted">Turno ${p.turno} · Equipe ${p.eq} · por ${esc(p.por.split(' ')[0])}</span> ${tagPlano(p)}${p.obs ? `<br><span class="small">Retorno da equipe: “${esc(p.obs)}”</span>` : ''}${acoes ? `<div class="acoes" style="margin-top:6px"><button class="btn sm ok" data-act="plano-validar" data-id="${p.id}">✓ Validar</button><input id="coment-${p.id}" class="inp" style="min-height:34px;font-size:14px" placeholder="Motivo para reabrir"><button class="btn sm" data-act="plano-reabrir" data-id="${p.id}">↩ Reabrir</button></div>` : ''}</span></li>`).join('') || '<li><span></span><span class="muted small">Nenhum.</span></li>'}</ul></div>`;
   const eqs = EQ(S.planoTurno);
   return `<p class="nota">O validador técnico cria o plano, a equipe executa e devolve, e o validador valida ou reabre. O líder acompanha pelo painel do turno.</p>
   ${filtroTurnoV()}
@@ -2168,8 +2191,8 @@ function espPlanos() {
   </div>`;
 }
 function linhasRelPlanos() {
-  const mt = S.papel === 'pcm' ? (S.relTurno === 'todos' ? null : S.relTurno) : S.espFiltro === 'todos' ? null : meuTurnoV(); if (!S.relData) S.relData = isoData(new Date());
-  const doDia = DB.trens.filter(t => t.dataISO === S.relData && (!mt || t.turno === mt));
+  const mt = S.papel === 'pcm' ? (S.relTurno === 'todos' ? null : S.relTurno) : null, todosV = S.papel !== 'pcm' && S.espFiltro === 'todos'; if (!S.relData) S.relData = isoData(new Date());
+  const doDia = DB.trens.filter(t => t.dataISO === S.relData && (S.papel === 'pcm' ? !mt || t.turno === mt : todosV || doMeuTurnoV(t.turno)));
   const prefs = [...new Set(doDia.map(t => t.prefixo))].sort(); if (S.relPref !== 'todos' && !prefs.includes(S.relPref)) S.relPref = 'todos';
   const linhas = [];
   doDia.filter(t => S.relPref === 'todos' || t.prefixo === S.relPref).forEach(t => t.vagoes.forEach((c, i) => {
@@ -2200,7 +2223,7 @@ function espRelPlanos() {
 // todos os vagões já validados ou corrigidos pelo validador, com o que foi apontado
 function espItens() {
   const lst = [];
-  DB.trens.filter(t => S.espFiltro === 'todos' || t.turno === meuTurnoV()).forEach(t => Object.entries(t.reg).forEach(([p, r]) => { if (r.val) lst.push({ t, p: +p, r }); }));
+  DB.trens.filter(t => S.espFiltro === 'todos' || doMeuTurnoV(t.turno)).forEach(t => Object.entries(t.reg).forEach(([p, r]) => { if (r.val) lst.push({ t, p: +p, r }); }));
   const prefs = [...new Set(lst.map(x => x.t.prefixo))].sort(), dias = [...new Set(lst.map(x => x.t.dataISO))].sort().reverse();
   const vis = lst.filter(x => (!S.itDia || x.t.dataISO === S.itDia) && (!S.itPref || x.t.prefixo === S.itPref) && (!S.itSo || (S.itSo === 'corr') === (x.r.val === 'corrigido')))
     .sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || a.t.prefixo.localeCompare(b.t.prefixo) || a.p - b.p);
@@ -2219,7 +2242,7 @@ function espItens() {
   </tbody></table></div>` : '<p class="muted small" style="margin:0">Nenhum item validado neste filtro.</p>'}</div>`;
 }
 function espValidados() {
-  const lst = DB.trens.filter(t => t.validacao?.status === 'validado' && (S.espFiltro === 'todos' || t.turno === meuTurnoV())).slice().reverse().slice(0, 30);
+  const lst = DB.trens.filter(t => t.validacao?.status === 'validado' && (S.espFiltro === 'todos' || doMeuTurnoV(t.turno))).slice().reverse().slice(0, 30);
   return `${filtroTurnoV()}<div class="card"><h2>Trens validados <span class="dir">últimos ${lst.length}</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Apontamentos</th><th class="num">Corrigidos</th><th>Validado por</th><th>Parecer</th></tr></thead><tbody>
     ${lst.map(t => `<tr><td>${dataBR(t.data)}</td><td>${t.turno}</td><td><b>${esc(t.prefixo)}</b></td><td>${t.linha}</td><td class="num">${apontamentos(t).length}</td><td class="num">${t.validacao.corrigidos || 0}</td><td class="small">${esc((t.validacao.por || '').split(' ').slice(0, 2).join(' '))}</td><td class="small muted">${esc(t.validacao.parecer || '')}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Nenhum ainda.</td></tr>'}
   </tbody></table></div></div>`;
@@ -2430,7 +2453,7 @@ function renderModal() {
   const M = S.modal;
   $('modal').hidden = !M;
   if (!M) return;
-  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, sug: modalSug, addeq: modalAddEq, naorevtrem: modalNaoRevTrem, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, camgrupo: modalCamGrupo, matcad: modalMatCad, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
+  $('sheet').innerHTML = `<button class="fechar" data-act="fechar" aria-label="Fechar">×</button>` + ({ vagao: modalVagao, desvio: modalDesvio, colab: modalColab, naoinsp: modalNaoInsp, qtdvag: modalQtdVag, fim: modalFim, dividir: modalDividir, retro: modalRetro, editareq: modalEditarEq, sug: modalSug, addeq: modalAddEq, naorevtrem: modalNaoRevTrem, comeco: modalComeco, nuvem: modalNuvem, camev: modalCamEventos, camgrupo: modalCamGrupo, matcad: modalMatCad, cob: modalCobertura, foto: m => `<h3>Foto</h3>${m.url ? `<img src="${esc(m.url)}" alt="Foto do apontamento" style="width:100%;border-radius:6px">` : '<p class="muted">Carregando…</p>'}` }[M.tipo] || modalFechar)(M);
 }
 function blocoArvore(M) {
   if (!RECURSOS.arvoreFalhas) return '';
@@ -4111,6 +4134,7 @@ function progCadastros() {
     <div class="card larga"><h2>Colaboradores <span class="dir">${DB.colab.filter(x => x.status === 'ativo').length} ativos · ${DB.colab.filter(x => x.status === 'afastado').length} afastado(s)</span></h2>${tabelaColab('ABCD'.split(''))}</div>
     <div class="card"><h2>Líderes</h2><ul class="feed">${'ABCD'.split('').map(k => `<li><span class="h">${k}</span><span>${esc(liderDe(k))}<br><span class="small muted">${ativos(k).length} mecânicos ativos</span></span></li>`).join('')}</ul></div>
     <div class="card"><h2>Validadores técnicos</h2><ul class="feed">${de('especializado').map(v => `<li><span class="h">${esc(v.codigo || '')}</span><span>${esc(v.nome)}<br><span class="small muted">Turno ${v.turno} · com ${esc(liderDe(v.turno))}</span></span></li>`).join('')}</ul></div>
+    ${cardCoberturas()}
     <div class="card"><h2>Programadores</h2><ul class="feed">${de('programador').map(x => `<li><span></span><span>${esc(x.nome)}<br><span class="small muted">${esc(x.login)}</span></span></li>`).join('')}</ul></div>
     ${cardLog(15)}
     <div class="card larga"><h2>Escala 8 horas</h2>${escalaHtml(16)}</div>
@@ -4120,6 +4144,27 @@ function progCadastros() {
     ${lst('Ocorrências por vagão', OCORRENCIAS)}${lst('Motivos de inspeção parcial', MOTIVOS_PARCIAL)}${lst('Motivos de trem não revistado', MOTIVOS_NAO_REV)}${lst('Motivos de desvio', MOTIVOS_DESVIO)}
     <div class="card"><h2>Sobre</h2><p class="small" style="margin:0">Revistamento ZTO v${VERSAO}<br>${RECURSOS.arvoreFalhas ? 'Árvore de falhas ligada.' : 'Árvore de falhas oficial pronta, mas oculta.'}</p></div>
   </div>`;
+}
+// v2.11: coberturas de validação (SQL 41). Só o programador cadastra; aparece o responsável de hoje por turno.
+function cardCoberturas() {
+  const hj = hojeISO(), lst = COB.filter(c => !c.ate || c.ate >= hj).sort((a, b) => a.turno.localeCompare(b.turno) || a.de.localeCompare(b.de));
+  const sit = c => cobAtiva(c) ? '<span class="tag ok">em vigor</span>' : '<span class="tag neu">agendada</span>';
+  return `<div class="card larga"><h2>Coberturas de validação <span class="dir">${lst.filter(c => cobAtiva(c)).length} em vigor · ${lst.filter(c => !cobAtiva(c)).length} agendada(s)</span></h2>
+    ${!COB_SQL ? '<p class="nota">Para usar as coberturas, rode o <b>41-coberturas-validacao.sql</b> no Supabase (SQL Editor).</p>' : ''}
+    <p class="small muted" style="margin:0 0 8px">Quando um validador sai, entra de férias ou fica afastado, indique quem assume o turno. No período, quem cobre age como titular: recebe a fila de validação, os planos especiais e as câmeras do turno. Pode haver mais de um validador por turno.</p>
+    <div class="kpis">${'ABCD'.split('').map(k => { const l = validadoresDe(k); return `<div class="kpi"><div class="r">Turno ${k} hoje</div><div class="v" style="font-size:15px;padding-top:6px">${l.length ? l.map(v => esc(curtoV(v)) + (v.cobrindo ? ' 🔁' : '')).join('<br>') : '<span style="color:var(--bad)">⚠ sem validador</span>'}</div></div>`; }).join('')}</div>
+    ${ehProg() ? '<button class="btn sm primary" data-act="cob-nova" style="margin:6px 0 10px">+ Nova cobertura</button>' : ''}
+    ${lst.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Turno</th><th>Quem cobre</th><th>De</th><th>Até</th><th>Motivo</th><th>Situação</th>${ehProg() ? '<th></th>' : ''}</tr></thead><tbody>${lst.map(c => `<tr><td><b>${c.turno}</b><br><span class="small muted">${esc(liderDe(c.turno))}</span></td><td>${esc(C(c.validador).nome)}<br><span class="small muted">titular do turno ${C(c.validador).turno || '–'}</span></td><td>${fmtDiaISO(c.de)}</td><td>${c.ate ? fmtDiaISO(c.ate) : '<span class="muted">sem data</span>'}</td><td class="small">${esc(c.motivo || '–')}</td><td>${sit(c)}</td>${ehProg() ? `<td><button class="btn sm" data-act="cob-fim" data-id="${c.id}">${cobAtiva(c) ? 'Encerrar' : 'Cancelar'}</button></td>` : ''}</tr>`).join('')}</tbody></table></div>` : '<p class="muted small" style="margin:0">Nenhuma cobertura em vigor ou agendada. Cada turno está com o validador titular.</p>'}
+  </div>`;
+}
+function modalCobertura() {
+  const vs = DB.colab.filter(x => x.perfil === 'especializado' && x.status === 'ativo'), hj = hojeISO();
+  return `<h3>Nova cobertura de validação</h3><p class="small muted">Quem cobre passa a responder pelo turno como titular, nas datas escolhidas. Sem data final, vale até você encerrar.</p>
+    <div class="linha-campos"><label class="campo">Turno a cobrir<select id="cb-turno">${'ABCD'.split('').map(k => `<option value="${k}">Turno ${k} · ${esc(liderDe(k))}</option>`).join('')}</select></label>
+      <label class="campo">Validador que cobre<select id="cb-val">${vs.map(v => `<option value="${v.id}">${esc(v.nome)} (turno ${v.turno})</option>`).join('')}</select></label></div>
+    <div class="linha-campos"><label class="campo">De<input type="date" id="cb-de" value="${hj}"></label><label class="campo">Até (opcional)<input type="date" id="cb-ate" min="${hj}"></label></div>
+    <label class="campo">Motivo<input id="cb-mot" maxlength="120" placeholder="Ex.: férias do Carlos Renato · saída do Douglas"></label>
+    <button class="btn primary big" data-act="cob-salvar">Salvar cobertura</button>`;
 }
 function baixarCSV(linhas, nome) {
   const csv = '﻿' + linhas.map(l => l.map(c => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(';')).join('\r\n');
@@ -5016,6 +5061,26 @@ document.addEventListener('click', async e => {
       S.modal = { tipo: 'colab', acao, id, motivo: '', campos: {} }; renderModal(); return;
     }
     case 'mat-novo': S.modal = { tipo: 'matcad' }; renderModal(); return;
+    case 'cob-nova': if (!ehProg()) return; if (!COB_SQL) { toast('Rode antes o 41-coberturas-validacao.sql no Supabase'); return; } S.modal = { tipo: 'cob' }; renderModal(); return;
+    case 'cob-salvar': {
+      if (!ehProg() || !precisaNuvem()) return;
+      const turno = $('cb-turno').value, validador = $('cb-val').value, de = $('cb-de').value, ate = $('cb-ate').value || null, motivo = ($('cb-mot').value || '').trim() || null;
+      if (!validador) { toast('Escolha o validador'); return; } if (!de) { toast('Informe a data de início'); return; } if (ate && ate < de) { toast('A data final é antes do início'); return; }
+      if (C(validador).turno === turno) { toast('Esse validador já é o titular do turno ' + turno); return; }
+      if (COB.some(c => c.turno === turno && c.validador === validador && c.de <= (ate || '9999-12-31') && (!c.ate || c.ate >= de))) { toast('Já existe cobertura desse validador nesse turno no período'); return; }
+      const c = { id: uuid(), turno, validador, de, ate, motivo, criado_por: DB.me.id };
+      const { error } = await sb.from('validacao_coberturas').insert(c); if (error) { toast('⚠ ' + (/relation|schema cache|does not exist/i.test(error.message) ? 'Rode antes o 41-coberturas-validacao.sql' : error.message)); return; }
+      COB = [...COB, c]; lsGravar('rzto_cob', COB); registrarLog(`Cobertura: ${C(validador).nome} cobre o turno ${turno} de ${fmtDiaISO(de)}${ate ? ' a ' + fmtDiaISO(ate) : ' sem data final'}`);
+      S.modal = null; renderModal(); toast(curtoV(C(validador)) + ' assume a validação do turno ' + turno); break;
+    }
+    case 'cob-fim': {
+      if (!ehProg() || !precisaNuvem()) return; const c = COB.find(x => x.id === el.dataset.id); if (!c) return;
+      const ontem = isoData(new Date(Date.now() - 864e5)), cancelar = c.de > ontem;   // ainda não começou (ou começou hoje): cancela; em vigor: termina ontem
+      const { error } = cancelar ? await sb.from('validacao_coberturas').delete().eq('id', c.id) : await sb.from('validacao_coberturas').update({ ate: ontem }).eq('id', c.id);
+      if (error) { toast('⚠ ' + error.message); return; }
+      COB = cancelar ? COB.filter(x => x.id !== c.id) : COB.map(x => x.id === c.id ? { ...x, ate: ontem } : x); lsGravar('rzto_cob', COB);
+      registrarLog(`Cobertura ${cancelar ? 'cancelada' : 'encerrada'}: ${C(c.validador).nome} no turno ${c.turno}`); toast(cancelar ? 'Cobertura cancelada' : 'Cobertura encerrada. O turno ' + c.turno + ' volta ao titular'); break;
+    }
     case 'mat-salvar': {
       const nome = ($('mc-nome').value || '').replace(/\s+/g, ' ').trim(), desc = ($('mc-desc').value || '').trim(), norm = x => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
       if (nome.length < 3) { toast('Escreva o nome do material'); return; }
