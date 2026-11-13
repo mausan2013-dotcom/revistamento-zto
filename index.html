@@ -472,7 +472,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .pl-linha { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; font-size: 13px; font-weight: 700; color: var(--info); }
 .pl-linha + .pl-linha { margin-top: 6px; }
 .pl-linha .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
-.pl-linha .btn.nao, .pl-bts .btn.nao { background: var(--bad); border-color: var(--bad); color: #fff; }
+.pl-linha .btn.nao, .pl-bts .btn.nao, .nota-bts .btn.nao { background: var(--bad); border-color: var(--bad); color: #fff; }
 @media (max-width: 420px) { .pl-linha { grid-template-columns: 1fr 1fr; } .pl-linha span { grid-column: 1 / -1; } }
 .fila-item { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 8px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
 .fila-item:first-of-type { border-top: 0; }
@@ -693,7 +693,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.16';
+const VERSAO = '2.17';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1027,18 +1027,19 @@ const linhasNotas = (l, t, pos) => juntarNotas(l).map(g => `<br><span style="col
 const SIST_NOTA = [['DDV', /ddv/], ['Engate (CCT)', /engate|pino (t|mandibula)|haste de manobra|retentor/], ['Freio', /freio|sapata|timoneria|triangulo|tirante|valvula|cilindro|coletor/],
   ['Rodeiro', /roda|rodeiro|adaptador|bandagem|pista|rolamento|topador/], ['Truque', /travessa|amparo|prato|cunha|mola|truque/], ['Estrutura', /longarina/], ['Descarga', /descarga/]];
 const sistemaNota = g => (SIST_NOTA.find(([, r]) => r.test(semAcento(String(g || '')))) || ['Outros'])[0];
-const NBX = { porTrem: {}, em: 0, sql: true };
+const NBX = { porTrem: lsLer('rzto_nbx', {}), em: 0, sql: true };
+const nbxSalvar = () => lsGravar('rzto_nbx', NBX.porTrem);
 async function carregarNotasBaixa() {
   if (DEMO || OFFLINE || ehCam() || ehVis() || !NBX.sql) return;
   const ids = atuais().map(t => t.id).filter(id => !String(id).startsWith('demo-'));
-  if (!ids.length) { NBX.porTrem = {}; return; }
+  if (!ids.length) { NBX.porTrem = {}; nbxSalvar(); return; }
   try {
     const out = {}, pos = (r, f, por, quando) => ((out[r.trem_id] ||= {})[r.posicao] ||= {})[r.nota] = { f, por, quando };
     for (let i = 0; i < ids.length; i += 100) (await tudo(() => sb.from('notas_baixa').select('trem_id,posicao,nota,fechar,por,quando').in('trem_id', ids.slice(i, i + 100)).order('id')))
       .forEach(r => pos(r, r.fechar, r.por ? C(r.por).nome : '', r.quando));
     [...REJ, ...FILA].filter(o => o.tabela === 'notas_baixa').forEach(o => [].concat(o.dados).forEach(x => {   // resposta ainda no aparelho vale mais
       if (!(o.ignorar && ((out[x.trem_id] || {})[x.posicao] || {})[x.nota])) pos(x, x.fechar, DB.me.nome, x.quando); }));
-    NBX.porTrem = out; NBX.em = Date.now();
+    NBX.porTrem = out; NBX.em = Date.now(); nbxSalvar();
   } catch (e) { if (/relation|schema cache|does not exist/i.test(e.message || '')) NBX.sql = false; }
 }
 const notasVag = cod => { const v = new Set(); return notasPend(cod).filter(x => !v.has(x.nota) && v.add(x.nota)); };   // uma linha por nota
@@ -1050,7 +1051,7 @@ function nbxGravar(t, pos, nota, fechar) {
   const x = notasVag(t.vagoes[pos - 1]).find(y => String(y.nota) === String(nota)); if (!x) return;
   const dados = { ...nbxLinha(t, pos, donoPos(t, pos), x), fechar };
   ((NBX.porTrem[t.id] ||= {})[pos] ||= {})[x.nota] = { f: fechar, por: DB.me.nome, quando: dados.quando };
-  enviar({ tabela: 'notas_baixa', acao: 'upsert', onConflict: 'trem_id,posicao,nota', dados, desc: 'Nota SAP ' + x.nota + ' · ' + dados.vagao });
+  nbxSalvar(); enviar({ tabela: 'notas_baixa', acao: 'upsert', onConflict: 'trem_id,posicao,nota', dados, desc: 'Nota SAP ' + x.nota + ' · ' + dados.vagao });
 }
 function nbxSemResposta(t, d) {                        // ao encerrar a parte; não sobrescreve resposta dada em outro aparelho
   if (!NBX.sql) return; const l = [];
@@ -1058,7 +1059,8 @@ function nbxSemResposta(t, d) {                        // ao encerrar a parte; n
     l.push({ ...nbxLinha(t, p, d, x), fechar: null }); ((NBX.porTrem[t.id] ||= {})[p] ||= {})[x.nota] = { f: null, por: DB.me.nome }; });
   if (l.length) enviar({ tabela: 'notas_baixa', acao: 'upsert', onConflict: 'trem_id,posicao,nota', ignorar: true, dados: l, desc: l.length + ' nota(s) SAP sem sinalização' });
 }
-// v2.16: a equipe pediu os botões no resumo "ver vagões" do bloco (junto de restrições, planos e notas), não embaixo de cada vagão
+// v2.17: os botões ficam na janela do vagão (onde o técnico registra defeito ou material); o bloco só finaliza com todas as notas sinalizadas
+const podeSinNota = t => NBX.sql && !ehVis() && t.status === 'andamento';
 const notasResumo = (t, pos) => juntarNotas(notasVag(t.vagoes[pos - 1])).map(g => { const e = estadoGrupo(t, pos, g), ns = esc(g.notas.join(','));
   return `<span class="nota-sin">📝 <b>${esc(g.grupo)}</b> · ${esc(g.tp || '')} ${datasNota(g)} · ${rotNotas(g)}<br><span class="small muted">${esc(g.desc)}</span>
     <span class="nota-bts"><button class="btn sm ${e?.f === true ? 'ok' : ''}" data-act="nota-fech" data-trem="${t.id}" data-p="${pos}" data-nota="${ns}" data-v="1">✓ Será fechada</button>
@@ -2145,8 +2147,12 @@ const temDefeito = r => !!r && r.st !== 'pend' && (!!r.obs || r.falhas.length > 
 const planosSemResp = (t, p) => planosPend(t.vagoes[p - 1]).filter(x => !((t.pexec || {})[p] || {})[x.plano]);
 // planos especiais sem resposta na faixa da equipe: travam o "Encerrar minha parte"
 // v1.91: o apontamento do Portal de Câmeras sem retorno do técnico também trava (antes o trem fechava e ele ia a "Concluído" sem resposta)
+// pendências agrupadas por vagão: [[vagão, 'Vagão Dual, 📷 Câmeras, 📝 9 notas SAP']]
+const pendVag = sr => { const m = new Map(); sr.forEach(x => (m.get(x.cod) || m.set(x.cod, []).get(x.cod)).push(x.plano));
+  return [...m].map(([c, l]) => { const nt = l.filter(x => x.startsWith('📝')).length; return [c, [...l.filter(x => !x.startsWith('📝')), ...(nt ? ['📝 ' + nt + (nt > 1 ? ' notas SAP' : ' nota SAP')] : [])].join(', ')]; }); };
 const planosAbertosFaixa = (t, d) => { const out = []; for (let p = d.ini; p <= d.fim; p++) { planosSemResp(t, p).forEach(x => out.push({ p, cod: t.vagoes[p - 1], plano: x.plano }));
-  if (camDe(t, p).some(a => !a.retorno)) out.push({ p, cod: t.vagoes[p - 1], plano: '📷 Câmeras' }); } return out; };
+  if (camDe(t, p).some(a => !a.retorno)) out.push({ p, cod: t.vagoes[p - 1], plano: '📷 Câmeras' });
+  if (podeSinNota(t)) juntarNotas(notasVag(t.vagoes[p - 1])).forEach(g => { const e = estadoGrupo(t, p, g); if (!e || e.f == null) out.push({ p, cod: t.vagoes[p - 1], plano: '📝 Nota SAP ' + g.grupo }); }); } return out; };
 const apontamentos = t => { const ps = new Set([...Object.entries(t.reg).filter(([, r]) => r.st === 'int' || temDefeito(r) || r.val === 'corrigido').map(([p]) => +p), ...Object.keys(t.pexec || {}).map(Number),
     ...t.vagoes.map((c, i) => i + 1).filter(p => planosSemResp(t, p).length)]);
   return [...ps].sort((a, b) => a - b).map(p => ({ p, r: t.reg[p], ex: (t.pexec || {})[p] || {} })); };
@@ -2450,12 +2456,12 @@ function tecMeu() {
     ${barra(p.n / p.total * 100)}
     ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length, nt = a.filter(x => x.nn.length).length, cm = a.filter(x => x.cc.length).length, ab = S.tecAten === t.id + ':' + d.n, podeSin = (!d.termino || escolhido) && NBX.sql && !ehVis(), nSin = podeSin ? notasSemSin(t, a) : 0;
       return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''}${(iso || pl) && nt ? ' · ' : ''}${nt ? `<b style="color:var(--info)">📝 ${nt} com nota SAP</b>${nSin ? ` <span class="tag warn">${nSin} a sinalizar</span>` : ''}` : ''}${(iso || pl || nt) && cm ? ' · ' : ''}${cm ? `<b style="color:var(--cam)">📷 ${cm} apontado(s) pelas câmeras</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
-      ${ab ? `<ul class="aten-lista${podeSin && nt ? ' com-bts' : ''}">${a.map(x => `<li><span class="pos">${posF(t, x.pos)}</span><span><b>${esc(x.cod)}</b>${x.r ? ' <span class="tag ok">registrado</span>' : ''}
+      ${ab ? `<ul class="aten-lista">${a.map(x => `<li><span class="pos">${posF(t, x.pos)}</span><span><b>${esc(x.cod)}</b>${x.r ? ' <span class="tag ok">registrado</span>' : ''}
         ${x.rf ? `<br><span style="color:var(--warn)">⚠ Na ficha: ${esc(x.rf.motivo)}${x.rf.data ? ` <span class="muted">(desde ${esc(x.rf.data)})</span>` : ''}</span>` : ''}
-        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${podeSin ? notasResumo(t, x.pos) : linhasNotas(x.nn, t, x.pos)}${linhasCam(x.cc)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
+        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${linhasNotas(x.nn, t, x.pos)}${linhasCam(x.cc)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
-      : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial ou câmeras sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado no plano e dê o retorno das câmeras para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
+      : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial, câmeras ou nota SAP sem resposta</b> em ${pendVag(sr).length} vagão(ões): ${pendVag(sr).map(([c, l]) => `<b>${esc(c)}</b> (${esc(l)})`).join(' · ')}. Marque Realizado ou Não realizado no plano, dê o retorno das câmeras e sinalize as notas SAP (toque no vagão) para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
       : `<span class="small muted">Revista iniciada às ${d.inicio}</span>`}</div>
     ${seguintes.length && !d.termino ? `<button class="btn sm avancar" data-act="tec-avancar" data-id="${t.id}" data-nome="${esc(t.prefixo)}" data-prox="${esc(seguintes[0].prefixo)}">⏭ Avançar para o próximo trem (${esc(seguintes[0].prefixo)}) sem encerrar este</button>` : ''}
   </div>
@@ -2465,7 +2471,7 @@ function tecMeu() {
   ${d.inicio || escolhido ? `<div class="chips">${[['faltam', 'Faltam ' + (p.total - p.n)], ['feitos', 'Feitos ' + p.n], ['todos', 'Todos'], ...(atencaoFaixa(t, d).length ? [['atencao', '⚠ Atenção ' + atencaoFaixa(t, d).length]] : [])].map(([k, l]) => `<button class="chip ${S.tecFiltro === k ? 'on' : ''}" data-act="tec-filtro" data-v="${k}">${l}</button>`).join('')}</div>
   <div class="vagoes">${lista.join('') || '<div class="card muted">Nada nesta lista.</div>'}</div>
   ${(n => n && (!d.termino || escolhido) ? (sr => sr.length
-      ? `<div class="alerta" style="margin:12px 0 8px"><span>📋 <b>Plano especial ou câmeras sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado no plano e dê o retorno das câmeras para finalizar o bloco.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big finalizar" style="opacity:.55" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">responda os planos especiais e as câmeras primeiro</span></button>`
+      ? `<div class="alerta" style="margin:12px 0 8px"><span>📋 <b>Plano especial, câmeras ou nota SAP sem resposta</b> em ${pendVag(sr).length} vagão(ões): ${pendVag(sr).map(([c, l]) => `<b>${esc(c)}</b> (${esc(l)})`).join(' · ')}. Marque Realizado ou Não realizado no plano, dê o retorno das câmeras e sinalize as notas SAP (toque no vagão) para finalizar o bloco.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big finalizar" style="opacity:.55" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">responda planos, câmeras e notas SAP primeiro</span></button>`
       : `<button class="btn ok big finalizar" data-act="finalizar-bloco" data-id="${t.id}">✓ Finalizar bloco de vagões<br><span class="small">${n} vagão(ões) sem apontamento serão registrados como OK</span></button>`)(planosAbertosFaixa(t, d)) : '')(p.total - p.n)}` : '<p class="muted small">Toque em <b>Iniciar revista</b> quando a equipe chegar ao primeiro vagão. A hora fica registrada.</p>'}`;
 }
 // planos especiais enviados pelo validador para a equipe (ficam no próprio Meu turno)
@@ -2530,7 +2536,7 @@ function blocoArvore(M) {
     ${N.falha ? '<button class="btn" style="width:100%;margin-bottom:12px" data-act="add-falha">+ Adicionar falha</button>' : ''}`;
 }
 function modalVagao(M) {
-  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}${notasPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📝 <span><b>Nota(s) aberta(s) no SAP:</b>${linhasNotas(notasPend(t.vagoes[M.pos - 1]))}<br><span class="small">Confira o componente na revista. Se achar o defeito, registre no vagão.</span></span></div>` : ''}${camDe(t, M.pos).length ? `<div class="aviso-cam"><b>📷 Defeito apontado pelo Portal de Câmeras</b><span class="small">Confira na revista e dê o retorno. Se o defeito existir, registre também no vagão.</span>${camDe(t, M.pos).map(a => camRetorno(a, true)).join('')}</div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
+  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}${notasPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📝 <span><b>Nota(s) aberta(s) no SAP:</b>${podeSinNota(t) ? notasResumo(t, M.pos) : linhasNotas(notasPend(t.vagoes[M.pos - 1]), t, M.pos)}<br><span class="small">Confira o componente na revista. Se achar o defeito, registre no vagão.${podeSinNota(t) ? ' <b>Sinalize cada nota: será fechada ou fica aberta.</b> O bloco só finaliza com todas respondidas.' : ''}</span></span></div>` : ''}${camDe(t, M.pos).length ? `<div class="aviso-cam"><b>📷 Defeito apontado pelo Portal de Câmeras</b><span class="small">Confira na revista e dê o retorno. Se o defeito existir, registre também no vagão.</span>${camDe(t, M.pos).map(a => camRetorno(a, true)).join('')}</div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
   if (!M.modo) return cab + `<div class="escolhas">
     <button class="btn ok big" data-act="salvar-ok">✓ Revistado, sem intervenção</button>
     <button class="btn big" style="color:var(--title);border-color:var(--title)" data-act="modo" data-v="int">🔧 Troca de material / ocorrência</button>
@@ -4900,7 +4906,7 @@ document.addEventListener('click', async e => {
       if (!livres.length) { toast('Todos os vagões da faixa já estão registrados'); return; }
       // trava: nenhum plano especial da faixa pode ficar sem resposta (Realizado / Não realizado)
       const sr = planosAbertosFaixa(t, d);
-      if (sr.length) { S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial ou câmeras): ${sr.map(x => x.cod).join(', ')}. Responda para finalizar o bloco.`); return; }
+      if (sr.length) { S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial, câmeras ou nota SAP): ${pendVag(sr).map(([c]) => c).join(', ')}. Responda para finalizar o bloco.`); return; }
       const lista = livres.map(p => `${t.posFicha ? 'pos.' : 'nº'} ${posF(t, p)} · ${t.vagoes[p - 1]}`), mostra = lista.slice(0, 25).join('\n') + (lista.length > 25 ? `\n… e mais ${lista.length - 25}` : '');
       if (!confirm(`Registrar como OK (revistado, sem intervenção) estes ${livres.length} vagão(ões) da sua faixa?\n\n${mostra}\n\nConfira se todos foram revistados. Os vagões com defeito ou informação devem ser registrados antes.`)) return;
       const h = agora(), linhas = livres.map(p => ({ trem_id: t.id, posicao: p, vagao: t.vagoes[p - 1], equipe: d.n, hora: h, resultado: 'ok', materiais: [], ocorrencias: [], obs: null, motivo: null, falhas: [] }));
@@ -4928,7 +4934,7 @@ document.addEventListener('click', async e => {
       // fall through
     case 'comeco-sim': case 'encerrar': {
       const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'encerrar' ? 'termino' : 'inicio';
-      if (campo === 'termino' && planosAbertosFaixa(t, d).length) { const sr = planosAbertosFaixa(t, d); S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial ou câmeras): ${sr.map(x => x.cod).join(', ')}`); return; }
+      if (campo === 'termino' && planosAbertosFaixa(t, d).length) { const sr = planosAbertosFaixa(t, d); S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial, câmeras ou nota SAP): ${pendVag(sr).map(([c]) => c).join(', ')}`); return; }
       if (a === 'comeco-sim') S.modal = null;
       d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: campo === 'inicio' ? 'Início da revista' : 'Fim da revista' });
       if (campo === 'termino') nbxSemResposta(t, d);
@@ -4980,7 +4986,7 @@ document.addEventListener('click', async e => {
     case 'nota-fech': {
       const t = tremPorId(el.dataset.trem || S.tecTrem), pos = +el.dataset.p; if (!t) return;
       const ns = el.dataset.nota.split(','); ns.forEach(n => nbxGravar(t, pos, n, v === '1'));
-      toast('📝 ' + (ns.length > 1 ? ns.length + ' notas iguais' : 'Nota ' + ns[0]) + (v === '1' ? ': será(ão) fechada(s)' : ': fica(m) aberta(s)')); break;
+      toast('📝 ' + (ns.length > 1 ? ns.length + ' notas iguais' : 'Nota ' + ns[0]) + (v === '1' ? ': será(ão) fechada(s)' : ': fica(m) aberta(s)')); if (S.modal) renderModal(); break;
     }
     case 'nf-st': NF.st = v; NF.ver = 50; break;
     case 'nf-turno': NF.turno = v; NF.ver = 50; break;
