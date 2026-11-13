@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.11';
+const VERSAO = '2.12';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -4131,10 +4131,10 @@ function progCadastros() {
   const lst = (tit, arr) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(m => `<li><span></span><span>${esc(m)}</span></li>`).join('')}</ul></div>`;
   const de = p => DB.colab.filter(x => x.perfil === p && x.status === 'ativo');
   return `<div class="grid">
+    ${cardCoberturas()}
     <div class="card larga"><h2>Colaboradores <span class="dir">${DB.colab.filter(x => x.status === 'ativo').length} ativos · ${DB.colab.filter(x => x.status === 'afastado').length} afastado(s)</span></h2>${tabelaColab('ABCD'.split(''))}</div>
     <div class="card"><h2>Líderes</h2><ul class="feed">${'ABCD'.split('').map(k => `<li><span class="h">${k}</span><span>${esc(liderDe(k))}<br><span class="small muted">${ativos(k).length} mecânicos ativos</span></span></li>`).join('')}</ul></div>
     <div class="card"><h2>Validadores técnicos</h2><ul class="feed">${de('especializado').map(v => `<li><span class="h">${esc(v.codigo || '')}</span><span>${esc(v.nome)}<br><span class="small muted">Turno ${v.turno} · com ${esc(liderDe(v.turno))}</span></span></li>`).join('')}</ul></div>
-    ${cardCoberturas()}
     <div class="card"><h2>Programadores</h2><ul class="feed">${de('programador').map(x => `<li><span></span><span>${esc(x.nome)}<br><span class="small muted">${esc(x.login)}</span></span></li>`).join('')}</ul></div>
     ${cardLog(15)}
     <div class="card larga"><h2>Escala 8 horas</h2>${escalaHtml(16)}</div>
