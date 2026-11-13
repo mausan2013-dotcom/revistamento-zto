@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.14';
+const VERSAO = '2.15';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1004,7 +1004,20 @@ async function carregarNotasTec() {
 const notasPend = cod => NTEC.mapa[cod] || [];
 const txtNotas = l => [...new Set(l.map(x => x.grupo))].join(', ');
 const dtNota = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
-const linhasNotas = (l, t, pos) => l.map(x => `<br><span style="color:var(--info)">📝 <b>${esc(x.grupo)}</b> · ${esc(x.tp || '')} ${dtNota(x.data)} · nota ${esc(x.nota || '')}${t ? ' ' + tagNbx(nbxDe(t, pos, x.nota)) : ''}<br><span class="small muted">${esc(x.desc)}</span></span>`).join('');
+// v2.15: o SAP às vezes tem várias notas iguais no mesmo vagão (ex.: 13 notas de Longarina com a mesma descrição, abertas no mesmo dia).
+// Notas com o mesmo componente e a mesma descrição viram uma linha só; os botões marcam todas as notas do grupo.
+const chaveNota = x => x.grupo + '|' + semAcento(String(x.desc || '')).replace(/[^a-z0-9]+/g, ' ').trim();
+function juntarNotas(l) {
+  const m = new Map();
+  l.forEach(x => { const k = chaveNota(x), g = m.get(k), n = String(x.nota);
+    if (!g) m.set(k, { ...x, notas: [n], datas: [x.data].filter(Boolean) }); else if (!g.notas.includes(n)) { g.notas.push(n); if (x.data) g.datas.push(x.data); } });
+  return [...m.values()].map(g => { const d = g.datas.slice().sort(); return { ...g, dIni: d[0], dFim: d[d.length - 1] }; });
+}
+const listaNotas = l => l.length > 4 ? l.slice(0, 3).join(', ') + ' e mais ' + (l.length - 3) : l.join(', ');
+const rotNotas = g => g.notas.length > 1 ? `<b>${g.notas.length} notas iguais</b> <span class="muted">(${esc(listaNotas(g.notas))})</span>` : 'nota ' + esc(g.notas[0]);
+const datasNota = g => g.dIni ? dtNota(g.dIni) + (g.dFim !== g.dIni ? ' a ' + dtNota(g.dFim) : '') : '';
+const estadoGrupo = (t, pos, g) => { const e = g.notas.map(n => nbxDe(t, pos, n)); return e.every(x => x && x.f === e[0].f) ? e[0] : null; };
+const linhasNotas = (l, t, pos) => juntarNotas(l).map(g => `<br><span style="color:var(--info)">📝 <b>${esc(g.grupo)}</b> · ${esc(g.tp || '')} ${datasNota(g)} · ${rotNotas(g)}${t ? ' ' + tagNbx(estadoGrupo(t, pos, g)) : ''}<br><span class="small muted">${esc(g.desc)}</span></span>`).join('');
 // ---------- v2.14: notas SAP que a revista vai fechar (42-notas-fechadas.sql) ----------
 // No cartão do vagão, cada nota da lista combinada com o PCM ganha "Será fechada" / "Fica aberta". Ao encerrar a parte,
 // as notas sem resposta entram como "sem sinalização" (fechar = null): assim a aba Notas fechadas sabe o total apontado.
@@ -1043,10 +1056,10 @@ function nbxSemResposta(t, d) {                        // ao encerrar a parte; n
     l.push({ ...nbxLinha(t, p, d, x), fechar: null }); ((NBX.porTrem[t.id] ||= {})[p] ||= {})[x.nota] = { f: null, por: DB.me.nome }; });
   if (l.length) enviar({ tabela: 'notas_baixa', acao: 'upsert', onConflict: 'trem_id,posicao,nota', ignorar: true, dados: l, desc: l.length + ' nota(s) SAP sem sinalização' });
 }
-const botoesNota = (t, pos) => { const l = notasVag(t.vagoes[pos - 1]); return l.length ? `<div class="pl-acoes">${l.map(x => { const e = nbxDe(t, pos, x.nota);
-  return `<div class="pl-linha"><span>📝 ${esc(x.grupo)} <span class="small muted">· nota ${esc(x.nota)}</span></span>
-    <button class="btn sm ${e?.f === true ? 'ok' : ''}" data-act="nota-fech" data-p="${pos}" data-nota="${esc(x.nota)}" data-v="1">✓ Será fechada</button>
-    <button class="btn sm ${e?.f === false ? 'nao' : ''}" data-act="nota-fech" data-p="${pos}" data-nota="${esc(x.nota)}" data-v="0">✗ Fica aberta</button></div>`; }).join('')}</div>` : ''; };
+const botoesNota = (t, pos) => { const l = juntarNotas(notasVag(t.vagoes[pos - 1])); return l.length ? `<div class="pl-acoes">${l.map(g => { const e = estadoGrupo(t, pos, g), ns = esc(g.notas.join(','));
+  return `<div class="pl-linha"><span>📝 ${esc(g.grupo)} <span class="small muted">· ${rotNotas(g)}</span>${g.desc ? `<br><span class="small muted">${esc(g.desc)}</span>` : ''}</span>
+    <button class="btn sm ${e?.f === true ? 'ok' : ''}" data-act="nota-fech" data-p="${pos}" data-nota="${ns}" data-v="1">✓ Será fechada</button>
+    <button class="btn sm ${e?.f === false ? 'nao' : ''}" data-act="nota-fech" data-p="${pos}" data-nota="${ns}" data-v="0">✗ Fica aberta</button></div>`; }).join('')}</div>` : ''; };
 
 // Carga dos dados. Para economizar tráfego (Supabase, plano grátis: 5 GB/mês de saída), três níveis (v1.51):
 //  · do zero: ao entrar sem cópia no aparelho, em "Atualizar agora" e a cada 12 h;
@@ -4958,7 +4971,8 @@ document.addEventListener('click', async e => {
     }
     case 'nota-fech': {
       const t = tremPorId(S.tecTrem), pos = +el.dataset.p; if (!t) return;
-      nbxGravar(t, pos, el.dataset.nota, v === '1'); toast(v === '1' ? '📝 Nota ' + el.dataset.nota + ': será fechada' : '📝 Nota ' + el.dataset.nota + ': fica aberta'); break;
+      const ns = el.dataset.nota.split(','); ns.forEach(n => nbxGravar(t, pos, n, v === '1'));
+      toast('📝 ' + (ns.length > 1 ? ns.length + ' notas iguais' : 'Nota ' + ns[0]) + (v === '1' ? ': será(ão) fechada(s)' : ': fica(m) aberta(s)')); break;
     }
     case 'nf-st': NF.st = v; NF.ver = 50; break;
     case 'nf-turno': NF.turno = v; NF.ver = 50; break;
