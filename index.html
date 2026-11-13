@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.13';
+const VERSAO = '2.14';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1004,7 +1004,49 @@ async function carregarNotasTec() {
 const notasPend = cod => NTEC.mapa[cod] || [];
 const txtNotas = l => [...new Set(l.map(x => x.grupo))].join(', ');
 const dtNota = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) : '';
-const linhasNotas = l => l.map(x => `<br><span style="color:var(--info)">📝 <b>${esc(x.grupo)}</b> · ${esc(x.tp || '')} ${dtNota(x.data)} · nota ${esc(x.nota || '')}<br><span class="small muted">${esc(x.desc)}</span></span>`).join('');
+const linhasNotas = (l, t, pos) => l.map(x => `<br><span style="color:var(--info)">📝 <b>${esc(x.grupo)}</b> · ${esc(x.tp || '')} ${dtNota(x.data)} · nota ${esc(x.nota || '')}${t ? ' ' + tagNbx(nbxDe(t, pos, x.nota)) : ''}<br><span class="small muted">${esc(x.desc)}</span></span>`).join('');
+// ---------- v2.14: notas SAP que a revista vai fechar (42-notas-fechadas.sql) ----------
+// No cartão do vagão, cada nota da lista combinada com o PCM ganha "Será fechada" / "Fica aberta". Ao encerrar a parte,
+// as notas sem resposta entram como "sem sinalização" (fechar = null): assim a aba Notas fechadas sabe o total apontado.
+// O sistema vem da classificação (grupo) da nota; DDV antes de Freio por causa de "DDV válvula".
+const SIST_NOTA = [['DDV', /ddv/], ['Engate (CCT)', /engate|pino (t|mandibula)|haste de manobra|retentor/], ['Freio', /freio|sapata|timoneria|triangulo|tirante|valvula|cilindro|coletor/],
+  ['Rodeiro', /roda|rodeiro|adaptador|bandagem|pista|rolamento|topador/], ['Truque', /travessa|amparo|prato|cunha|mola|truque/], ['Estrutura', /longarina/], ['Descarga', /descarga/]];
+const sistemaNota = g => (SIST_NOTA.find(([, r]) => r.test(semAcento(String(g || '')))) || ['Outros'])[0];
+const NBX = { porTrem: {}, em: 0, sql: true };
+async function carregarNotasBaixa() {
+  if (DEMO || OFFLINE || ehCam() || ehVis() || !NBX.sql) return;
+  const ids = atuais().map(t => t.id).filter(id => !String(id).startsWith('demo-'));
+  if (!ids.length) { NBX.porTrem = {}; return; }
+  try {
+    const out = {}, pos = (r, f, por, quando) => ((out[r.trem_id] ||= {})[r.posicao] ||= {})[r.nota] = { f, por, quando };
+    for (let i = 0; i < ids.length; i += 100) (await tudo(() => sb.from('notas_baixa').select('trem_id,posicao,nota,fechar,por,quando').in('trem_id', ids.slice(i, i + 100)).order('id')))
+      .forEach(r => pos(r, r.fechar, r.por ? C(r.por).nome : '', r.quando));
+    [...REJ, ...FILA].filter(o => o.tabela === 'notas_baixa').forEach(o => [].concat(o.dados).forEach(x => {   // resposta ainda no aparelho vale mais
+      if (!(o.ignorar && ((out[x.trem_id] || {})[x.posicao] || {})[x.nota])) pos(x, x.fechar, DB.me.nome, x.quando); }));
+    NBX.porTrem = out; NBX.em = Date.now();
+  } catch (e) { if (/relation|schema cache|does not exist/i.test(e.message || '')) NBX.sql = false; }
+}
+const notasVag = cod => { const v = new Set(); return notasPend(cod).filter(x => !v.has(x.nota) && v.add(x.nota)); };   // uma linha por nota
+const nbxDe = (t, pos, nota) => ((NBX.porTrem[t.id] || {})[pos] || {})[nota];
+const tagNbx = e => e && e.f != null ? `<span class="tag ${e.f ? 'ok' : 'warn'}">${e.f ? '✓ Será fechada' : '✗ Fica aberta'}</span>` : '';
+const nbxLinha = (t, pos, d, x) => ({ trem_id: t.id, posicao: pos, vagao: t.vagoes[pos - 1], nota: String(x.nota), tp_nota: x.tp || null, data_nota: x.data || null, grupo: x.grupo, sistema: sistemaNota(x.grupo),
+  descricao: x.desc || null, prefixo: t.prefixo, data_trem: t.dataISO, turno: t.turno, equipe: d?.n ?? null, membros: d?.membros || [], quando: new Date().toISOString(), por: DB.me.id });
+function nbxGravar(t, pos, nota, fechar) {
+  const x = notasVag(t.vagoes[pos - 1]).find(y => String(y.nota) === String(nota)); if (!x) return;
+  const dados = { ...nbxLinha(t, pos, donoPos(t, pos), x), fechar };
+  ((NBX.porTrem[t.id] ||= {})[pos] ||= {})[x.nota] = { f: fechar, por: DB.me.nome, quando: dados.quando };
+  enviar({ tabela: 'notas_baixa', acao: 'upsert', onConflict: 'trem_id,posicao,nota', dados, desc: 'Nota SAP ' + x.nota + ' · ' + dados.vagao });
+}
+function nbxSemResposta(t, d) {                        // ao encerrar a parte; não sobrescreve resposta dada em outro aparelho
+  if (!NBX.sql) return; const l = [];
+  for (let p = d.ini; p <= d.fim; p++) notasVag(t.vagoes[p - 1]).forEach(x => { if (nbxDe(t, p, x.nota)) return;
+    l.push({ ...nbxLinha(t, p, d, x), fechar: null }); ((NBX.porTrem[t.id] ||= {})[p] ||= {})[x.nota] = { f: null, por: DB.me.nome }; });
+  if (l.length) enviar({ tabela: 'notas_baixa', acao: 'upsert', onConflict: 'trem_id,posicao,nota', ignorar: true, dados: l, desc: l.length + ' nota(s) SAP sem sinalização' });
+}
+const botoesNota = (t, pos) => { const l = notasVag(t.vagoes[pos - 1]); return l.length ? `<div class="pl-acoes">${l.map(x => { const e = nbxDe(t, pos, x.nota);
+  return `<div class="pl-linha"><span>📝 ${esc(x.grupo)} <span class="small muted">· nota ${esc(x.nota)}</span></span>
+    <button class="btn sm ${e?.f === true ? 'ok' : ''}" data-act="nota-fech" data-p="${pos}" data-nota="${esc(x.nota)}" data-v="1">✓ Será fechada</button>
+    <button class="btn sm ${e?.f === false ? 'nao' : ''}" data-act="nota-fech" data-p="${pos}" data-nota="${esc(x.nota)}" data-v="0">✗ Fica aberta</button></div>`; }).join('')}</div>` : ''; };
 
 // Carga dos dados. Para economizar tráfego (Supabase, plano grátis: 5 GB/mês de saída), três níveis (v1.51):
 //  · do zero: ao entrar sem cópia no aparelho, em "Atualizar agora" e a cada 12 h;
@@ -1217,6 +1259,7 @@ async function montarDados() {
   if (prog) DB.planosTodos = planos.map(planoDe);
   await carregarPendentes();
   await carregarNotasTec();
+  await carregarNotasBaixa();
   await carregarCamTec();
   DB.log = RAW.log.map(l => ({ quando: dataBR(new Date(l.quando)) + ' ' + horaDe(l.quando), quem: l.quem ? C(l.quem).nome : '—', acao: l.acao }));
   sincronizarEquipes();
@@ -1612,11 +1655,11 @@ function entrarDemo() {
 // ---------- render geral ----------
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
-  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP']],
-  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP']],
+  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
+  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
+  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
+  pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
   vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos']],
   cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard'], ['camescala', 'Escala']],
   camsup: [['camnovo', 'Novo apontamento'], ['camhist', 'Ocorrências da equipe'], ['cammeus', 'Minhas ocorrências'], ['camdash', 'Dashboard'], ['camescala', 'Escala e turmas']]
@@ -2313,7 +2356,7 @@ function itemVagao(t, pos, d, escolhido) {
     const botoesPlano = pp.length && (!d.termino || escolhido) ? `<div class="pl-acoes">${pp.map(x => { const e = pex[x.plano]; return `<div class="pl-linha"><span>📋 ${esc(x.plano)}</span>
       <button class="btn sm ${e?.ok === true ? 'ok' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="1">✓ Realizado</button>
       <button class="btn sm ${e?.ok === false ? 'nao' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="0">✗ Não realizado</button></div>`; }).join('')}</div>` : '';
-    const botoesCam = cc.length && (!d.termino || escolhido) ? `<div class="pl-acoes cam-acoes">${cc.map(a => camRetorno(a)).join('')}</div>` : '', extras = botoesPlano + botoesCam;
+    const botoesCam = cc.length && (!d.termino || escolhido) ? `<div class="pl-acoes cam-acoes">${cc.map(a => camRetorno(a)).join('')}</div>` : '', extras = botoesPlano + (nn.length && (!d.termino || escolhido) && NBX.sql && !ehVis() ? botoesNota(t, pos) : '') + botoesCam;
   return `${extras ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length || nn.length || cc.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
       ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${nn.length ? `<span class="det av plano">📝 Nota SAP aberta: ${esc(txtNotas(nn))}</span>` : ''}${cc.length ? `<span class="det av cam">📷 Câmeras: ${esc(txtCam(cc))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}${outra ? `<span class="det apoio">🤝 feito pela Equipe ${outra} (apoio)</span>` : ''}</span>${tagReg(r)}</button>${extras ? extras + '</div>' : ''}`;
 }
@@ -2388,7 +2431,7 @@ function tecMeu() {
       return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''}${(iso || pl) && nt ? ' · ' : ''}${nt ? `<b style="color:var(--info)">📝 ${nt} com nota SAP</b>` : ''}${(iso || pl || nt) && cm ? ' · ' : ''}${cm ? `<b style="color:var(--cam)">📷 ${cm} apontado(s) pelas câmeras</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
       ${ab ? `<ul class="aten-lista">${a.map(x => `<li><span class="pos">${posF(t, x.pos)}</span><span><b>${esc(x.cod)}</b>${x.r ? ' <span class="tag ok">registrado</span>' : ''}
         ${x.rf ? `<br><span style="color:var(--warn)">⚠ Na ficha: ${esc(x.rf.motivo)}${x.rf.data ? ` <span class="muted">(desde ${esc(x.rf.data)})</span>` : ''}</span>` : ''}
-        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${linhasNotas(x.nn)}${linhasCam(x.cc)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
+        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${linhasNotas(x.nn, t, x.pos)}${linhasCam(x.cc)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
       : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial ou câmeras sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado no plano e dê o retorno das câmeras para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
@@ -3814,6 +3857,93 @@ function vistaIndic() {
       <p class="small muted" style="margin:6px 0 0">Os apontamentos da planilha não se dividem por turno, linha ou prefixo: esses filtros não valem para eles.</p></div>
   </div>`;
 }
+// ---------- v2.14: aba Notas fechadas (análise das sinalizações da revista) ----------
+const NF = { de: isoData(new Date(Date.now() - 29 * 864e5)), ate: isoData(new Date()), turno: null, st: 'todas', ver: 50, l: [], ok: false, erro: '', buscando: false };
+const NF_ST = [['Será fechada', 'var(--ok)'], ['Fica aberta', 'var(--warn)'], ['Sem sinalização', 'var(--muted)']];
+const nfSt = x => x.fechar === true ? 0 : x.fechar === false ? 1 : 2;
+const nfDias = x => x.data_nota && x.data_trem ? Math.max(0, Math.round((new Date(x.data_trem) - new Date(x.data_nota)) / 864e5)) : null;
+const nfDupla = x => (x.membros || []).length ? nomesEquipe(x.membros) : 'Equipe ' + (x.equipe ?? '?');
+async function nfCarregar(forca) {
+  if (NF.buscando || (NF.ok && !forca)) return;
+  if (DEMO) { NF.ok = true; return; }
+  NF.buscando = true;
+  try { NF.l = await tudo(() => sb.from('notas_baixa').select('*').gte('data_trem', NF.de).lte('data_trem', NF.ate).order('id')); NF.erro = ''; NF.ok = true; }
+  catch (e) { NF.erro = /relation|schema cache|does not exist/i.test(e.message || '') ? 'sql' : (e.message || 'erro'); }
+  finally { NF.buscando = false; }
+}
+function nfAgrupa(L, chave) {                          // [{rot, partes:[fechada, aberta, sem]}] do maior para o menor
+  const m = {}; L.forEach(x => { const k = chave(x) || '—'; (m[k] ||= [0, 0, 0])[nfSt(x)]++; });
+  return Object.entries(m).map(([rot, partes]) => ({ rot, partes })).sort((a, b) => b.partes[0] - a.partes[0] || b.partes.reduce((s, v) => s + v, 0) - a.partes.reduce((s, v) => s + v, 0));
+}
+function vistaNotasFech() {
+  if (NF.turno == null) NF.turno = ['supervisor', 'especializado'].includes(DB.me?.perfil) && !ehProg() ? (DB.me.turno || '') : '';
+  if (!NF.ok && !NF.buscando && !NF.erro) nfCarregar().then(render).catch(() => {});
+  const cab = `<div class="card"><h2>Notas fechadas pela revista <span class="dir">notas SAP abertas apontadas nos vagões</span></h2>
+    <p class="small muted" style="margin:0 0 10px">No cartão do vagão, a equipe marca em cada nota SAP aberta se ela <b>será fechada</b> (defeito corrigido na revista) ou <b>fica aberta</b>. Ao encerrar a parte, as notas sem resposta contam como <b>sem sinalização</b>.</p>
+    <div class="cam-busca"><label class="campo">De<input type="date" data-nf="de" value="${esc(NF.de)}"></label><label class="campo">Até<input type="date" data-nf="ate" value="${esc(NF.ate)}"></label><span class="bts"><button class="btn" data-act="nf-buscar">↻ Atualizar</button></span></div>
+    <div class="chips" style="margin-top:8px">${['', 'A', 'B', 'C', 'D'].map(t => `<button class="chip ${NF.turno === t ? 'on' : ''}" data-act="nf-turno" data-v="${t}">${t ? 'Turno ' + t : 'Todos os turnos'}</button>`).join('')}</div></div>`;
+  if (NF.erro === 'sql') return cab + '<div class="card"><p class="nota">Para guardar as sinalizações, rode o <b>42-notas-fechadas.sql</b> no Supabase (SQL Editor).</p></div>';
+  if (NF.erro) return cab + `<div class="card"><p class="nota">Não consegui carregar: ${esc(NF.erro)}</p></div>`;
+  if (!NF.ok) return cab + '<div class="card"><p class="muted">Carregando…</p></div>';
+  const L = NF.l.filter(x => !NF.turno || x.turno === NF.turno), n = L.length;
+  if (!n) return cab + `<div class="card"><p class="muted" style="margin:0">Nenhuma nota SAP apontada em vagões revistados de ${fmtDiaISO(NF.de)} a ${fmtDiaISO(NF.ate)}${NF.turno ? ' no turno ' + NF.turno : ''}.</p></div>`;
+  const fe = L.filter(x => x.fechar === true), ab = L.filter(x => x.fechar === false), sem = n - fe.length - ab.length, sin = fe.length + ab.length;
+  const pc = (a, b) => b ? pct1(a, b) + '%' : '–', cores = NF_ST.map(x => x[1]), nomes = NF_ST.map(x => x[0]);
+  const idades = fe.map(nfDias).filter(v => v != null), idadeMed = idades.length ? Math.round(idades.reduce((a, b) => a + b, 0) / idades.length) : null;
+  // linha do tempo: por dia até 62 dias; por mês acima disso
+  const dias = Math.round((new Date(NF.ate) - new Date(NF.de)) / 864e5) + 1, porMes = dias > 62, cron = {};
+  for (let d = new Date(NF.de + 'T12:00'); isoData(d) <= NF.ate; d.setDate(d.getDate() + 1)) cron[porMes ? isoData(d).slice(0, 7) : isoData(d)] = [0, 0];
+  L.forEach(x => { const k = porMes ? String(x.data_trem).slice(0, 7) : x.data_trem; if (cron[k]) { cron[k][1]++; if (x.fechar === true) cron[k][0]++; } });
+  const tempo = Object.entries(cron).map(([k, [f, t]]) => ({ rot: porMes ? MESES[+k.slice(5) - 1] : k.slice(8, 10) + '/' + k.slice(5, 7), v: f, tip: `${porMes ? MESES[+k.slice(5) - 1] + '/' + k.slice(0, 4) : fmtDiaISO(k)}: ${f} será(ão) fechada(s) de ${t} apontada(s)` }));
+  const FX = [['até 7 dias', 0, 7], ['8 a 30', 8, 30], ['31 a 90', 31, 90], ['91 a 180', 91, 180], ['mais de 180', 181, 1e9]];
+  const fxIdade = FX.map(([rot, a, b]) => ({ rot, v: idades.filter(v => v >= a && v <= b).length }));
+  const duplas = Object.values(L.reduce((m, x) => { const k = (x.membros || []).slice().sort().join(',') + '|' + x.turno; const o = (m[k] ||= { nome: nfDupla(x), turno: x.turno, p: [0, 0, 0] }); o.p[nfSt(x)]++; return m; }, {}))
+    .sort((a, b) => b.p[0] - a.p[0] || b.p.reduce((s, v) => s + v, 0) - a.p.reduce((s, v) => s + v, 0));
+  const grupos = nfAgrupa(L, x => x.grupo);
+  const lista = L.filter(x => NF.st === 'todas' || nfSt(x) === +NF.st).sort((a, b) => String(b.data_trem).localeCompare(String(a.data_trem)) || String(b.quando).localeCompare(String(a.quando)));
+  const leit = [];
+  if (grupos[0]?.partes[0]) leit.push(`Classificação com mais notas fechadas: <b>${esc(grupos[0].rot)}</b> (${grupos[0].partes[0]}).`);
+  const piorG = grupos.filter(g => g.partes[0] + g.partes[1] >= 3).sort((a, b) => b.partes[1] / (b.partes[0] + b.partes[1]) - a.partes[1] / (a.partes[0] + a.partes[1]))[0];
+  if (piorG?.partes[1]) leit.push(`Mais deixada aberta: <b>${esc(piorG.rot)}</b> (${piorG.partes[1]} de ${piorG.partes[0] + piorG.partes[1]} sinalizadas).`);
+  if (sem) leit.push(`<b>${sem}</b> nota(s) ficaram sem sinalização (${pc(sem, n)} das apontadas).`);
+  return cab + `<div class="kpis">${kpi('Notas apontadas', fmt(n), 'nos vagões revistados')}${kpi('Serão fechadas', fmt(fe.length), pc(fe.length, n) + ' das apontadas')}${kpi('Ficam abertas', fmt(ab.length), pc(ab.length, n) + ' das apontadas')}
+    ${kpi('Sem sinalização', fmt(sem), pc(sem, n) + ' das apontadas')}${kpi('Taxa de fechamento', pc(fe.length, sin), 'das sinalizadas')}${kpi('Vagões com nota fechada', fmt(new Set(fe.map(x => x.vagao)).size), idadeMed == null ? '' : 'nota fechada tinha em média ' + idadeMed + ' dia(s)')}</div>
+  ${leit.length ? `<div class="card"><p class="small" style="margin:0">${leit.join(' ')}</p></div>` : ''}
+  <div class="grid">
+    <div class="card"><h2>Sinalização <span class="dir">notas apontadas</span></h2>${rosca(NF_ST.map(([nm, c], k) => [nm, [fe.length, ab.length, sem][k], c, `data-act="nf-st" data-v="${k}"`]), { centro: fmt(n), rot: 'notas' })}</div>
+    <div class="card"><h2>Notas que serão fechadas <span class="dir">${porMes ? 'por mês' : 'por dia'}</span></h2>${colunas(tempo, { cor: 'var(--ok)', larg: porMes ? 40 : 26 })}</div>
+    <div class="card"><h2>Por sistema</h2>${pilhas(nfAgrupa(L, x => x.sistema || sistemaNota(x.grupo)), nomes, cores)}</div>
+    <div class="card"><h2>Por classificação <span class="dir">componente da nota</span></h2>${pilhas(grupos.slice(0, 15), nomes, cores)}${grupos.length > 15 ? `<p class="small muted" style="margin:6px 0 0">+ ${grupos.length - 15} classificação(ões) com menos notas (veja no Excel).</p>` : ''}</div>
+    <div class="card"><h2>Por turno</h2>${pilhas(nfAgrupa(L, x => 'Turno ' + (x.turno || '?')).sort((a, b) => a.rot.localeCompare(b.rot)), nomes, cores)}</div>
+    <div class="card"><h2>Por tipo de nota</h2>${pilhas(nfAgrupa(L, x => x.tp_nota), nomes, cores)}</div>
+    <div class="card"><h2>Idade da nota fechada <span class="dir">dias entre a abertura no SAP e a revista</span></h2>${idades.length ? colunas(fxIdade, { cor: 'var(--s2)', larg: 56 }) : semDados}</div>
+    <div class="card larga"><h2>Por dupla <span class="dir">${duplas.length} equipe(s)</span></h2><div class="rolagem"><table class="tabela"><thead><tr><th>Dupla / trio</th><th>Turno</th><th class="num">Apontadas</th><th class="num">Serão fechadas</th><th>% fechamento</th><th class="num">Ficam abertas</th><th class="num">Sem sinalização</th></tr></thead><tbody>
+      ${duplas.map(o => { const t = o.p[0] + o.p[1] + o.p[2], p = t ? Math.round(o.p[0] / t * 100) : 0; return `<tr><td>${esc(o.nome)}</td><td>${esc(o.turno || '')}</td><td class="num">${t}</td><td class="num"><b style="color:var(--ok)">${o.p[0]}</b></td><td><span class="cam-pct"><i style="width:${p}%;background:var(--ok)"></i></span><b>${p}%</b></td><td class="num">${o.p[1] || '<span class="muted">·</span>'}</td><td class="num">${o.p[2] || '<span class="muted">·</span>'}</td></tr>`; }).join('')}
+      </tbody></table></div><p class="small muted" style="margin:6px 0 0">% fechamento = notas que serão fechadas ÷ notas apontadas nos vagões da dupla.</p></div>
+    <div class="card larga"><h2>Notas <span class="dir">${fmt(lista.length)}</span></h2>
+      <div class="chips" style="margin:0 0 8px">${[['todas', 'Todas', n], ...NF_ST.map(([nm], k) => [String(k), nm, [fe.length, ab.length, sem][k]])].map(([k, nm, q]) => `<button class="chip ${NF.st === k ? 'on' : ''}" data-act="nf-st" data-v="${k}">${nm} (${q})</button>`).join('')}
+        <button class="btn sm" data-act="exportar-nf" style="margin-left:auto">⬇ Excel (${fmt(n)})</button></div>
+      ${lista.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Vagão</th><th>Nota</th><th>Classificação</th><th>Sistema</th><th>Descrição</th><th>Turno</th><th>Dupla</th><th>Sinalização</th></tr></thead><tbody>
+      ${lista.slice(0, NF.ver).map(x => `<tr><td>${fmtDiaISO(x.data_trem)}</td><td>${esc(x.prefixo || '')}</td><td><b>${esc(x.vagao)}</b></td><td>${esc(x.nota)}<br><span class="small muted">${esc(x.tp_nota || '')} ${x.data_nota ? 'de ' + fmtDiaISO(x.data_nota) : ''}</span></td><td>${esc(x.grupo || '')}</td><td>${esc(x.sistema || sistemaNota(x.grupo))}</td>
+        <td class="small" style="min-width:200px">${esc(x.descricao || '')}</td><td>${esc(x.turno || '')}</td><td class="small">${esc(nfDupla(x))}</td><td>${x.fechar == null ? '<span class="tag">sem sinalização</span>' : tagNbx({ f: x.fechar })}${x.por ? `<br><span class="small muted">${esc(C(x.por).nome)}</span>` : ''}</td></tr>`).join('')}
+      </tbody></table></div>${lista.length > NF.ver ? `<button class="btn sm" style="margin-top:8px" data-act="nf-mais">Mostrar mais (${lista.length - NF.ver})</button>` : ''}` : semDados}</div>
+  </div>`;
+}
+async function exportarNF() {
+  const L = NF.l.filter(x => !NF.turno || x.turno === NF.turno);
+  try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
+  const a1 = [['Data da revista', 'Trem', 'Turno', 'Equipe', 'Dupla', 'Vagão', 'Nota', 'Tipo', 'Abertura da nota', 'Idade (dias)', 'Classificação', 'Sistema', 'Descrição', 'Sinalização', 'Sinalizado por', 'Quando']];
+  L.forEach(x => a1.push([fmtDiaISO(x.data_trem), x.prefixo || '', x.turno || '', x.equipe ?? '', nfDupla(x), x.vagao, x.nota, x.tp_nota || '', fmtDiaISO(x.data_nota), nfDias(x) ?? '', x.grupo || '', x.sistema || sistemaNota(x.grupo), x.descricao || '',
+    NF_ST[nfSt(x)][0], x.por ? C(x.por).nome : '', x.quando ? dataBR(new Date(x.quando)) + ' ' + horaDe(x.quando) : '']));
+  const resumo = (tit, ch) => [[tit, 'Apontadas', 'Serão fechadas', 'Ficam abertas', 'Sem sinalização', '% fechamento'], ...nfAgrupa(L, ch).map(o => { const t = o.partes.reduce((a, b) => a + b, 0); return [o.rot, t, ...o.partes, Math.round(o.partes[0] / t * 1000) / 10]; })];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a1), 'Notas');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo('Classificação', x => x.grupo)), 'Por classificação');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo('Sistema', x => x.sistema || sistemaNota(x.grupo))), 'Por sistema');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo('Turno', x => x.turno)), 'Por turno');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo('Dupla', x => nfDupla(x) + ' (' + (x.turno || '') + ')')), 'Por dupla');
+  XLSX.writeFile(wb, `revistamento-zto-notas-fechadas-${NF.de}-a-${NF.ate}.xlsx`);
+}
 // ---------- VGs retidos: histórico do ano, mês a mês, por motivo ----------
 // O motivo é texto livre (Forms e app): classificado por palavras-chave. Ordem importa: a primeira que casar vale.
 const RET_MOT = [
@@ -4586,11 +4716,11 @@ function camRetorno(a, comObs) {
 }
 
 const VIEWS = {
-  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas },
+  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
-  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas },
-  prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
-  pcm: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
+  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
+  prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
+  pcm: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   vis: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, freio: vistaFreio, retidos: vistaRetidos },
   cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala },
   camsup: { camnovo: camNovo, camhist: camHist, cammeus: camMeus, camdash: camDash, camescala: camEscala }
@@ -4780,6 +4910,7 @@ document.addEventListener('click', async e => {
       if (campo === 'termino' && planosAbertosFaixa(t, d).length) { const sr = planosAbertosFaixa(t, d); S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial ou câmeras): ${sr.map(x => x.cod).join(', ')}`); return; }
       if (a === 'comeco-sim') S.modal = null;
       d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: campo === 'inicio' ? 'Início da revista' : 'Fim da revista' });
+      if (campo === 'termino') nbxSemResposta(t, d);
       if (campo === 'termino') (t.paradas || []).filter(x => x.tec === uidTec() && !x.fim).forEach(x => { x.fim = new Date().toISOString(); enviar({ tabela: 'paradas', acao: 'update', dados: { fim: x.fim }, filtro: [['id', 'eq', x.id]], desc: 'Parada finalizada' }); });
       toast(campo === 'inicio' ? 'Revista iniciada às ' + d.inicio : 'Parte da equipe concluída; o líder foi avisado'); break;
     }
@@ -4825,6 +4956,15 @@ document.addEventListener('click', async e => {
       enviar({ tabela: 'planos_execucao', acao: 'upsert', onConflict: 'trem_id,posicao,plano', dados: { trem_id: t.id, posicao: pos, vagao: t.vagoes[pos - 1], plano, realizado: ok, quando: new Date().toISOString(), por: DB.me.id }, desc: 'Plano ' + plano + ' · ' + t.vagoes[pos - 1] });
       toast((ok ? 'Plano realizado: ' : 'Plano não realizado: ') + plano); break;
     }
+    case 'nota-fech': {
+      const t = tremPorId(S.tecTrem), pos = +el.dataset.p; if (!t) return;
+      nbxGravar(t, pos, el.dataset.nota, v === '1'); toast(v === '1' ? '📝 Nota ' + el.dataset.nota + ': será fechada' : '📝 Nota ' + el.dataset.nota + ': fica aberta'); break;
+    }
+    case 'nf-st': NF.st = v; NF.ver = 50; break;
+    case 'nf-turno': NF.turno = v; NF.ver = 50; break;
+    case 'nf-mais': NF.ver += 100; break;
+    case 'nf-buscar': await nfCarregar(true); break;
+    case 'exportar-nf': exportarNF(); return;
     case 'fila-mover': {
       const t = tremPorId(el.dataset.id), f = filaTurno(t.turno), k = f.indexOf(t), j = k + +v;
       if (j < 0 || j >= f.length) return;
@@ -5245,7 +5385,8 @@ document.addEventListener('click', async e => {
   render();
 });
 document.addEventListener('change', async e => {
-  const cf = e.target.dataset?.cf, ck = e.target.dataset?.cam;
+  const cf = e.target.dataset?.cf, ck = e.target.dataset?.cam, nf = e.target.dataset?.nf;
+  if (nf) { const v = e.target.value; if (!v) return; NF[nf] = v; if (NF.de > NF.ate) NF[nf === 'de' ? 'ate' : 'de'] = v; NF.ver = 50; render(); await nfCarregar(true); render(); return; }
   if (cf) { CAM.form[cf] = e.target.value; return; }
   if (ck) { const v = e.target.value.trim(); CAM.ver = 30;
     if (ck === 'de' || ck === 'ate') { if (!v) return; CAM[ck] = v; if (CAM.de > CAM.ate) CAM[ck === 'de' ? 'ate' : 'de'] = v; render(); await camCarregar(true); render(); }
