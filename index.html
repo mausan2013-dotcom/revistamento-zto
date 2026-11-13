@@ -496,7 +496,14 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
 .tabela.rel td, .tabela.rel th { padding: 6px 4px; font-size: 12px; } .tabela.rel td.small { min-width: 0; }
 .para-print, .relatorio-print { --bg: #ebf0f2; --card: #ffffff; --ink: #2b3a48; --title: #043865; --muted: #5f7180; --line: #d3dde3; --mark: #043865; --track: #e3eaee;
   --ok: #138a6c; --ok-bg: #e1f4ee; --bad: #c62828; --bad-bg: #fdeaea; --warn: #c45a12; --warn-bg: #fff0e5; --info: #0b6fa8; --info-bg: #e3f2fb; --s1: #1b5fa8; --s2: #2ea3e3; --s3: #1f8a6a; --s4: #e0701f; --meta: #c62828; }
-.relatorio-print { background: var(--card); color: var(--ink); }      /* fundo branco e letra escura também no modo escuro do celular */
+.relatorio-print { background: var(--card); color: var(--ink); }
+.qd-sub { font-size: 14px; margin: 14px 0 6px; color: var(--title); }
+.qd-ck { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 14px; }
+.qd-ck .chips { margin: 0; flex-shrink: 0; }
+.qd-veic { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 10px 2px; margin: 0 0 10px; } .qd-veic legend { font-weight: 700; font-size: 13px; padding: 0 4px; }
+#rel-fecha th, #rel-fecha thead { position: static !important; top: auto !important; }
+.qd-obs { margin: 8px 0 0; white-space: pre-wrap; font-size: 14px; }
+.qd-aten { font-size: 14px; margin: 8px 0 0; background: #fff4cc; color: #6b5200; border-left: 3px solid #fbd300; padding: 6px 8px; border-radius: 4px; white-space: pre-wrap; }      /* fundo branco e letra escura também no modo escuro do celular */
 .para-print { position: absolute; left: -10000px; top: 0; width: 1500px; padding: 24px; background: var(--bg); color: var(--ink); }
 .para-print .rep-main { grid-template-columns: repeat(12, minmax(0, 1fr)) !important; }
 .para-print .rep { grid-template-columns: minmax(0, 1fr) 270px !important; }
@@ -693,7 +700,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.17';
+const VERSAO = '2.18';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1923,7 +1930,94 @@ function cardComposicoes(tt) {
   return `<div class="card relatorio-print" id="rel-comp"><h2>Composições do turno <span class="dir">${dataBR(deISO(dia))} · turno ${tt} · ${esc(liderDe(tt))}</span></h2>
     <table class="tabela compacta rel"><thead><tr><th>Trem</th><th class="num">Tempo</th><th class="num">Revisados</th><th>Não revisados (posição na ficha)</th></tr></thead><tbody>${ts.map(linha).join('')}</tbody></table>
     <p class="small muted" style="margin:8px 0 0">Revistamento ZTO · ${dataBR(new Date())} ${agora()}</p>
-    <div class="acoes" data-sem-print><button class="btn sm primary" data-act="print-comp">📸 Print e enviar pelo WhatsApp</button></div></div><div style="height:12px"></div>`;
+    <div class="acoes" data-sem-print><button class="btn sm primary" data-act="qd-print">📸 Enviar fechamento do turno (com o quadro)</button></div></div><div style="height:12px"></div>`;
+}
+// v2.18 (SQL 43): quadro do turno, versão digital do quadro branco "Revistamento Tutóia" da sala.
+// O supervisor preenche durante o turno; o preenchimento é obrigatório para enviar o fechamento (composições + quadro).
+// Modelo/placa dos veículos e o campo Atenção vêm do último quadro salvo (de qualquer turno). Sem o SQL 43 fica só no aparelho.
+const QD_CK = [['recolher', 'Tem sapata para recolher?'], ['linha', 'Tem sapata na linha?'], ['espalhou', 'O turno espalhou sapata?']];
+const QD_CX = [['base', 'Base'], ['troller', 'Troller'], ['c120', '120']];
+const QD = { l: lsLer('rzto_quadros', []), em: 0, carregando: false, sql: true, edit: {}, timer: null };
+const qdChave = (d, t) => d + '|' + t;
+const qdLinha = (d, t) => QD.l.find(x => x.data === d && x.turno === t);
+const qdVeicVazio = () => ({ modelo: '', placa: '', km: '', obs: '' });
+function qdDados(d, t) {                       // o que está na tela: edição em curso > salvo > novo herdado do último quadro
+  const k = qdChave(d, t);
+  if (QD.edit[k]) return QD.edit[k];
+  const s = qdLinha(d, t);
+  if (s) return QD.edit[k] = JSON.parse(JSON.stringify(s.dados));
+  const ant = qdAnterior(d, t)?.dados;
+  return QD.edit[k] = { ck: {}, cx: {}, veic: [0, 1].map(i => ({ ...qdVeicVazio(), modelo: ant?.veic?.[i]?.modelo || '', placa: ant?.veic?.[i]?.placa || '' })), obs: '', atencao: ant?.atencao || '' };
+}
+const qdAnterior = (d, t) => QD.l.filter(x => !(x.data === d && x.turno === t) && x.data <= d).sort((a, b) => b.data.localeCompare(a.data) || String(b.atualizado_em).localeCompare(String(a.atualizado_em)))[0];
+const qdVeicUsado = v => !!(v.modelo || v.placa || v.km || v.obs);
+function qdFaltas(q) {                         // campos obrigatórios: checklist, caixas no pátio e o veículo 1 (o 2 só se começou a preencher)
+  const f = [];
+  QD_CK.forEach(([k, l]) => { if (!q.ck[k]) f.push(l.replace('?', '')); });
+  QD_CX.forEach(([k, l]) => { if (q.cx[k] === '' || q.cx[k] == null) f.push('Caixas de sapata · ' + l); });
+  q.veic.forEach((v, i) => { if (i === 0 || qdVeicUsado(v)) { if (!v.modelo.trim()) f.push(`Veículo ${i + 1} · modelo`); if (!v.placa.trim()) f.push(`Veículo ${i + 1} · placa`); if (!String(v.km).trim()) f.push(`Veículo ${i + 1} · KM`); } });
+  return f;
+}
+async function qdCarregar(forca) {
+  if (QD.carregando || (!forca && Date.now() - QD.em < 60e3)) return;
+  if (DEMO) { QD.em = Date.now(); return; }
+  QD.carregando = true;
+  try { const desde = isoData(new Date(Date.now() - 20 * 864e5));
+    const { data, error } = await sb.from('quadro_turno').select('*').gte('data', desde).order('data', { ascending: false }).order('turno');
+    if (!error && data) { QD.l = data; QD.sql = true; lsGravar('rzto_quadros', data); }
+    else if (error && /relation|schema cache|does not exist|42P01|PGRST205/i.test((error.code || '') + ' ' + (error.message || ''))) QD.sql = false; } catch {}
+  QD.em = Date.now(); QD.carregando = false;
+}
+function qdSalvar(d, t) {                      // grava 1,2 s depois da última mudança (no aparelho na hora; na nuvem pela fila)
+  const q = qdDados(d, t), l = qdLinha(d, t);
+  if (l) { l.dados = JSON.parse(JSON.stringify(q)); l.atualizado_em = new Date().toISOString(); }
+  else QD.l.unshift({ data: d, turno: t, dados: JSON.parse(JSON.stringify(q)), atualizado_em: new Date().toISOString() });
+  lsGravar('rzto_quadros', QD.l);
+  clearTimeout(QD.timer);
+  QD.timer = setTimeout(() => { if (QD.sql) enviar({ tabela: 'quadro_turno', acao: 'upsert', onConflict: 'data,turno', dados: { data: d, turno: t, dados: qdDados(d, t) }, desc: `Quadro do turno ${t}` }); }, 1200);
+  const st = $('qd-status'); if (st) st.innerHTML = qdStatus(q);
+}
+const qdStatus = q => { const f = qdFaltas(q); return f.length ? `<span class="tag warn">⚠ faltam ${f.length}</span>` : '<span class="tag ok">✓ completo</span>'; };
+function cardQuadro(tt) {
+  const d = dataOp(), q = qdDados(d, tt), ant = qdAnterior(d, tt);
+  const ckRow = ([k, l]) => `<div class="qd-ck"><span>${l}</span><span class="chips"><button class="chip ${q.ck[k] === 'sim' ? 'on' : ''}" data-act="qd-ck" data-k="${k}" data-v="sim">Sim</button><button class="chip ${q.ck[k] === 'nao' ? 'on' : ''}" data-act="qd-ck" data-k="${k}" data-v="nao">Não</button></span></div>`;
+  const veic = (v, i) => { const kmAnt = ant?.dados?.veic?.[i]?.km;
+    return `<fieldset class="qd-veic"><legend>Veículo ${i + 1}${i ? ' <span class="small muted">(se houver)</span>' : ''}</legend><div class="linha-campos">
+      <label class="campo">Modelo<input data-qd="veic.${i}.modelo" value="${esc(v.modelo)}" placeholder="ex.: S10"></label>
+      <label class="campo">Placa<input data-qd="veic.${i}.placa" value="${esc(v.placa)}" placeholder="ex.: UBP3E76"></label>
+      <label class="campo">KM<input data-qd="veic.${i}.km" value="${esc(v.km)}" inputmode="numeric" placeholder="${kmAnt ? 'último: ' + esc(kmAnt) : ''}"></label></div>
+      <label class="campo">Observações<input data-qd="veic.${i}.obs" value="${esc(v.obs)}" placeholder="ex.: saldo do cartão R$ 4.059,06"></label></fieldset>`; };
+  return `<div class="card quadro-turno"><h2>📋 Quadro do turno <span class="dir" id="qd-status">${qdStatus(q)}</span></h2>
+    <p class="small muted" style="margin:0 0 8px">${dataBR(deISO(d))} · turno ${tt} · ${esc(liderDe(tt))}. Preenchimento obrigatório: o fechamento do turno só é enviado com o quadro completo. Fica salvo sozinho.</p>
+    ${QD.sql ? '' : '<p class="nota">Para o quadro ficar salvo na nuvem (e o próximo turno ver), rode o <b>43-quadro-turno.sql</b> no Supabase. Até lá fica só neste aparelho.</p>'}
+    <h3 class="qd-sub">Checklist</h3>${QD_CK.map(ckRow).join('')}
+    <h3 class="qd-sub">Quantidade de sapatas no pátio <span class="small muted">(caixas)</span></h3>
+    <div class="linha-campos">${QD_CX.map(([k, l]) => `<label class="campo">${l}<input data-qd="cx.${k}" value="${esc(q.cx[k] ?? '')}" inputmode="numeric" placeholder="0"></label>`).join('')}</div>
+    <h3 class="qd-sub">Veículos</h3>${q.veic.map(veic).join('')}
+    <label class="campo">Observações<textarea data-qd="obs" rows="3" placeholder="ex.: sem energia do 2º pontilhão até 120; HFT 053473-1 trem I-11 medir friso / bandagem / altura do friso">${esc(q.obs)}</textarea></label>
+    <label class="campo">⚠ Atenção<textarea data-qd="atencao" rows="2" placeholder="ex.: verificar a pressão dos pneus">${esc(q.atencao)}</textarea></label>
+    <div class="acoes"><button class="btn primary" data-act="qd-print">📸 Enviar fechamento do turno (composições + quadro)</button></div></div><div style="height:12px"></div>`;
+}
+function qdPrintHtml(tt) {                     // versão estática do quadro para a imagem do WhatsApp
+  const d = dataOp(), q = qdDados(d, tt), sn = v => v === 'sim' ? '<b style="color:var(--ok)">✔ Sim</b>' : v === 'nao' ? '<b style="color:var(--bad)">✖ Não</b>' : '–';
+  const vs = q.veic.filter((v, i) => i === 0 || qdVeicUsado(v));
+  return `<div class="card relatorio-print qd-print"><h2>📋 Quadro do turno <span class="dir">${dataBR(deISO(d))} · turno ${tt} · ${esc(liderDe(tt))}</span></h2>
+    <table class="tabela compacta rel"><tbody>${QD_CK.map(([k, l]) => `<tr><td>${l}</td><td class="num">${sn(q.ck[k])}</td></tr>`).join('')}
+    <tr><td>Sapatas no pátio (caixas)</td><td class="num">${QD_CX.map(([k, l]) => `${l} <b>${esc(q.cx[k] ?? '–')}</b>`).join(' · ')}</td></tr>
+    ${vs.map(v => `<tr><td>🚙 <b>${esc(v.modelo)}</b> ${esc((v.placa || '').toUpperCase())}</td><td class="num">KM <b>${esc(v.km)}</b>${v.obs ? '<br><span class="small">' + esc(v.obs) + '</span>' : ''}</td></tr>`).join('')}</tbody></table>
+    ${q.obs.trim() ? `<p class="qd-obs"><b>Observações:</b> ${esc(q.obs.trim())}</p>` : ''}
+    ${q.atencao.trim() ? `<p class="qd-aten"><b>⚠ Atenção:</b> ${esc(q.atencao.trim())}</p>` : ''}
+    <p class="small muted" style="margin:8px 0 0">Revistamento ZTO · ${dataBR(new Date())} ${agora()}</p></div>`;
+}
+async function qdEnviarFechamento(tt) {
+  const q = qdDados(dataOp(), tt), f = qdFaltas(q);
+  if (f.length) { toast('⚠ Preencha o quadro do turno antes de enviar. Falta: ' + f.slice(0, 4).join(', ') + (f.length > 4 ? ` e mais ${f.length - 4}` : '')); document.querySelector('.quadro-turno')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  const box = document.createElement('div'); box.style.cssText = 'position:absolute;left:-10000px;top:0;width:720px';
+  const comp = $('rel-comp'); if (comp) box.appendChild(comp.cloneNode(true));
+  box.insertAdjacentHTML('beforeend', '<div style="height:10px;background:#fff"></div>' + qdPrintHtml(tt));
+  box.querySelectorAll('[id]').forEach(e => e.removeAttribute('id')); box.id = 'rel-fecha'; document.body.appendChild(box);
+  try { await printDe('rel-fecha', `fechamento-turno-${tt}-${dataOp()}.png`, `*Fechamento do turno ${tt} · ${dataBR(deISO(dataOp()))}*\nComposições do turno e quadro do turno (sapatas, veículos, observações e atenção).`); }
+  finally { box.remove(); }
 }
 function cardFila(tt) {
   const f = filaTurno(tt);
@@ -1936,6 +2030,7 @@ function cardFila(tt) {
   </div><div style="height:12px"></div>`;
 }
 function supTurno() {
+  if (!DEMO && !QD.carregando && Date.now() - QD.em > 60e3) { QD.em = Date.now() - 50e3; setTimeout(async () => { QD.em = 0; await qdCarregar(); if (!digitando()) render(); }); }
   const tt = T(), meus = filaTurno(tt), hoje = isoData(new Date());
   const fechados = fechadosT().filter(t => t.turno === tt && (t.dataISO === dataOp() || t.dataISO === hoje));
   const eventos = [];
@@ -1948,11 +2043,12 @@ function supTurno() {
   const v = validadorDe(tt);
   return `<div class="faixa-turno"><h2>Turno ${tt}${servicoDe(tt) ? ' · ' + rotServico(servicoDe(tt)) : ''} · ${esc(liderDe(tt))}</h2><span class="muted">${dataBR(deISO(dataOp()))}/${dataOp().slice(0, 4)} · ${ativos(tt).length} técnicos em ${EQ(tt).length} equipes${S.backup ? ' · backup: ' + esc(S.backup) : ''}</span></div>
   ${!validadoresDe(tt).length ? `<div class="alerta"><span>⚠ <b>Turno ${tt} sem validador técnico.</b> Os apontamentos ficam aguardando validação. Peça ao programador para cadastrar uma cobertura em Cadastros.</span></div>` : ''}
+  ${(() => { const n = qdFaltas(qdDados(dataOp(), tt)).length; return n ? `<p class="nota">📋 O <b>quadro do turno</b> ainda tem ${n} campo(s) obrigatório(s) sem preencher. Ele vai junto com o fechamento do turno.</p>` : ''; })()}
   ${!S.eqSalvo[tt] ? `<p class="nota">As equipes de hoje ainda não foram confirmadas. <button class="btn sm" data-act="aba" data-v="equipes">Montar equipes →</button></p>` : ''}
   <div class="retro-barra"><button class="btn" data-act="retro">📝 Lançar apontamento retroativo</button><span class="small muted">Para o vagão que o mecânico não conseguiu registrar na hora.</span></div>
   <div class="sup-layout">
     <div>${cardFila(tt)}${meus.map(cardTrem).join('') || '<div class="card muted">Nenhum trem em andamento. Use <b>Novo trem</b>.</div>'}</div>
-    <div>${cardComposicoes(tt)}
+    <div>${cardComposicoes(tt)}${cardQuadro(tt)}
     <div class="card"><h2>Ocorrências e intervenções <span class="dir">${eventos.length}</span></h2><ul class="feed">${eventos.slice(0, 20).map(e => `<li><span class="h">${e.h}</span><span class="${e.cls === 'bad' ? 'ev-bad' : ''}">${e.txt}</span></li>`).join('') || '<li><span></span><span class="muted">Nada registrado ainda.</span></li>'}</ul></div>
       ${cardParadas(DB.trens.filter(t => t.turno === tt && t.dataISO === dataOp()), 'hoje neste turno')}
       <div class="card"><h2>Fechados no turno <span class="dir">${fechados.length}</span></h2>${fechados.length ? `<table class="tabela"><thead><tr><th>Trem</th><th class="num">Inspec.</th><th class="num">Tempo</th><th>Validação</th><th></th></tr></thead><tbody>${fechados.map(t => `<tr><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span></td><td class="num">${t.status === 'nao_revistado' ? '<span class="tag warn">Não revistado</span>' : Math.round(inspecionados(t) / Math.max(1, t.vagoes.length) * 100) + '%'}</td><td class="num">${t.durMin ? dur(t.durMin) : '–'}</td><td>${tagVal(t)}</td><td>${podeApagar(t) ? `<button class="btn sm perigo" data-act="apagar-trem" data-id="${t.id}" data-nome="${esc(t.prefixo)}" title="Apagar trem">🗑</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<span class="muted small">Nenhum ainda.</span>'}</div>
@@ -5093,6 +5189,8 @@ document.addEventListener('click', async e => {
       S.modal = null; toast('Término do ' + M.prefixo + ' alterado para ' + novo); break;
     }
     case 'copiar-planos': copiarTexto(textoRelPlanos(), 'Texto copiado. Cole na conversa do WhatsApp.'); return;
+    case 'qd-ck': { const q = qdDados(dataOp(), T()); q.ck[el.dataset.k] = q.ck[el.dataset.k] === v ? null : v; qdSalvar(dataOp(), T()); render(); return; }
+    case 'qd-print': qdEnviarFechamento(T()); return;
     case 'print-comp': printDe('rel-comp', `composicoes-turno-${T()}-${dataOp()}.png`, `*Composições do turno ${T()} · ${dataBR(deISO(dataOp()))}*\nPercentual revisado, posição dos vagões não revisados, materiais trocados e paradas dos técnicos.`); return;
     case 'print-aderencia': printAderencia(); return;
     case 'passar-trem': {
@@ -5522,6 +5620,8 @@ document.addEventListener('change', async e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.dataset?.qd) { const q = qdDados(dataOp(), T()), p = e.target.dataset.qd.split('.'); let o = q; p.slice(0, -1).forEach(k => o = o[k]);
+    o[p[p.length - 1]] = /\.(km)$|^cx\./.test(e.target.dataset.qd) ? e.target.value.replace(/[^\d.,]/g, '') : e.target.value; qdSalvar(dataOp(), T()); return; }
   if (e.target.dataset?.cf) { CAM.form[e.target.dataset.cf] = e.target.value; if (e.target.dataset.cf === 'vagao') CAM.form.forcar = false; camAtualizaVag(); return; }
   if (e.target.dataset?.nq) { NS.q[e.target.dataset.nq] = e.target.value.trim(); if (e.target.dataset.nq === 'pref') NS.q.trem = ''; return; }
   if (e.target.id === 'retro-busca' && S.modal?.tipo === 'retro') { S.modal.q = e.target.value; $('retro-res').innerHTML = retroLista(S.modal); return; }
