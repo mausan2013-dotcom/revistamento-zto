@@ -446,6 +446,8 @@ body.demo .barra-prog select { border-color: #8b6fd6; color: #3d2a7a; }
 .aten-lista { list-style: none; margin: 0; padding: 4px 10px 6px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--radius) var(--radius); font-size: 13px; max-height: 300px; overflow-y: auto; }
 .aten-lista li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); } .aten-lista li:last-child { border-bottom: 0; }
 .aten-lista .pos { flex: none; min-width: 26px; font-weight: 800; color: var(--title); }
+.aten-lista li > span:last-child { flex: 1; min-width: 0; } .aten-lista.com-bts { max-height: 65vh; }
+.nota-sin { display: block; margin-top: 6px; color: var(--info); } .nota-bts { display: flex; gap: 6px; margin-top: 4px; } .nota-bts .btn { flex: 1; }
 .retro-barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
 .retro-res { max-height: 55vh; overflow-y: auto; margin: 0; } .retro-vag { justify-content: space-between; text-align: left; min-height: 52px; font-weight: 600; padding: 6px 12px; gap: 8px; }
 .retro-planos { margin: 0 0 4px; border-top: 1px solid var(--line); border-radius: var(--radius); } .retro-nota { display: block; } .retro-nota .btn { margin-top: 8px; }
@@ -691,7 +693,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.15';
+const VERSAO = '2.16';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1056,6 +1058,12 @@ function nbxSemResposta(t, d) {                        // ao encerrar a parte; n
     l.push({ ...nbxLinha(t, p, d, x), fechar: null }); ((NBX.porTrem[t.id] ||= {})[p] ||= {})[x.nota] = { f: null, por: DB.me.nome }; });
   if (l.length) enviar({ tabela: 'notas_baixa', acao: 'upsert', onConflict: 'trem_id,posicao,nota', ignorar: true, dados: l, desc: l.length + ' nota(s) SAP sem sinalização' });
 }
+// v2.16: a equipe pediu os botões no resumo "ver vagões" do bloco (junto de restrições, planos e notas), não embaixo de cada vagão
+const notasResumo = (t, pos) => juntarNotas(notasVag(t.vagoes[pos - 1])).map(g => { const e = estadoGrupo(t, pos, g), ns = esc(g.notas.join(','));
+  return `<span class="nota-sin">📝 <b>${esc(g.grupo)}</b> · ${esc(g.tp || '')} ${datasNota(g)} · ${rotNotas(g)}<br><span class="small muted">${esc(g.desc)}</span>
+    <span class="nota-bts"><button class="btn sm ${e?.f === true ? 'ok' : ''}" data-act="nota-fech" data-trem="${t.id}" data-p="${pos}" data-nota="${ns}" data-v="1">✓ Será fechada</button>
+    <button class="btn sm ${e?.f === false ? 'nao' : ''}" data-act="nota-fech" data-trem="${t.id}" data-p="${pos}" data-nota="${ns}" data-v="0">✗ Fica aberta</button></span></span>`; }).join('');
+const notasSemSin = (t, a) => a.reduce((n, x) => n + (x.nn.length ? juntarNotas(notasVag(x.cod)).filter(g => !estadoGrupo(t, x.pos, g)).length : 0), 0);
 const botoesNota = (t, pos) => { const l = juntarNotas(notasVag(t.vagoes[pos - 1])); return l.length ? `<div class="pl-acoes">${l.map(g => { const e = estadoGrupo(t, pos, g), ns = esc(g.notas.join(','));
   return `<div class="pl-linha"><span>📝 ${esc(g.grupo)} <span class="small muted">· ${rotNotas(g)}</span>${g.desc ? `<br><span class="small muted">${esc(g.desc)}</span>` : ''}</span>
     <button class="btn sm ${e?.f === true ? 'ok' : ''}" data-act="nota-fech" data-p="${pos}" data-nota="${ns}" data-v="1">✓ Será fechada</button>
@@ -2369,7 +2377,7 @@ function itemVagao(t, pos, d, escolhido) {
     const botoesPlano = pp.length && (!d.termino || escolhido) ? `<div class="pl-acoes">${pp.map(x => { const e = pex[x.plano]; return `<div class="pl-linha"><span>📋 ${esc(x.plano)}</span>
       <button class="btn sm ${e?.ok === true ? 'ok' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="1">✓ Realizado</button>
       <button class="btn sm ${e?.ok === false ? 'nao' : ''}" data-act="plano-exec" data-p="${pos}" data-plano="${esc(x.plano)}" data-v="0">✗ Não realizado</button></div>`; }).join('')}</div>` : '';
-    const botoesCam = cc.length && (!d.termino || escolhido) ? `<div class="pl-acoes cam-acoes">${cc.map(a => camRetorno(a)).join('')}</div>` : '', extras = botoesPlano + (nn.length && (!d.termino || escolhido) && NBX.sql && !ehVis() ? botoesNota(t, pos) : '') + botoesCam;
+    const botoesCam = cc.length && (!d.termino || escolhido) ? `<div class="pl-acoes cam-acoes">${cc.map(a => camRetorno(a)).join('')}</div>` : '', extras = botoesPlano + botoesCam;
   return `${extras ? '<div class="vg-bloco">' : ''}<button class="vg ${r ? 'feito' : ''} ${rf || pp.length || nn.length || cc.length ? 'atencao' : ''}" data-act="abrir" data-p="${pos}"><span class="pos">${posF(t, pos)}</span><span><span class="cod">${esc(t.vagoes[pos - 1])}</span>
       ${rf ? `<span class="det av isolado">⚠ Na ficha: ${esc(rf.motivo)}${rf.data ? ' (desde ' + esc(rf.data) + ')' : ''}</span>` : ''}${pp.length ? `<span class="det av plano">📋 Plano especial: ${esc(txtPlanos(pp))}</span>` : ''}${nn.length ? `<span class="det av plano">📝 Nota SAP aberta: ${esc(txtNotas(nn))}</span>` : ''}${cc.length ? `<span class="det av cam">📷 Câmeras: ${esc(txtCam(cc))}</span>` : ''}${reg ? `<span class="det">${esc(reg)}</span>` : ''}${outra ? `<span class="det apoio">🤝 feito pela Equipe ${outra} (apoio)</span>` : ''}</span>${tagReg(r)}</button>${extras ? extras + '</div>' : ''}`;
 }
@@ -2440,11 +2448,11 @@ function tecMeu() {
     <div style="font-size:18px;font-weight:700;color:var(--title)">Seus vagões${ehExtra(t, d) ? ' (faixa extra)' : ''}: ${t.posFicha ? 'posições' : 'nº'} ${posF(t, d.ini)} a ${posF(t, d.fim)}</div>
     ${d.comeco > d.ini ? `<div class="small" style="color:var(--info);font-weight:700">↪ Começando no ${esc(t.vagoes[d.comeco - 1])} (${t.posFicha ? 'pos.' : 'nº'} ${posF(t, d.comeco)}); no fim, os vagões antes dele</div>` : ''}<div class="small muted" style="margin:2px 0 8px">${esc(t.vagoes[d.ini - 1])} → ${esc(t.vagoes[d.fim - 1])} · ${p.n} de ${p.total} registrados · ${esc(nomesEquipe(d.membros))}</div>
     ${barra(p.n / p.total * 100)}
-    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length, nt = a.filter(x => x.nn.length).length, cm = a.filter(x => x.cc.length).length, ab = S.tecAten === t.id + ':' + d.n;
-      return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''}${(iso || pl) && nt ? ' · ' : ''}${nt ? `<b style="color:var(--info)">📝 ${nt} com nota SAP</b>` : ''}${(iso || pl || nt) && cm ? ' · ' : ''}${cm ? `<b style="color:var(--cam)">📷 ${cm} apontado(s) pelas câmeras</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
-      ${ab ? `<ul class="aten-lista">${a.map(x => `<li><span class="pos">${posF(t, x.pos)}</span><span><b>${esc(x.cod)}</b>${x.r ? ' <span class="tag ok">registrado</span>' : ''}
+    ${(a => { const iso = a.filter(x => x.rf).length, pl = a.filter(x => x.pp.length).length, nt = a.filter(x => x.nn.length).length, cm = a.filter(x => x.cc.length).length, ab = S.tecAten === t.id + ':' + d.n, podeSin = (!d.termino || escolhido) && NBX.sql && !ehVis(), nSin = podeSin ? notasSemSin(t, a) : 0;
+      return a.length ? `<button class="aten-resumo" data-act="tec-aten" data-v="${t.id}:${d.n}" aria-expanded="${ab}"><span>${iso ? `<b style="color:var(--warn)">⚠ ${iso} com restrição na ficha</b>` : ''}${iso && pl ? ' · ' : ''}${pl ? `<b style="color:var(--info)">📋 ${pl} com plano especial</b>` : ''}${(iso || pl) && nt ? ' · ' : ''}${nt ? `<b style="color:var(--info)">📝 ${nt} com nota SAP</b>${nSin ? ` <span class="tag warn">${nSin} a sinalizar</span>` : ''}` : ''}${(iso || pl || nt) && cm ? ' · ' : ''}${cm ? `<b style="color:var(--cam)">📷 ${cm} apontado(s) pelas câmeras</b>` : ''} <span class="muted">na sua faixa</span></span><span class="seta">${ab ? '▲ fechar' : '▼ ver vagões'}</span></button>
+      ${ab ? `<ul class="aten-lista${podeSin && nt ? ' com-bts' : ''}">${a.map(x => `<li><span class="pos">${posF(t, x.pos)}</span><span><b>${esc(x.cod)}</b>${x.r ? ' <span class="tag ok">registrado</span>' : ''}
         ${x.rf ? `<br><span style="color:var(--warn)">⚠ Na ficha: ${esc(x.rf.motivo)}${x.rf.data ? ` <span class="muted">(desde ${esc(x.rf.data)})</span>` : ''}</span>` : ''}
-        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${linhasNotas(x.nn, t, x.pos)}${linhasCam(x.cc)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
+        ${x.pp.map(y => `<br><span style="color:var(--info)">📋 ${esc(y.plano)}${y.prioridade ? ` <span class="muted">(prioridade ${esc(y.prioridade)})</span>` : ''}</span> ${(e => e ? `<span class="tag ${e.ok ? 'ok' : 'bad'}">${e.ok ? '✓ Realizado' : '✗ Não realizado'}</span>` : '')(((t.pexec || {})[x.pos] || {})[y.plano])}`).join('')}${podeSin ? notasResumo(t, x.pos) : linhasNotas(x.nn, t, x.pos)}${linhasCam(x.cc)}</span></li>`).join('')}</ul>` : ''}` : ''; })(atencaoFaixa(t, d))}
     <div style="margin-top:12px">${d.termino ? `<span class="tag ok">Parte concluída às ${d.termino}</span>`
       : !d.inicio ? '<button class="btn primary big" data-act="iniciar">▶ Iniciar revista</button>'
       : p.n === p.total ? (sr => sr.length ? `<div class="alerta" style="margin:0 0 8px"><span>📋 <b>Plano especial ou câmeras sem resposta</b> em ${sr.length} vagão(ões): ${sr.map(x => `<b>${esc(x.cod)}</b> (${esc(x.plano)})`).join(' · ')}. Marque Realizado ou Não realizado no plano e dê o retorno das câmeras para encerrar.</span><button class="btn sm" data-act="tec-filtro" data-v="atencao">Ver vagões</button></div><button class="btn big" style="opacity:.55" data-act="encerrar">✓ Encerrar minha parte</button>` : '<button class="btn ok big" data-act="encerrar">✓ Encerrar minha parte</button>')(planosAbertosFaixa(t, d))
@@ -4970,7 +4978,7 @@ document.addEventListener('click', async e => {
       toast((ok ? 'Plano realizado: ' : 'Plano não realizado: ') + plano); break;
     }
     case 'nota-fech': {
-      const t = tremPorId(S.tecTrem), pos = +el.dataset.p; if (!t) return;
+      const t = tremPorId(el.dataset.trem || S.tecTrem), pos = +el.dataset.p; if (!t) return;
       const ns = el.dataset.nota.split(','); ns.forEach(n => nbxGravar(t, pos, n, v === '1'));
       toast('📝 ' + (ns.length > 1 ? ns.length + ' notas iguais' : 'Nota ' + ns[0]) + (v === '1' ? ': será(ão) fechada(s)' : ': fica(m) aberta(s)')); break;
     }
