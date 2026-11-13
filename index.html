@@ -691,7 +691,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.12';
+const VERSAO = '2.13';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -4372,27 +4372,50 @@ function camHist() {
   </div><div class="card">${camLista(l, 'Nenhuma ocorrência com esse filtro.')}</div>`;
 }
 function camCSV() {
-  const l = camFiltros(CAM.lista), L = [['Apontado em', 'Turma', 'Turno ZTO', 'Assistente', 'Vagão', 'Descrição', 'Prefixo (WhatsApp)', 'Posição (WhatsApp)', 'Nota SAP', 'Status', 'Enviado ao revisor em', 'Trem', 'Posição na ficha', 'Retorno', 'Observação do revisor', 'Retorno em', 'Revisor', 'Concluído em', 'Editado em']];
-  l.forEach(a => L.push([quandoCam(a.criado_em), a.turma ? 'Turma ' + a.turma : '', a.turno, C(a.por).nome, a.vagao, a.descricao, a.prefixo, a.posicao, a.nota_sap == null ? '' : a.nota_sap ? 'Sim' : 'Não', CAM_ST[camStatus(a)][0],
+  const l = camFiltros(CAM.lista), L = [['Apontado em', 'Turma', 'Turno ZTO', 'Assistente', 'Vagão', 'Descrição', 'Tipo de avaria', 'Prefixo (WhatsApp)', 'Posição (WhatsApp)', 'Nota SAP', 'Status', 'Enviado ao revisor em', 'Trem', 'Posição na ficha', 'Retorno', 'Observação do revisor', 'Retorno em', 'Revisor', 'Concluído em', 'Editado em']];
+  l.forEach(a => L.push([quandoCam(a.criado_em), a.turma ? 'Turma ' + a.turma : '', a.turno, C(a.por).nome, a.vagao, a.descricao, camTipo(a), a.prefixo, a.posicao, a.nota_sap == null ? '' : a.nota_sap ? 'Sim' : 'Não', CAM_ST[camStatus(a)][0],
     a.enviado_em ? quandoCam(a.enviado_em) : '', a.trem_prefixo, a.trem_pos_ficha, a.retorno ? CAM_RET[a.retorno][0].replace(/^\S+ /, '') : '', a.retorno_obs, a.retorno_em ? quandoCam(a.retorno_em) : '',
     a.retorno_por ? C(a.retorno_por).nome : '', a.concluido_em ? quandoCam(a.concluido_em) : '', a.editado_em ? quandoCam(a.editado_em) : '']));
   baixarCSV(L, 'portal-cameras-' + CAM.de + '-a-' + CAM.ate + '.csv');
 }
+// v2.13: tipo de avaria do apontamento de câmera, por palavra-chave do texto livre (ordem importa: o primeiro que casar vale).
+// Usado na análise dos vagões que baixam a taxa de confirmação (retorno "defeito não existia").
+const CAM_TIPOS = [
+  ['Sapata ausente', d => /sapata/.test(d) && /(sem |falt|ausen)/.test(d)],
+  ['Sapata fina / desgastada', d => /sapata/.test(d)],
+  ['Pino da mandíbula', d => /mandib/.test(d)],
+  ['Pino T / abas', d => /(pino t\b|\babas?\b)/.test(d)],
+  ['Pino da mandíbula', d => /pino/.test(d)],
+  ['Amparo balanço', d => /(amparo|ampara|chapa ab|parafuso ab|\bab\b)/.test(d)],
+  ['Triângulo de freio', d => /triang/.test(d)],
+  ['Engate', d => /(engate|trava dual|rotor)/.test(d)],
+  ['Tremonha / descarga', d => /(tremonha|descarga|comporta)/.test(d)],
+  ['Mangueira', d => /mangueira/.test(d)],
+  ['Torneira angular', d => /torneira/.test(d)],
+  ['Truque / CCT', d => /(cct|cunha|truque|mola|lateral|travessa|rodeiro|roda)/.test(d)]];
+const CAM_TIPO_NOMES = [...new Set(CAM_TIPOS.map(x => x[0])), 'Outros'];
+const camTxt = a => semAcento(String(a.descricao || '')).toLowerCase();
+const camTipo = a => (CAM_TIPOS.find(([, f]) => f(camTxt(a))) || ['Outros'])[0];
+const camDuvida = a => /(verificar|possivel|se e uma)/.test(camTxt(a));   // a assistente pediu para conferir: não afirmou o defeito
+const CAM_NA_TAXA = ['realizado', 'cortado', 'nao_existia'];
 // v1.90: grupos dos indicadores do dashboard; o botão "ver vagões" abre a lista de vagões e trens de cada um
 const CAM_GRUPOS = {
   todos: ['Apontamentos', l => l], enviados: ['Enviados ao revisor', l => l.filter(a => a.enviado_em)], comret: ['Com retorno', l => l.filter(a => a.retorno)],
   aguard: ['Aguardando retorno', l => l.filter(a => camStatus(a) === 'enviado')], conf: ['Com retorno na taxa de confirmação', l => l.filter(a => ['realizado', 'cortado', 'nao_existia'].includes(a.retorno))],
   ...Object.fromEntries(Object.keys(CAM_ST).map(k => ['st_' + k, [CAM_ST[k][0], l => l.filter(a => camStatus(a) === k)]])),
   ...Object.fromEntries(Object.keys(CAM_RET).map(k => ['ret_' + k, ['Retorno: ' + CAM_RET[k][0].replace(/^\S+ /, ''), l => l.filter(a => a.retorno === k)]])), ret_sem: ['Sem retorno do revisor', l => l.filter(a => !a.retorno)],
-  ...Object.fromEntries(TURMAS.map(t => ['tu_' + t, ['Turma ' + t, l => l.filter(a => String(a.turma) === String(t))]])), tu_sem: ['Sem turma', l => l.filter(a => !a.turma)]
+  ...Object.fromEntries(TURMAS.map(t => ['tu_' + t, ['Turma ' + t, l => l.filter(a => String(a.turma) === String(t))]])), tu_sem: ['Sem turma', l => l.filter(a => !a.turma)],
+  ...Object.fromEntries(CAM_TIPO_NOMES.map((t, i) => ['nx_' + i, ['Não existia · ' + t, l => l.filter(a => a.retorno === 'nao_existia' && camTipo(a) === t)]])),
+  nx_duv: ['Não existia · apontamento de dúvida', l => l.filter(a => a.retorno === 'nao_existia' && camDuvida(a))],
+  nx_cert: ['Não existia · apontamento afirmativo', l => l.filter(a => a.retorno === 'nao_existia' && !camDuvida(a))]
 };
 const camDashLista = () => camFiltros(CAM.lista, { ...CAM.f, st: '', ret: '' });
 const camVer = (k, n) => n ? `<br><button class="btn sm" style="margin-top:6px" data-act="cam-grupo" data-v="${k}">ver vagões</button>` : '';
 function modalCamGrupo(M) {
   const [tit, fn] = CAM_GRUPOS[M.k], l = fn(camDashLista());
   return `<h3>${esc(tit)} <span class="small muted">· ${l.length} apontamento(s)</span></h3><p class="small muted" style="margin:0 0 8px">Mesmo período e filtros do dashboard. Toque no vagão para ver a auditoria.</p>
-    ${l.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Vagão</th><th>Trem</th><th>Pos. na ficha</th><th>Status</th><th>Retorno</th><th>Assistente</th><th>Apontado em</th></tr></thead><tbody>
-    ${l.map(a => { const r = a.retorno && CAM_RET[a.retorno], [stl, stc] = CAM_ST[camStatus(a)]; return `<tr><td><button class="btn sm" data-act="cam-eventos" data-id="${a.id}" style="font-weight:800">${esc(a.vagao)}</button></td><td>${esc(a.trem_prefixo || a.prefixo || '–')}${!a.trem_prefixo && a.prefixo ? ' <span class="small muted">(informado pela assistente)</span>' : ''}</td><td>${a.trem_pos_ficha ?? '–'}</td>
+    ${l.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Vagão</th><th>Apontamento</th><th>Trem</th><th>Pos. na ficha</th><th>Status</th><th>Retorno</th><th>Assistente</th><th>Apontado em</th></tr></thead><tbody>
+    ${l.map(a => { const r = a.retorno && CAM_RET[a.retorno], [stl, stc] = CAM_ST[camStatus(a)]; return `<tr><td><button class="btn sm" data-act="cam-eventos" data-id="${a.id}" style="font-weight:800">${esc(a.vagao)}</button></td><td class="small" style="min-width:220px">${esc(a.descricao || '–')}<br><span class="muted">${camTipo(a)}${a.retorno_obs ? ' · revisor: “' + esc(a.retorno_obs) + '”' : ''}</span></td><td>${esc(a.trem_prefixo || a.prefixo || '–')}${!a.trem_prefixo && a.prefixo ? ' <span class="small muted">(informado pela assistente)</span>' : ''}</td><td>${a.trem_pos_ficha ?? '–'}</td>
       <td><span class="tag ${stc}">${stl}</span></td><td>${r ? `<span class="tag ${r[1]}">${r[0]}</span>` : '<span class="muted">–</span>'}</td><td class="small">${esc(C(a.por).nome)}</td><td class="small">${quandoCam(a.criado_em)}</td></tr>`; }).join('')}
     </tbody></table></div><button class="btn" style="margin-top:10px" data-act="cam-grupo-csv" data-v="${M.k}">⬇ Planilha</button>` : '<p class="muted">Nenhum apontamento.</p>'}`;
 }
@@ -4430,8 +4453,33 @@ function camDash() {
       ${porR.sem ? `<p class="small muted centro" style="margin:8px 0 0">${fmt(porR.sem)} apontamento(s) ainda sem retorno · <button class="btn sm" ${camClique('ret_sem')}>ver</button></p>` : ''}</div>
     ${camRestrito() ? '' : `<div class="card"><h2>Por turma <span class="dir">toque para ver os vagões</span></h2>${n ? rosca([...TURMAS.map((t, i) => ['Turma ' + t, porT[t] || 0, COR_TURMA[i % 4], camClique('tu_' + t)]), ...(porT['–'] ? [['Sem turma', porT['–'], 'var(--muted)', camClique('tu_sem')]] : [])], { centro: fmt(n), rot: 'apontamentos' }) : semDados}</div>`}
     <div class="card"><h2>Por assistente <span class="dir">confirmados / não existia / demais</span></h2>${porAss.length ? pilhas(porAss, ['Confirmado', 'Não existia', 'Sem retorno ou não localizado'], ['var(--ok)', 'var(--bad)', 'var(--muted)']) : semDados}</div>
+    ${camCardNaoExistia(l)}
     <div class="card"><h2>Confirmação por assistente <span class="dir">% · com retorno</span></h2>${confAss.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Assistente</th><th>Confirmação</th><th>Confirmados</th><th>Não existia</th></tr></thead><tbody>${confAss.map(([nm, p, c, x]) => `<tr><td>${esc(nm)}</td><td><span class="cam-pct"><i style="width:${p}%;background:${p >= 80 ? 'var(--ok)' : p >= 60 ? 'var(--warn)' : 'var(--bad)'}"></i></span><b>${p}%</b></td><td>${c}</td><td>${x}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
   </div>`;
+}
+// v2.13: vagões que baixam a taxa de confirmação (retorno "defeito não existia"), classificados por tipo de avaria,
+// por apontamento de dúvida × afirmativo e por assistente, para orientar os treinamentos do Portal
+function camCardNaoExistia(l) {
+  const na = l.filter(a => CAM_NA_TAXA.includes(a.retorno)), nx = na.filter(a => a.retorno === 'nao_existia');
+  const cab = `<div class="card larga"><h2>Vagões que baixam a taxa de confirmação <span class="dir">defeito não existia · por tipo de avaria</span></h2>`;
+  if (!nx.length) return cab + `<p class="small muted" style="margin:0">${na.length ? 'Nenhum apontamento com “defeito não existia” no período: todos os retornos confirmaram o defeito.' : 'Sem retornos do revisor no período.'}</p></div>`;
+  const pc = (a, b) => b ? Math.round(a / b * 100) : 0, corP = p => p >= 40 ? 'var(--bad)' : p >= 20 ? 'var(--warn)' : 'var(--ok)';
+  const tipos = CAM_TIPO_NOMES.map((t, i) => { const r = na.filter(a => camTipo(a) === t), x = r.filter(a => a.retorno === 'nao_existia').length; return { t, i, n: r.length, x, c: r.length - x, p: pc(x, r.length) }; })
+    .filter(o => o.n).sort((a, b) => b.x - a.x || b.p - a.p);
+  const duv = na.filter(camDuvida), duvX = duv.filter(a => a.retorno === 'nao_existia').length, cert = na.length - duv.length, certX = nx.length - duvX;
+  const ass = [...new Set(nx.map(a => a.por))].map(id => ({ id, nome: C(id).nome, l: nx.filter(a => a.por === id), tot: na.filter(a => a.por === id).length })).sort((a, b) => b.l.length - a.l.length);
+  const cols = tipos.filter(o => o.x);
+  return cab + `<p class="small" style="margin:0 0 10px">Estes são os <b>${nx.length}</b> apontamentos em que o técnico revisor respondeu <b style="color:var(--bad)">defeito não existia</b>: os únicos que baixam a taxa de confirmação (${pc(nx.length, na.length)}% dos ${na.length} retornos que entram na conta). O tipo de avaria vem das palavras do apontamento. Toque em “ver” para abrir os vagões, o texto apontado e a auditoria.</p>
+    <div class="rolagem"><table class="tabela"><thead><tr><th>Tipo de avaria</th><th class="num">Com retorno</th><th class="num">Confirmados</th><th class="num">Não existia</th><th>% não existia no tipo</th><th class="num">Peso na perda</th><th></th></tr></thead><tbody>
+    ${tipos.map(o => `<tr><td><b>${o.t}</b></td><td class="num">${o.n}</td><td class="num">${o.c}</td><td class="num"><b${o.x ? ' style="color:var(--bad)"' : ''}>${o.x}</b></td><td><span class="cam-pct"><i style="width:${o.p}%;background:${corP(o.p)}"></i></span><b>${o.p}%</b></td><td class="num">${o.x ? pc(o.x, nx.length) + '%' : '–'}</td><td>${o.x ? `<button class="btn sm" ${camClique('nx_' + o.i)}>ver</button>` : ''}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="small muted" style="margin:6px 0 12px"><b>% não existia no tipo</b>: de cada 100 apontamentos daquele tipo com retorno, quantos o revisor não encontrou (mostra onde a leitura da imagem mais engana). <b>Peso na perda</b>: fatia do total de “não existia” (mostra onde está o volume).</p>
+    <div class="kpis">${kpi('Apontamento afirmativo', certX + ' não existia', `${pc(certX, cert)}% dos ${cert} com retorno` + (certX ? `<br><button class="btn sm" style="margin-top:6px" ${camClique('nx_cert')}>ver vagões</button>` : ''))}
+      ${kpi('Apontamento de dúvida', duvX + ' não existia', `${pc(duvX, duv.length)}% dos ${duv.length} com retorno · “verificar…”, “possível…”` + (duvX ? `<br><button class="btn sm" style="margin-top:6px" ${camClique('nx_duv')}>ver vagões</button>` : ''))}</div>
+    <h3 style="margin:14px 0 6px;font-size:14px">Não existia por assistente e tipo de avaria</h3>
+    <div class="rolagem"><table class="tabela"><thead><tr><th>Assistente</th>${cols.map(o => `<th class="num">${o.t}</th>`).join('')}<th class="num">Total</th><th class="num">% dos retornos dela(e)</th></tr></thead><tbody>
+    ${ass.map(x => `<tr><td>${esc(x.nome)}</td>${cols.map(o => { const k = x.l.filter(a => camTipo(a) === o.t).length; return `<td class="num">${k ? `<b style="color:var(--bad)">${k}</b>` : '<span class="muted">·</span>'}</td>`; }).join('')}<td class="num"><b>${x.l.length}</b></td><td class="num">${pc(x.l.length, x.tot)}%</td></tr>`).join('')}
+    </tbody></table></div></div>`;
 }
 // 6. escala das turmas (v1.89 · SQL 30): quem está em serviço, a escala e quem é de cada turma
 function camEscala() {
@@ -5174,8 +5222,8 @@ document.addEventListener('click', async e => {
     case 'cam-csv': camCSV(); return;
     case 'cam-grupo': S.modal = { tipo: 'camgrupo', k: v }; renderModal(); return;
     case 'cam-voltar': if (S.modal?.volta) { S.modal = S.modal.volta; renderModal(); } return;
-    case 'cam-grupo-csv': { const [tit, fn] = CAM_GRUPOS[v], L = [['Vagão', 'Trem', 'Posição na ficha', 'Status', 'Retorno', 'Observação do revisor', 'Assistente', 'Turma', 'Apontado em', 'Enviado ao revisor em', 'Descrição']];
-      fn(camDashLista()).forEach(a => L.push([a.vagao, a.trem_prefixo || a.prefixo, a.trem_pos_ficha, CAM_ST[camStatus(a)][0], a.retorno ? CAM_RET[a.retorno][0].replace(/^\S+ /, '') : '', a.retorno_obs, C(a.por).nome, a.turma ? 'Turma ' + a.turma : '', quandoCam(a.criado_em), a.enviado_em ? quandoCam(a.enviado_em) : '', a.descricao]));
+    case 'cam-grupo-csv': { const [tit, fn] = CAM_GRUPOS[v], L = [['Vagão', 'Trem', 'Posição na ficha', 'Status', 'Retorno', 'Observação do revisor', 'Assistente', 'Turma', 'Apontado em', 'Enviado ao revisor em', 'Descrição', 'Tipo de avaria', 'Apontamento de dúvida']];
+      fn(camDashLista()).forEach(a => L.push([a.vagao, a.trem_prefixo || a.prefixo, a.trem_pos_ficha, CAM_ST[camStatus(a)][0], a.retorno ? CAM_RET[a.retorno][0].replace(/^\S+ /, '') : '', a.retorno_obs, C(a.por).nome, a.turma ? 'Turma ' + a.turma : '', quandoCam(a.criado_em), a.enviado_em ? quandoCam(a.enviado_em) : '', a.descricao, camTipo(a), camDuvida(a) ? 'Sim' : 'Não']));
       baixarCSV(L, 'portal-cameras-' + semAcento(tit).toLowerCase().replace(/\W+/g, '-') + '-' + CAM.de + '-a-' + CAM.ate + '.csv'); return; }
     case 'cam-eventos': { if (!precisaNuvem()) return; const id = el.dataset.id; S.modal = { tipo: 'camev', id, ev: null, volta: S.modal?.tipo === 'camgrupo' ? S.modal : null }; renderModal();
       const { data, error } = await sb.from('cam_eventos').select('*').eq('apont_id', id).order('quando').order('id');
