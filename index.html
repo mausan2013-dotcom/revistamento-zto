@@ -700,7 +700,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.18';
+const VERSAO = '2.19';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1688,9 +1688,9 @@ const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
-  pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
-  vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos']],
+  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['atrasos', 'Análise de atrasos'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
+  pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
+  vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos']],
   cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard'], ['camescala', 'Escala']],
   camsup: [['camnovo', 'Novo apontamento'], ['camhist', 'Ocorrências da equipe'], ['cammeus', 'Minhas ocorrências'], ['camdash', 'Dashboard'], ['camescala', 'Escala e turmas']]
 };
@@ -3569,6 +3569,64 @@ function progTemporal() {
   </div>`;
 }
 
+
+// ---------- Análise de atrasos (trens revistados acima de META_MIN) ----------
+const _hoje = () => isoData(new Date()), _ontem = n => { const d = new Date(); d.setDate(d.getDate() - n); return isoData(d); };
+const AT = { de: _ontem(29), ate: _hoje(), turno: 'todos', linha: 'todas', motivo: 'todos', faixa: 'todas', janela: 'todas', prefixo: 'todos' };
+const AT_FAIXAS = [['1 a 15 min acima', 1, 15], ['16 a 30 min acima', 16, 30], ['31 a 60 min acima', 31, 60], ['Mais de 60 min acima', 61, 1e9]];   // excesso = duração − meta
+const AT_JANELAS = [['00h–04h', 0, 4], ['04h–08h', 4, 8], ['08h–12h', 8, 12], ['12h–16h', 12, 16], ['16h–20h', 16, 20], ['20h–24h', 20, 24]];   // hora em que a revisão começou
+function atRapido(v) {
+  const h = _hoje();
+  if (v === 'hoje') { AT.de = h; AT.ate = h; } else if (v === 'ontem') { AT.de = AT.ate = _ontem(1); }
+  else if (v === 'd7') { AT.de = _ontem(6); AT.ate = h; } else if (v === 'd30') { AT.de = _ontem(29); AT.ate = h; }
+  else if (v === 'mes') { AT.de = h.slice(0, 8) + '01'; AT.ate = h; }
+}
+const atHora = r => { const m = /^(\d{1,2}):/.exec(r.ini || ''); return m ? +m[1] : null; };
+function progAtrasos() {
+  const todas = linhasHist(), base = todas.filter(r => r.rev && r.durMin > META_MIN).map(r => ({ ...r, exc: r.durMin - META_MIN, mot: motivoAtraso(r), hIni: atHora(r) }));
+  const de = AT.de && AT.ate && AT.de > AT.ate ? AT.ate : AT.de, ate = AT.de && AT.ate && AT.de > AT.ate ? AT.de : AT.ate;
+  const fj = AT_JANELAS.find(j => j[0] === AT.janela), ff = AT_FAIXAS.find(f => f[0] === AT.faixa);
+  const rows = base.filter(r => (!de || r.dataISO >= de) && (!ate || r.dataISO <= ate) && (AT.turno === 'todos' || r.turno === AT.turno) && (AT.linha === 'todas' || r.linha === AT.linha)
+    && (AT.prefixo === 'todos' || r.prefixo === AT.prefixo) && (AT.motivo === 'todos' || r.mot === AT.motivo)
+    && (!ff || (r.exc >= ff[1] && r.exc < ff[2] + 1)) && (!fj || (r.hIni != null && r.hIni >= fj[1] && r.hIni < fj[2])));
+  // universo para o % de trens atrasados: revistados do mesmo recorte de data/turno/linha/prefixo
+  const univ = todas.filter(r => r.rev && r.durMin > 0 && (!de || r.dataISO >= de) && (!ate || r.dataISO <= ate) && (AT.turno === 'todos' || r.turno === AT.turno) && (AT.linha === 'todas' || r.linha === AT.linha) && (AT.prefixo === 'todos' || r.prefixo === AT.prefixo));
+  const sel = (k, rot, ops) => `<label class="filtro"><span>${rot}</span><select data-act="at" data-k="${k}">${ops.map(([v, l]) => `<option value="${esc(v)}" ${AT[k] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+  const motivos = [...new Set(base.map(r => r.mot))].sort(), prefs = [...new Set(base.map(r => r.prefixo))].sort();
+  const barra = `<div class="filtros-bar">
+    <label class="filtro"><span>De</span><input type="date" data-act="at" data-k="de" value="${AT.de}" max="${_hoje()}"></label>
+    <label class="filtro"><span>Até</span><input type="date" data-act="at" data-k="ate" value="${AT.ate}" max="${_hoje()}"></label>
+    ${sel('turno', 'Equipe (turno)', [['todos', 'Todas'], ...'ABCD'.split('').map(t => [t, 'Turno ' + t])])}${sel('linha', 'Linha', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
+    ${sel('prefixo', 'Prefixo', [['todos', 'Todos'], ...prefs.map(p => [p, p])])}${sel('motivo', 'Motivo', [['todos', 'Todos'], ...motivos.map(m => [m, m])])}
+    ${sel('faixa', 'Tamanho do impacto', [['todas', 'Todos'], ...AT_FAIXAS.map(f => [f[0], f[0]])])}${sel('janela', 'Janela (início da revisão)', [['todas', 'Todas'], ...AT_JANELAS.map(j => [j[0], j[0]])])}</div>
+    <div class="chips" style="margin:-4px 0 12px">${[['hoje', 'Hoje'], ['ontem', 'Ontem'], ['d7', '7 dias'], ['d30', '30 dias'], ['mes', 'Este mês']].map(([v, l]) => `<button class="chip" data-act="at-rapido" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const nota = `<p class="small muted" style="margin:0 0 10px">Trens revistados com mais de ${META_MIN} min de revisão. Impacto = minutos acima da meta. Trens não revistados (clima, etc.) ficam de fora.</p>`;
+  if (!rows.length) return barra + nota + `<div class="card">${semDados}</div>`;
+  const soma = f => rows.reduce((a, r) => a + f(r), 0), exTot = soma(r => r.exc), pior = rows.reduce((a, b) => b.exc > a.exc ? b : a);
+  const pct = univ.length ? Math.round(rows.length / univ.length * 100) : 0;
+  const mot = {}; rows.forEach(r => { const o = mot[r.mot] ||= [0, 0]; o[0]++; o[1] += r.exc; });
+  const lm = Object.entries(mot).sort((a, b) => (a[0] === 'Sem justificativa') - (b[0] === 'Sem justificativa') || b[1][1] - a[1][1]);
+  const dias = Object.entries(porChave(rows, r => r.dataISO)).sort().map(([d, x]) => ({ rot: diaRot(d), v: x.length, tip: `${diaRot(d)}: ${x.length} trem(ns) · ${dur(x.reduce((a, r) => a + r.exc, 0))} acima da meta` }));
+  const horas = Array.from({ length: 24 }, (_, h) => ({ rot: pad(h), v: rows.filter(r => r.hIni === h).length }));
+  const faixas = AT_FAIXAS.map(([l, a, b]) => [l, rows.filter(r => r.exc >= a && r.exc < b + 1).length]);
+  const turnos = ['A', 'B', 'C', 'D'].map(t => { const x = rows.filter(r => r.turno === t); return [`Turno ${t} · ${dur(x.reduce((a, r) => a + r.exc, 0))} acima`, x.length]; });
+  const linhas = ['ZTO 1', 'ZTO 2'].map(l => [l, rows.filter(r => r.linha === l).length]);
+  const tab = rows.slice().sort((a, b) => b.dataISO.localeCompare(a.dataISO) || (b.ini || '').localeCompare(a.ini || ''));
+  return `${barra}${nota}
+  <div class="kpis">${kpi('Trens acima da meta', fmt(rows.length), pct + '% dos ' + fmt(univ.length) + ' revistados')}${kpi('Minutos acima da meta', dur(exTot), 'soma de todos os trens')}
+    ${kpi('Média por trem', dur(media(rows)), '+' + dur(exTot / rows.length) + ' sobre a meta')}${kpi('Maior atraso', dur(pior.durMin), pior.prefixo + ' · ' + diaRot(pior.dataISO))}</div>
+  <div class="grid">
+    <div class="card larga"><h2>Atrasos por motivo <span class="dir">trens · minutos acima da meta</span></h2>${hbars(lm.map(([k, v]) => [k, v[0]]), 'trens', (v, i) => ` <span class="muted" style="font-weight:600">· ${dur(lm[i][1][1])}</span>`).replace('class="hb"', 'class="hb quebra"')}</div>
+    <div class="card larga"><h2>Trens atrasados dia a dia <span class="dir">${rows.length} trens</span></h2>${colunas(dias, { cor: 'var(--s2)', larg: 36 })}</div>
+    <div class="card larga"><h2>Janela de impacto <span class="dir">hora em que a revisão começou</span></h2>${colunas(horas, { cor: 'var(--s4)', larg: 20 })}</div>
+    <div class="card"><h2>Tamanho do impacto <span class="dir">trens</span></h2>${hbars(faixas, 'trens')}</div>
+    <div class="card"><h2>Por equipe <span class="dir">trens</span></h2>${hbars(turnos, 'trens')}</div>
+    <div class="card"><h2>Por linha <span class="dir">trens</span></h2>${hbars(linhas, 'trens')}</div>
+    <div class="card larga"><h2>Trens atrasados <span class="dir">${tab.length}</span></h2><div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Início–fim</th><th class="num">Revisão</th><th class="num">Acima</th><th>Motivo</th><th>Desvios / observações</th></tr></thead><tbody>${tab.map(r =>
+      `<tr><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${esc(r.prefixo)}</b></td><td>${esc(r.linha)}</td><td>${esc(r.ini || '–')}–${esc(r.fimH || '–')}</td><td class="num">${dur(r.durMin)}</td><td class="num"><span class="tag bad">+${dur(r.exc)}</span></td><td>${esc(r.mot)}</td><td class="small">${esc([r.desvObs, r.obsFech].filter(Boolean).join(' | ') || '–')}</td></tr>`).join('')}</tbody></table></div></div>
+  </div>`;
+}
+
 // ---------- Performance das equipes (turnos) ----------
 // trens do turno no período, com as mesmas colunas do resumo (abre ao tocar no líder)
 function trensDoTurno(rs, sapata) {
@@ -4842,9 +4900,9 @@ const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
   esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
-  prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
-  pcm: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
-  vis: { geral: progGeral, indic: vistaIndic, aderencia: progAderencia, freio: vistaFreio, retidos: vistaRetidos },
+  prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, atrasos: progAtrasos, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
+  pcm: { geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
+  vis: { geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, freio: vistaFreio, retidos: vistaRetidos },
   cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala },
   camsup: { camnovo: camNovo, camhist: camHist, cammeus: camMeus, camdash: camDash, camescala: camEscala }
 };
@@ -5459,6 +5517,7 @@ document.addEventListener('click', async e => {
       enviar({ tabela: 'trens', acao: 'update', dados: { validacao: 'validado', parecer: parecer || null }, filtro: [['id', 'eq', t.id]], desc: 'Validação do trem ' + t.prefixo });
       S.valTrem = null; toast('Trem ' + t.prefixo + ' validado'); break;
     }
+    case 'at-rapido': atRapido(v); break;
     case 'exportar': exportar(v); return;
     case 'mat-sel': S.matSel = S.matSel === v ? null : v; render(); if (S.matSel) setTimeout(() => $('mat-vagoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return;
     case 'exportar-mat': exportarMaterial(); return;
@@ -5520,6 +5579,7 @@ document.addEventListener('change', async e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, N = S.novo, M = S.modal;
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
+  else if (a === 'at') { AT[el.dataset.k] = el.value; render(); }
   else if (a === 'trem-linha') {
     const t = tremPorId(el.dataset.id); if (!t || !el.value || el.value === t.linha) return;
     t.linha = el.value; enviar({ tabela: 'trens', acao: 'update', dados: { linha: el.value }, filtro: [['id', 'eq', t.id]], desc: 'Linha do trem ' + t.prefixo });
