@@ -700,7 +700,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.21';
+const VERSAO = '2.22';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3394,7 +3394,7 @@ function linhasHist() {
   const velhos = HIST.trens.filter(r => !vistos.has(r.id)).map(r => ({ id: r.id, dataISO: r.data, turno: r.turno, linha: r.linha, prefixo: r.prefixo, status: r.status,
     lider: r.lider_nome || (r.lider_id ? C(r.lider_id).nome : liderDe(r.turno)), backup: r.lider_backup || '', motivoNao: r.motivo_nao || '', motivoParcial: r.motivo_parcial || '',
     ini: hm(r.inicio) || '', fimH: hm(r.fim) || '', durMin: r.inicio && r.fim ? difMin(hm(r.inicio), hm(r.fim)) : 0, total: r.total, insp: r.insp, retidos: r.retidos, itens: r.itens,
-    ...desvioApp(r.origem === 'app', r.n_desvios, r.desvio_min, r.desvio_obs || '', r.itens > 0 ? Object.entries(mats[r.id] || {}) : [], r.n_paradas > 0 ? { n: r.n_paradas, min: +r.parada_min || 0 } : null), obsFech: r.obs_fechamento || '', motAtraso: r.motivo_atraso || '', mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms',
+    ...desvioApp(r.origem === 'app', r.n_desvios, r.desvio_min, r.desvio_obs || '', r.itens > 0 ? Object.entries(mats[r.id] || {}) : [], r.n_paradas > 0 ? { n: r.n_paradas, min: +r.parada_min || 0 } : null), obsFech: r.obs_fechamento || '', motAtraso: r.motivo_atraso || '', parN: r.n_paradas > 0 ? r.n_paradas : 0, parMin: r.n_paradas > 0 ? +r.parada_min || 0 : 0, parEv: [], mats: mats[r.id] || {}, ret: ret[r.id] || (r.retidos_txt ? [{ vagao: '', obs: r.retidos_txt }] : []), forms: r.origem === 'forms',
     apl: (HIST.det[r.id] || []).flatMap(m => (m.vagoes || []).map(x => ({ vagao: x.v, id: m.id, nome: m.nome, qtd: x.q, pos: x.p || [] }))) }));
   const novos = fechadosT().map(t => {
     const m = {}; Object.values(t.reg).forEach(r => r.mats.forEach(x => m[x.nome] = (m[x.nome] || 0) + x.qtd));
@@ -3404,7 +3404,7 @@ function linhasHist() {
     return { ini: t.inicio || '', fimH: t.fim || '', id: t.id, dataISO: t.dataISO, turno: t.turno, linha: t.linha, prefixo: t.prefixo, status: t.status, lider: t.lider, backup: t.backup, motivoNao: t.motivoNao, motivoParcial: t.motivoParcial,
       durMin: t.durMin, total: t.vagoes.length, insp: inspecionados(t), retidos: rt.length, itens: Object.values(m).reduce((a, b) => a + b, 0),
       ...desvioApp(true, t.desvios.length, t.desvios.reduce((a, d) => a + (d.fim ? difMin(d.ini, d.fim) : 0), 0), t.desvios.map(d => d.motivo + (d.obs ? ': ' + d.obs : '')).join(' | '), Object.entries(m),
-        (ev => ev.length ? { n: ev.length, min: ev.reduce((a, e) => a + e.min, 0) } : null)(eventosParada(t))), obsFech: t.obsFech, motAtraso: t.motAtraso, mats: m, ret: rt, apl };
+        (ev => ev.length ? { n: ev.length, min: ev.reduce((a, e) => a + e.min, 0) } : null)(eventosParada(t))), obsFech: t.obsFech, motAtraso: t.motAtraso, ...(ev => ({ parN: ev.length, parMin: ev.reduce((a, e) => a + e.min, 0), parEv: ev.map(e => ({ motivo: e.motivo, min: e.min })) }))(eventosParada(t)), mats: m, ret: rt, apl };
   });
   return velhos.concat(novos).map(r => ({ ...r, rev: r.status === 'concluido', mes: r.dataISO.slice(0, 7), falt: r.status === 'concluido' ? Math.max(0, r.total - r.insp) : r.total }))
     .sort((a, b) => a.dataISO.localeCompare(b.dataISO));
@@ -3572,7 +3572,8 @@ function progTemporal() {
 
 // ---------- Análise de atrasos (trens revistados acima de META_MIN) ----------
 const _hoje = () => isoData(new Date()), _ontem = n => { const d = new Date(); d.setDate(d.getDate() - n); return isoData(d); };
-const AT = { de: _ontem(29), ate: _hoje(), turno: 'todos', linha: 'todas', motivo: 'todos', faixa: 'todas', janela: 'todas', prefixo: 'todos' };
+const AT = { de: _ontem(29), ate: _hoje(), turno: 'todos', linha: 'todas', motivo: 'todos', faixa: 'todas', janela: 'todas', prefixo: 'todos', parada: 'todas' };
+const AT_PARADAS = [['Com parada externa', 'Com parada externa registrada'], ['Explica o atraso', 'Parada explica o atraso'], ['Contribui', 'Parada contribui, mas segue acima da meta'], ['Sem parada', 'Sem parada registrada']];
 const AT_FAIXAS = [['1 a 15 min acima', 1, 15], ['16 a 30 min acima', 16, 30], ['31 a 60 min acima', 31, 60], ['Mais de 60 min acima', 61, 1e9]];   // excesso = duração − meta
 const AT_JANELAS = [['00h–04h', 0, 4], ['04h–08h', 4, 8], ['08h–12h', 8, 12], ['12h–16h', 12, 16], ['16h–20h', 16, 20], ['20h–24h', 20, 24]];   // hora em que a revisão começou
 function atRapido(v) {
@@ -3585,12 +3586,12 @@ const atHora = r => { const m = /^(\d{1,2}):/.exec(r.ini || ''); return m ? +m[1
 function progAtrasos() {
   histIndic();                                              // supervisor e validador: busca o histórico completo sob demanda
   if (!veIndic() && !HIST.ok && HIST.buscando) return carregandoHV('o histórico de trens');
-  const todas = linhasHist(), base = todas.filter(r => r.rev && r.durMin > META_MIN).map(r => ({ ...r, exc: r.durMin - META_MIN, mot: motivoAtraso(r), hIni: atHora(r) }));
+  const todas = linhasHist(), base = todas.filter(r => r.rev && r.durMin > META_MIN).map(r => ({ ...r, exc: r.durMin - META_MIN, mot: motivoAtraso(r), hIni: atHora(r), par: Math.min(r.durMin, Math.round((r.parMin || 0) * 10) / 10) })).map(r => ({ ...r, semPar: r.durMin - r.par, leit: r.par <= 0 ? 'Sem parada' : r.durMin - r.par <= META_MIN ? 'Explica o atraso' : 'Contribui' }));
   const de = AT.de && AT.ate && AT.de > AT.ate ? AT.ate : AT.de, ate = AT.de && AT.ate && AT.de > AT.ate ? AT.de : AT.ate;
   const fj = AT_JANELAS.find(j => j[0] === AT.janela), ff = AT_FAIXAS.find(f => f[0] === AT.faixa);
   const rows = base.filter(r => (!de || r.dataISO >= de) && (!ate || r.dataISO <= ate) && (AT.turno === 'todos' || r.turno === AT.turno) && (AT.linha === 'todas' || r.linha === AT.linha)
     && (AT.prefixo === 'todos' || r.prefixo === AT.prefixo) && (AT.motivo === 'todos' || r.mot === AT.motivo)
-    && (!ff || (r.exc >= ff[1] && r.exc < ff[2] + 1)) && (!fj || (r.hIni != null && r.hIni >= fj[1] && r.hIni < fj[2])));
+    && (AT.parada === 'todas' || (AT.parada === 'Com parada externa' ? r.par > 0 : r.leit === AT.parada)) && (!ff || (r.exc >= ff[1] && r.exc < ff[2] + 1)) && (!fj || (r.hIni != null && r.hIni >= fj[1] && r.hIni < fj[2])));
   // universo para o % de trens atrasados: revistados do mesmo recorte de data/turno/linha/prefixo
   const univ = todas.filter(r => r.rev && r.durMin > 0 && (!de || r.dataISO >= de) && (!ate || r.dataISO <= ate) && (AT.turno === 'todos' || r.turno === AT.turno) && (AT.linha === 'todas' || r.linha === AT.linha) && (AT.prefixo === 'todos' || r.prefixo === AT.prefixo));
   const sel = (k, rot, ops) => `<label class="filtro"><span>${rot}</span><select data-act="at" data-k="${k}">${ops.map(([v, l]) => `<option value="${esc(v)}" ${AT[k] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
@@ -3600,15 +3601,22 @@ function progAtrasos() {
     <label class="filtro"><span>Até</span><input type="date" data-act="at" data-k="ate" value="${AT.ate}" max="${_hoje()}"></label>
     ${sel('turno', 'Equipe (turno)', [['todos', 'Todas'], ...'ABCD'.split('').map(t => [t, 'Turno ' + t])])}${sel('linha', 'Linha', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
     ${sel('prefixo', 'Prefixo', [['todos', 'Todos'], ...prefs.map(p => [p, p])])}${sel('motivo', 'Motivo', [['todos', 'Todos'], ...motivos.map(m => [m, m])])}
-    ${sel('faixa', 'Tamanho do impacto', [['todas', 'Todos'], ...AT_FAIXAS.map(f => [f[0], f[0]])])}${sel('janela', 'Janela (início da revisão)', [['todas', 'Todas'], ...AT_JANELAS.map(j => [j[0], j[0]])])}</div>
+    ${sel('parada', 'Paradas externas', [['todas', 'Todos'], ...AT_PARADAS])}${sel('faixa', 'Tamanho do impacto', [['todas', 'Todos'], ...AT_FAIXAS.map(f => [f[0], f[0]])])}${sel('janela', 'Janela (início da revisão)', [['todas', 'Todas'], ...AT_JANELAS.map(j => [j[0], j[0]])])}</div>
     <div class="chips" style="margin:-4px 0 12px">${[['hoje', 'Hoje'], ['ontem', 'Ontem'], ['d7', '7 dias'], ['d30', '30 dias'], ['mes', 'Este mês']].map(([v, l]) => `<button class="chip" data-act="at-rapido" data-v="${v}">${l}</button>`).join('')}</div>`;
   const aviso = !HIST.ok && !DEMO ? `<p class="nota">Mostrando só os trens guardados no aparelho (últimos ${diasPerfil()} dias). O histórico completo não carregou: atualize para tentar de novo.</p>` : '';
   const botao = `<div class="acoes" style="margin:0 0 10px" data-sem-print><button class="btn sm primary" data-act="print-atrasos">📸 Print do relatório (para WhatsApp)</button></div>`;
   const nota = `<p class="small muted at-nota" style="margin:0 0 10px">Trens revistados com mais de ${META_MIN} min de revisão. Impacto = minutos acima da meta. Trens não revistados (clima, etc.) ficam de fora.</p>`;
   if (!rows.length) return barra + aviso + nota + `<div class="card">${semDados}</div>`;
-  const resumo = [de || ate ? (de === ate ? 'Dia ' + diaRot(de) : (de ? diaRot(de) : '…') + ' a ' + (ate ? diaRot(ate) : '…')) : 'Todo o período', AT.turno !== 'todos' && 'Turno ' + AT.turno, AT.linha !== 'todas' && AT.linha, AT.prefixo !== 'todos' && 'Trem ' + AT.prefixo, AT.motivo !== 'todos' && AT.motivo, ff && ff[0], fj && 'Início ' + fj[0]].filter(Boolean).join(' · ');
+  const resumo = [de || ate ? (de === ate ? 'Dia ' + diaRot(de) : (de ? diaRot(de) : '…') + ' a ' + (ate ? diaRot(ate) : '…')) : 'Todo o período', AT.turno !== 'todos' && 'Turno ' + AT.turno, AT.linha !== 'todas' && AT.linha, AT.prefixo !== 'todos' && 'Trem ' + AT.prefixo, AT.motivo !== 'todos' && AT.motivo, AT.parada !== 'todas' && (AT_PARADAS.find(x => x[0] === AT.parada) || [])[1], ff && ff[0], fj && 'Início ' + fj[0]].filter(Boolean).join(' · ');
   const soma = f => rows.reduce((a, r) => a + f(r), 0), exTot = soma(r => r.exc), pior = rows.reduce((a, b) => b.exc > a.exc ? b : a);
   const pct = univ.length ? Math.round(rows.length / univ.length * 100) : 0;
+  const comPar = rows.filter(r => r.par > 0), expl = rows.filter(r => r.leit === 'Explica o atraso'), contr = rows.filter(r => r.leit === 'Contribui'), semP = rows.filter(r => r.leit === 'Sem parada');
+  const parTot = soma(r => r.par), excMed = rs => rs.length ? ' · atraso médio +' + dur(media(rs, r => r.exc)) : '';
+  const leitura = [['Parada explica o atraso', expl], ['Parada contribui, mas segue acima da meta', contr], ['Sem parada registrada', semP]];
+  const rotT = r => `${r.prefixo} · ${diaRot(r.dataISO)} · ${r.turno}`;
+  const revPar = comPar.slice().sort((a, b) => b.durMin - a.durMin).slice(0, 10).map(r => ({ rot: rotT(r), partes: [Math.round(r.semPar), Math.round(r.par)] }));
+  const porMot = {}; rows.forEach(r => (r.parEv || []).forEach(e => { porMot[e.motivo] = (porMot[e.motivo] || 0) + e.min; }));
+  const rosPar = Object.keys(MOT_PARADA).filter(k => porMot[k]).map(k => [MOT_PARADA_C[k] + ' (min)', Math.round(porMot[k]), COR_PARADA[k]]);
   const mot = {}; rows.forEach(r => { const o = mot[r.mot] ||= [0, 0]; o[0]++; o[1] += r.exc; });
   const lm = Object.entries(mot).sort((a, b) => (a[0] === 'Sem justificativa') - (b[0] === 'Sem justificativa') || b[1][1] - a[1][1]);
   const dias = Object.entries(porChave(rows, r => r.dataISO)).sort().map(([d, x]) => ({ rot: diaRot(d), v: x.length, tip: `${diaRot(d)}: ${x.length} trem(ns) · ${dur(x.reduce((a, r) => a + r.exc, 0))} acima da meta` }));
@@ -3620,22 +3628,29 @@ function progAtrasos() {
   return `${barra}${aviso}${botao}${nota}
   <div class="rep-atr" data-resumo="${esc(resumo)}"></div>
   <div class="kpis">${kpi('Trens acima da meta', fmt(rows.length), pct + '% dos ' + fmt(univ.length) + ' revistados')}${kpi('Minutos acima da meta', dur(exTot), 'soma de todos os trens')}
-    ${kpi('Média por trem', dur(media(rows)), '+' + dur(exTot / rows.length) + ' sobre a meta')}${kpi('Maior atraso', dur(pior.durMin), pior.prefixo + ' · ' + diaRot(pior.dataISO))}</div>
+    ${kpi('Média por trem', dur(media(rows)), '+' + dur(exTot / rows.length) + ' sobre a meta')}${kpi('Maior atraso', dur(pior.durMin), pior.prefixo + ' · ' + diaRot(pior.dataISO))}
+    ${kpi('Com parada externa', fmt(comPar.length), Math.round(comPar.length / rows.length * 100) + '% dos atrasos · ' + dur(parTot) + ' parados')}${kpi('Parada explica o atraso', fmt(expl.length), 'sem a parada ficariam em até ' + META_MIN + ' min')}</div>
   <div class="grid">
+    <div class="card larga"><h2>Leitura das paradas externas <span class="dir">relação entre a parada e o atraso</span></h2>
+      <p class="small muted" style="margin:0 0 8px">Parada externa = cronômetro dos técnicos (movimentação na linha paralela ou aguardando autorização para transpor). Se a revisão <b>sem a parte parada</b> fica em até ${META_MIN} min, a parada explica o atraso.</p>
+      ${hbars(leitura.map(([l, x]) => [l, x.length]), 'trens', (v, i) => `<span class="muted" style="font-weight:600">${excMed(leitura[i][1])}</span>`).replace('class="hb"', 'class="hb quebra"')}
+      ${comPar.length ? `<div class="secao" style="margin-top:12px">Trens com parada: revisão sem parada + parado <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">minutos · 10 maiores</span></div>${pilhas(revPar, ['Revisão sem parada (min)', 'Parado (min)'], ['var(--s2)', 'var(--s4)'])}` : ''}
+      ${rosPar.length ? `<div class="secao" style="margin-top:12px">Tempo parado por motivo</div>${rosca(rosPar)}` : ''}
+      <p class="small muted" style="margin:8px 0 0">Paradas só existem nos trens lançados no app com cronômetro; trens do histórico do Forms entram como “sem parada registrada” ou só com o total parado, sem motivo.</p></div>
     <div class="card larga"><h2>Atrasos por motivo <span class="dir">trens · minutos acima da meta</span></h2>${hbars(lm.map(([k, v]) => [k, v[0]]), 'trens', (v, i) => ` <span class="muted" style="font-weight:600">· ${dur(lm[i][1][1])}</span>`).replace('class="hb"', 'class="hb quebra"')}</div>
     <div class="card larga"><h2>Trens atrasados dia a dia <span class="dir">${rows.length} trens</span></h2>${colunas(dias, { cor: 'var(--s2)', larg: 36 })}</div>
     <div class="card larga"><h2>Janela de impacto <span class="dir">hora em que a revisão começou</span></h2>${colunas(horas, { cor: 'var(--s4)', larg: 20 })}</div>
     <div class="card"><h2>Tamanho do impacto <span class="dir">trens</span></h2>${hbars(faixas.map(([l, v]) => [l.replace(' acima', ''), v]), 'trens')}</div>
     <div class="card"><h2>Por equipe <span class="dir">trens</span></h2>${hbars(turnos, 'trens', (v, i) => turnos[i][2] ? ` <span class="muted" style="font-weight:600">· ${dur(turnos[i][2])}</span>` : '')}</div>
     <div class="card"><h2>Por linha <span class="dir">trens</span></h2>${hbars(linhas, 'trens')}</div>
-    <div class="card larga"><h2>Trens atrasados <span class="dir">${tab.length}</span></h2><div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Início–fim</th><th class="num">Revisão</th><th class="num">Acima</th><th>Motivo</th><th>Desvios / observações</th></tr></thead><tbody>${tab.map(r =>
-      `<tr><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${esc(r.prefixo)}</b></td><td>${esc(r.linha)}</td><td>${esc(r.ini || '–')}–${esc(r.fimH || '–')}</td><td class="num">${dur(r.durMin)}</td><td class="num"><span class="tag bad">+${dur(r.exc)}</span></td><td>${esc(r.mot)}</td><td class="small">${esc([r.desvObs, r.obsFech].filter(Boolean).join(' | ') || '–')}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="card larga"><h2>Trens atrasados <span class="dir">${tab.length}</span></h2><div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Início–fim</th><th class="num">Revisão</th><th class="num">Acima</th><th class="num">Parado</th><th>Leitura</th><th>Motivo</th><th>Desvios / observações</th></tr></thead><tbody>${tab.map(r =>
+      `<tr><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${esc(r.prefixo)}</b></td><td>${esc(r.linha)}</td><td>${esc(r.ini || '–')}–${esc(r.fimH || '–')}</td><td class="num">${dur(r.durMin)}</td><td class="num"><span class="tag bad">+${dur(r.exc)}</span></td><td class="num">${r.par > 0 ? `<b>${dur(r.par)}</b><br><span class="small muted">${r.parN}× parada(s)</span>` : '–'}</td><td><span class="tag ${r.leit === 'Explica o atraso' ? 'info' : ''}">${esc(r.leit === 'Contribui' ? 'Parada contribui' : r.leit === 'Explica o atraso' ? 'Parada explica' : 'Sem parada')}</span></td><td>${esc(r.mot)}</td><td class="small">${esc([r.desvObs, r.obsFech].filter(Boolean).join(' | ') || '–')}</td></tr>`).join('')}</tbody></table></div></div>
   </div>`;
 }
 
 
 async function printAtrasos() {
-  const box = document.createElement('div'); box.className = 'para-print'; box.style.width = '1100px'; box.innerHTML = progAtrasos();
+  const box = document.createElement('div'); box.className = 'para-print'; box.style.width = '1300px'; box.innerHTML = progAtrasos();
   const resumo = box.querySelector('.rep-atr')?.dataset.resumo || '';
   box.querySelectorAll('.filtros-bar, .chips, .nota, .at-nota, [data-sem-print]').forEach(e => e.remove());
   box.querySelectorAll('.rolagem').forEach(e => e.classList.remove('rolagem', 'alto'));       // a tabela sai inteira, sem barra de rolagem
