@@ -700,7 +700,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.19';
+const VERSAO = '2.20';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3600,8 +3600,10 @@ function progAtrasos() {
     ${sel('prefixo', 'Prefixo', [['todos', 'Todos'], ...prefs.map(p => [p, p])])}${sel('motivo', 'Motivo', [['todos', 'Todos'], ...motivos.map(m => [m, m])])}
     ${sel('faixa', 'Tamanho do impacto', [['todas', 'Todos'], ...AT_FAIXAS.map(f => [f[0], f[0]])])}${sel('janela', 'Janela (início da revisão)', [['todas', 'Todas'], ...AT_JANELAS.map(j => [j[0], j[0]])])}</div>
     <div class="chips" style="margin:-4px 0 12px">${[['hoje', 'Hoje'], ['ontem', 'Ontem'], ['d7', '7 dias'], ['d30', '30 dias'], ['mes', 'Este mês']].map(([v, l]) => `<button class="chip" data-act="at-rapido" data-v="${v}">${l}</button>`).join('')}</div>`;
-  const nota = `<p class="small muted" style="margin:0 0 10px">Trens revistados com mais de ${META_MIN} min de revisão. Impacto = minutos acima da meta. Trens não revistados (clima, etc.) ficam de fora.</p>`;
+  const botao = `<div class="acoes" style="margin:0 0 10px" data-sem-print><button class="btn sm primary" data-act="print-atrasos">📸 Print do relatório (para WhatsApp)</button></div>`;
+  const nota = `<p class="small muted at-nota" style="margin:0 0 10px">Trens revistados com mais de ${META_MIN} min de revisão. Impacto = minutos acima da meta. Trens não revistados (clima, etc.) ficam de fora.</p>`;
   if (!rows.length) return barra + nota + `<div class="card">${semDados}</div>`;
+  const resumo = [de || ate ? (de === ate ? 'Dia ' + diaRot(de) : (de ? diaRot(de) : '…') + ' a ' + (ate ? diaRot(ate) : '…')) : 'Todo o período', AT.turno !== 'todos' && 'Turno ' + AT.turno, AT.linha !== 'todas' && AT.linha, AT.prefixo !== 'todos' && 'Trem ' + AT.prefixo, AT.motivo !== 'todos' && AT.motivo, ff && ff[0], fj && 'Início ' + fj[0]].filter(Boolean).join(' · ');
   const soma = f => rows.reduce((a, r) => a + f(r), 0), exTot = soma(r => r.exc), pior = rows.reduce((a, b) => b.exc > a.exc ? b : a);
   const pct = univ.length ? Math.round(rows.length / univ.length * 100) : 0;
   const mot = {}; rows.forEach(r => { const o = mot[r.mot] ||= [0, 0]; o[0]++; o[1] += r.exc; });
@@ -3609,22 +3611,37 @@ function progAtrasos() {
   const dias = Object.entries(porChave(rows, r => r.dataISO)).sort().map(([d, x]) => ({ rot: diaRot(d), v: x.length, tip: `${diaRot(d)}: ${x.length} trem(ns) · ${dur(x.reduce((a, r) => a + r.exc, 0))} acima da meta` }));
   const horas = Array.from({ length: 24 }, (_, h) => ({ rot: pad(h), v: rows.filter(r => r.hIni === h).length }));
   const faixas = AT_FAIXAS.map(([l, a, b]) => [l, rows.filter(r => r.exc >= a && r.exc < b + 1).length]);
-  const turnos = ['A', 'B', 'C', 'D'].map(t => { const x = rows.filter(r => r.turno === t); return [`Turno ${t} · ${dur(x.reduce((a, r) => a + r.exc, 0))} acima`, x.length]; });
+  const turnos = ['A', 'B', 'C', 'D'].map(t => { const x = rows.filter(r => r.turno === t); return [`Turno ${t}`, x.length, x.reduce((a, r) => a + r.exc, 0)]; });
   const linhas = ['ZTO 1', 'ZTO 2'].map(l => [l, rows.filter(r => r.linha === l).length]);
   const tab = rows.slice().sort((a, b) => b.dataISO.localeCompare(a.dataISO) || (b.ini || '').localeCompare(a.ini || ''));
-  return `${barra}${nota}
+  return `${barra}${botao}${nota}
+  <div class="rep-atr" data-resumo="${esc(resumo)}"></div>
   <div class="kpis">${kpi('Trens acima da meta', fmt(rows.length), pct + '% dos ' + fmt(univ.length) + ' revistados')}${kpi('Minutos acima da meta', dur(exTot), 'soma de todos os trens')}
     ${kpi('Média por trem', dur(media(rows)), '+' + dur(exTot / rows.length) + ' sobre a meta')}${kpi('Maior atraso', dur(pior.durMin), pior.prefixo + ' · ' + diaRot(pior.dataISO))}</div>
   <div class="grid">
     <div class="card larga"><h2>Atrasos por motivo <span class="dir">trens · minutos acima da meta</span></h2>${hbars(lm.map(([k, v]) => [k, v[0]]), 'trens', (v, i) => ` <span class="muted" style="font-weight:600">· ${dur(lm[i][1][1])}</span>`).replace('class="hb"', 'class="hb quebra"')}</div>
     <div class="card larga"><h2>Trens atrasados dia a dia <span class="dir">${rows.length} trens</span></h2>${colunas(dias, { cor: 'var(--s2)', larg: 36 })}</div>
     <div class="card larga"><h2>Janela de impacto <span class="dir">hora em que a revisão começou</span></h2>${colunas(horas, { cor: 'var(--s4)', larg: 20 })}</div>
-    <div class="card"><h2>Tamanho do impacto <span class="dir">trens</span></h2>${hbars(faixas, 'trens')}</div>
-    <div class="card"><h2>Por equipe <span class="dir">trens</span></h2>${hbars(turnos, 'trens')}</div>
+    <div class="card"><h2>Tamanho do impacto <span class="dir">trens</span></h2>${hbars(faixas.map(([l, v]) => [l.replace(' acima', ''), v]), 'trens')}</div>
+    <div class="card"><h2>Por equipe <span class="dir">trens</span></h2>${hbars(turnos, 'trens', (v, i) => turnos[i][2] ? ` <span class="muted" style="font-weight:600">· ${dur(turnos[i][2])}</span>` : '')}</div>
     <div class="card"><h2>Por linha <span class="dir">trens</span></h2>${hbars(linhas, 'trens')}</div>
     <div class="card larga"><h2>Trens atrasados <span class="dir">${tab.length}</span></h2><div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Início–fim</th><th class="num">Revisão</th><th class="num">Acima</th><th>Motivo</th><th>Desvios / observações</th></tr></thead><tbody>${tab.map(r =>
       `<tr><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${esc(r.prefixo)}</b></td><td>${esc(r.linha)}</td><td>${esc(r.ini || '–')}–${esc(r.fimH || '–')}</td><td class="num">${dur(r.durMin)}</td><td class="num"><span class="tag bad">+${dur(r.exc)}</span></td><td>${esc(r.mot)}</td><td class="small">${esc([r.desvObs, r.obsFech].filter(Boolean).join(' | ') || '–')}</td></tr>`).join('')}</tbody></table></div></div>
   </div>`;
+}
+
+
+async function printAtrasos() {
+  const box = document.createElement('div'); box.className = 'para-print'; box.style.width = '1100px'; box.innerHTML = progAtrasos();
+  const resumo = box.querySelector('.rep-atr')?.dataset.resumo || '';
+  box.querySelectorAll('.filtros-bar, .chips, .nota, .at-nota, [data-sem-print]').forEach(e => e.remove());
+  box.querySelectorAll('.rolagem').forEach(e => e.classList.remove('rolagem', 'alto'));       // a tabela sai inteira, sem barra de rolagem
+  const topo = box.querySelector('.rep-atr'); if (topo) topo.outerHTML = `<div class="rep-topo"><div><h2>Revistamento ZTO · Análise de atrasos</h2><span>${esc(resumo)} · trens revistados acima de ${META_MIN} min</span></div><b>${dataBR(new Date())}</b></div>`;
+  document.body.appendChild(box); toast('Gerando o relatório…');
+  try { await new Promise(r => setTimeout(r, 150)); const blob = await gerarImagem(box);
+    await compartilharImagem(blob, `analise-atrasos-${isoData(new Date())}.png`, 'Análise de atrasos · Revistamento ZTO · ' + resumo); }
+  catch (e) { toast('⚠ ' + e.message); }
+  box.remove();
 }
 
 // ---------- Performance das equipes (turnos) ----------
@@ -5251,6 +5268,7 @@ document.addEventListener('click', async e => {
     case 'qd-print': qdEnviarFechamento(T()); return;
     case 'print-comp': printDe('rel-comp', `composicoes-turno-${T()}-${dataOp()}.png`, `*Composições do turno ${T()} · ${dataBR(deISO(dataOp()))}*\nPercentual revisado, posição dos vagões não revisados, materiais trocados e paradas dos técnicos.`); return;
     case 'print-aderencia': printAderencia(); return;
+    case 'print-atrasos': printAtrasos(); return;
     case 'passar-trem': {
       if (!precisaNuvem()) return;
       const t = tremPorId(el.dataset.id), nt = el.dataset.turno;
