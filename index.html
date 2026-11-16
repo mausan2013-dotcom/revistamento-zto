@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.24';
+const VERSAO = '2.25';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1405,6 +1405,7 @@ addEventListener('online', processarFila);
 
 // ---------- estado da tela ----------
 const S = {
+  atAberto: null,
   papel: 'sup', aba: { sup: 'turno', tec: 'meu', esp: 'validacao', prog: 'geral', pcm: 'geral' }, turnoVer: SERVICO.turno, verTec: null,
   espFiltro: 'turno', valTrem: null, planoTurno: SERVICO.turno, gestDeslig: false, tecTrem: null, tecFiltro: 'faltam',
   novo: null, busca: '', relData: null, relPref: 'todos', relTurno: 'todos', supLanca: false, supData: null, supTrem: null, apDia: '', apTurno: '', apPref: '', apBusca: '', apTipo: '', tecPulados: lsLer('rzto_pulados', []), modal: null, eq: {}, eqSalvo: {}, eqSujo: {}, backup: lsLer('rzto_backup', '')
@@ -2966,7 +2967,8 @@ function carregarScript(url) {
 }
 async function gerarImagem(el) {
   await carregarScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-  const c = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', ignoreElements: e => e.hasAttribute && e.hasAttribute('data-sem-print') });
+  const esc2 = Math.max(0.6, Math.min(2, Math.sqrt(14e6 / Math.max(1, el.scrollWidth * el.scrollHeight)), 16000 / Math.max(1, el.scrollHeight)));   // limite de tamanho do canvas (celular/Chrome)
+  const c = await html2canvas(el, { scale: esc2, backgroundColor: '#ffffff', ignoreElements: e => e.hasAttribute && e.hasAttribute('data-sem-print') });
   return new Promise(ok => c.toBlob(ok, 'image/png'));
 }
 // celular: abre o menu de compartilhar (escolha o WhatsApp) já com a imagem; computador: baixa a imagem e abre o WhatsApp com o texto
@@ -3664,16 +3666,44 @@ function progAtrasos() {
     <div class="card"><h2>Por equipe <span class="dir">trens</span></h2>${hbars(turnos, 'trens', (v, i) => turnos[i][2] ? ` <span class="muted" style="font-weight:600">· ${dur(turnos[i][2])}</span>` : '')}</div>
     <div class="card"><h2>Por linha <span class="dir">trens</span></h2>${hbars(linhas, 'trens')}</div>
     <div class="card larga"><h2>Trens atrasados <span class="dir">${tab.length}</span></h2><div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th>Início–fim</th><th class="num">Revisão</th><th class="num">Acima</th><th class="num">Parado</th><th>Leitura</th><th>Motivo</th><th>Desvios / observações</th></tr></thead><tbody>${tab.map(r =>
-      `<tr><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${esc(r.prefixo)}</b></td><td>${esc(r.linha)}</td><td>${esc(r.ini || '–')}–${esc(r.fimH || '–')}</td><td class="num">${dur(r.durMin)}</td><td class="num"><span class="tag bad">+${dur(r.exc)}</span></td><td class="num">${r.par > 0 ? `<b>${dur(r.par)}</b><br><span class="small muted">${r.parN}× parada(s)</span>` : '–'}</td><td><span class="tag ${r.leit === 'Explica o atraso' ? 'info' : ''}">${esc(r.leit === 'Contribui' ? 'Parada contribui' : r.leit === 'Explica o atraso' ? 'Parada explica' : 'Sem parada')}</span></td><td>${esc(r.mot)}</td><td class="small">${esc([r.desvObs, r.obsFech].filter(Boolean).join(' | ') || '–')}</td></tr>`).join('')}</tbody></table></div></div>
+      `<tr class="nr-trem ${S.atAberto === r.id ? 'on' : ''}" data-act="at-abrir" data-id="${esc(r.id)}" data-exc="${Math.round(r.exc * 10)}"><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${S.atAberto === r.id ? '▾' : '▸'} ${esc(r.prefixo)}</b></td><td>${esc(r.linha)}</td><td>${esc(r.ini || '–')}–${esc(r.fimH || '–')}</td><td class="num">${dur(r.durMin)}</td><td class="num"><span class="tag bad">+${dur(r.exc)}</span></td><td class="num">${r.par > 0 ? `<b>${dur(r.par)}</b><br><span class="small muted">${r.parN}× parada(s)</span>` : '–'}</td><td><span class="tag ${r.leit === 'Explica o atraso' ? 'info' : ''}">${esc(r.leit === 'Contribui' ? 'Parada contribui' : r.leit === 'Explica o atraso' ? 'Parada explica' : 'Sem parada')}</span></td><td>${esc(r.mot)}</td><td class="small">${esc([r.desvObs, r.obsFech].filter(Boolean).join(' | ') || '–')}</td></tr>${S.atAberto === r.id ? fichaAtraso(r) : ''}`).join('')}</tbody></table></div><p class="small muted at-nota" style="margin:8px 0 0">Toque em um trem para ver os dados dele.</p></div>
   </div>`;
+}
+// ficha do trem atrasado (abre ao tocar na linha da tabela)
+function fichaAtraso(r) {
+  const it = (t, v) => `<div style="min-width:150px"><div class="small muted">${t}</div><div>${v}</div></div>`;
+  const ader = r.total ? `<span class="tag ${r.insp / r.total * 100 >= META_ADER ? 'ok' : 'bad'}">${pct1(r.insp, r.total)}%</span>` : '–';
+  const mats = Object.entries(r.mats || {}).filter(([, q]) => q > 0).map(([n, q]) => `${esc(n)}: <b>${q}</b>`).join(' · ');
+  const evs = (r.parEv || []).map(e => `${esc(MOT_PARADA[e.motivo] || e.motivo)}: <b>${dur(e.min)}</b>`).join(' · ');
+  const leit = r.leit === 'Explica o atraso' ? 'A parada explica o atraso: sem ela o trem ficaria em ' + dur(r.semPar) + ' (meta ' + META_MIN + ' min).' : r.leit === 'Contribui' ? 'A parada contribui, mas sem ela o trem ainda ficaria em ' + dur(r.semPar) + ', acima da meta.' : 'Nenhuma parada externa registrada neste trem.';
+  const obs = [r.desvObs && ['Desvios', r.desvObs], r.obsFech && ['Observação do fechamento', r.obsFech], r.motivoParcial && ['Revisão parcial', r.motivoParcial]].filter(Boolean);
+  return `<tr class="nr-ficha"><td colspan="11">
+    <div style="display:flex;flex-wrap:wrap;gap:12px 22px;margin-bottom:10px">
+      ${it('Trem', `<b>${esc(r.prefixo)}</b> · ${esc(r.linha || '–')}`)}${it('Data · turno', `${diaRot(r.dataISO)} · turno ${esc(r.turno)}`)}${it('Líder', esc(r.lider || '–') + (r.backup ? `<br><span class="small muted">backup: ${esc(r.backup)}</span>` : ''))}
+      ${it('Início–fim', `${esc(r.ini || '–')}–${esc(r.fimH || '–')}`)}${it('Revisão', `<b>${dur(r.durMin)}</b> <span class="tag bad">+${dur(r.exc)}</span>`)}
+      ${it('Vagões inspecionados', `${fmt(r.insp)} de ${fmt(r.total)} ${ader}`)}${it('Vagões retidos', fmt(r.retidos || 0))}${it('Materiais trocados', fmt(r.itens || 0))}
+      ${it('Motivo do atraso', esc(r.mot))}${it('Origem', r.forms ? 'Histórico do Forms' : 'Lançado no app')}</div>
+    <div class="small" style="margin:0 0 6px"><b>Paradas externas:</b> ${r.par > 0 ? `${r.parN}× · <b>${dur(r.par)}</b> parados${evs ? ' (' + evs + ')' : ''}. ` : ''}${leit}</div>
+    ${r.nDesv ? `<div class="small" style="margin:0 0 6px"><b>Desvios:</b> ${r.nDesv} · ${dur(r.desvMin || 0)}</div>` : ''}
+    ${mats ? `<div class="small" style="margin:0 0 6px"><b>Materiais:</b> ${mats}</div>` : ''}
+    ${(r.ret || []).length ? `<div class="small" style="margin:0 0 6px"><b>Retidos:</b> ${r.ret.map(x => (x.vagao ? `<b>${esc(x.vagao)}</b> ` : '') + esc(x.obs || '')).join(' · ')}</div>` : ''}
+    ${obs.map(([t, v]) => `<div class="small" style="margin:0 0 6px"><b>${t}:</b> ${esc(v)}</div>`).join('')}</td></tr>`;
 }
 
 
 async function printAtrasos() {
-  const box = document.createElement('div'); box.className = 'para-print'; box.style.width = '1300px'; box.innerHTML = progAtrasos();
+  const aberto = S.atAberto; S.atAberto = null;
+  const box = document.createElement('div'); box.className = 'para-print'; box.style.width = '1300px'; box.innerHTML = progAtrasos(); S.atAberto = aberto;
   const resumo = box.querySelector('.rep-atr')?.dataset.resumo || '';
   box.querySelectorAll('.filtros-bar, .chips, .nota, .at-nota, [data-sem-print]').forEach(e => e.remove());
   box.querySelectorAll('.rolagem').forEach(e => e.classList.remove('rolagem', 'alto'));       // a tabela sai inteira, sem barra de rolagem
+  // período grande: a imagem ficaria alta demais e o navegador não gera. A tabela sai só com os 15 maiores atrasos
+  const tb = [...box.querySelectorAll('h2')].find(h => h.firstChild?.textContent.trim() === 'Trens atrasados')?.closest('.card');
+  if (tb) { const trs = [...tb.querySelectorAll('tbody > tr')];
+    if (trs.length > 15) { const maiores = new Set(trs.slice().sort((a, b) => (+b.dataset.exc || 0) - (+a.dataset.exc || 0)).slice(0, 15));
+      trs.forEach(t => { if (!maiores.has(t)) t.remove(); });
+      tb.querySelector('h2 .dir').textContent = '15 maiores atrasos de ' + trs.length; } }
+  box.querySelectorAll('tr[data-exc]').forEach(t => { t.classList.remove('nr-trem', 'on'); const b = t.children[2]?.querySelector('b'); if (b) b.textContent = b.textContent.replace(/^[▸▾]\s*/, ''); });
   const topo = box.querySelector('.rep-atr'); if (topo) topo.outerHTML = `<div class="rep-topo"><div><h2>Revistamento ZTO · Análise de atrasos</h2><span>${esc(resumo)} · trens revistados acima de ${META_MIN} min</span></div><b>${dataBR(new Date())}</b></div>`;
   document.body.appendChild(box); toast('Gerando o relatório…');
   try { await new Promise(r => setTimeout(r, 150)); const blob = await gerarImagem(box);
@@ -5266,6 +5296,7 @@ document.addEventListener('click', async e => {
     }
     case 'par-mot': S.parMot = v || ''; break;
     case 'res-turno': S.resTurno = S.resTurno === v ? null : v; break;
+    case 'at-abrir': S.atAberto = S.atAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'fre-st': S.freSt = v || ''; break;
