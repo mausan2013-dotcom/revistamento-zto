@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.23';
+const VERSAO = '2.24';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -2667,8 +2667,7 @@ function modalVagao(M) {
     <div class="grade-sap"><span></span><b>1</b><b>2</b><b>3</b><b>4</b><b>E</b>${['1E','2E','3E','4E'].map(celula).join('')}<b>D</b>${['1D','2D','3D','4D'].map(celula).join('')}</div>
     <div class="secao">Outros materiais</div>
     ${M.mats.map((m, i) => `<div class="def-item" style="background:var(--info-bg)"><span><b>${m.qtd}× ${esc(m.nome)}</b></span><button data-act="rem-mat" data-i="${i}" aria-label="Remover">✕</button></div>`).join('')}
-    <label class="campo"><select data-act="novo-mat"><option value="">Escolha um material…</option>${matAtivos().map(m => `<option value="${m.id}" ${m.id === M.novoMat ? 'selected' : ''}>${esc(m.nome)}</option>`).join('')}<option value="outro" ${M.novoMat === 'outro' ? 'selected' : ''}>Outro (não está na lista)…</option></select></label>
-    ${M.novoMat === 'outro' ? `<label class="campo">Qual material?<input id="outro-nome" value="${esc(M.outroNome)}"></label>` : ''}
+    <label class="campo"><select data-act="novo-mat"><option value="">Escolha um material…</option>${matAtivos().map(m => `<option value="${m.id}" ${m.id === M.novoMat ? 'selected' : ''}>${esc(m.nome)}</option>`).join('')}<option value="outro" ${M.novoMat === 'outro' ? 'selected' : ''}>Outros</option></select></label>
     ${M.novoMat ? `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><span class="stepper"><button data-act="qtd" data-v="-1">−</button><span>${M.novoQtd}</span><button data-act="qtd" data-v="1">+</button></span><button class="btn" style="flex:1" data-act="add-mat">+ Adicionar</button></div>` : ''}
     <div class="secao">Ocorrências <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:600">o validador técnico confere</span></div>
     ${OCORRENCIAS.map(o => `<label class="radio ${M.oc.includes(o) ? 'marcado' : ''}"><input type="checkbox" data-act="oc" value="${esc(o)}" ${M.oc.includes(o) ? 'checked' : ''}> ${esc(o)}</label>`).join('')}
@@ -4374,13 +4373,15 @@ const txtEmpresa = c => { const x = empresaDe(c); return x ? x.e + (x.aprox ? ' 
 // materiais consumidos (todos) com clique: mostra os vagões que receberam o material escolhido
 // código para a reserva no SAP: números (com o dígito) e depois as letras, sem espaço nem traço (HPT 840591-3 -> 8405913HPT)
 const vagSAP = v => { const t = String(v || ''); return t.replace(/\D/g, '') + t.replace(/[^A-Za-z]/g, '').toUpperCase(); };
+// análise: todo material com "mandíbula" no nome (texto livre do Forms ou do app) entra num só grupo, com o texto padrão do sistema
+const matGrupo = n => /mandib/.test(semAcento(String(n || '').toLowerCase())) ? MAT.pino_e.nome : n;
 function usosMaterial(rows, nome) {
-  return rows.flatMap(r => r.apl.filter(x => x.nome === nome).map(x => ({ r, x }))).sort((a, b) => b.r.dataISO.localeCompare(a.r.dataISO) || (b.x.hora || '').localeCompare(a.x.hora || ''));
+  return rows.flatMap(r => r.apl.filter(x => matGrupo(x.nome) === nome).map(x => ({ r, x }))).sort((a, b) => b.r.dataISO.localeCompare(a.r.dataISO) || (b.x.hora || '').localeCompare(a.x.hora || ''));
 }
 function tabelaMateriais(rows, mat) {
   const lista = Object.entries(mat).sort((a, b) => b[1] - a[1]), max = Math.max(1, ...lista.map(x => x[1]));
   if (S.matSel && !mat[S.matSel]) S.matSel = null;
-  const vag = n => new Set(rows.flatMap(r => r.apl.filter(x => x.nome === n).map(x => x.vagao))).size;
+  const vag = n => new Set(rows.flatMap(r => r.apl.filter(x => matGrupo(x.nome) === n).map(x => x.vagao))).size;
   if (!EMP.mapa) carregarEmpresas();
   const sel = S.matSel, us = sel ? usosMaterial(rows, sel) : [], semVagao = sel ? mat[sel] - us.reduce((a, u) => a + u.x.qtd, 0) : 0, lim = 500;
   return `<div class="card larga"><h2>Materiais consumidos <span class="dir">${lista.length} materiais · toque para ver os vagões</span></h2>${lista.length ? `<div class="rolagem"><table class="tabela mat-tab"><thead><tr><th>Material</th><th style="width:40%"></th><th class="num">Unidades</th><th class="num">Vagões</th></tr></thead><tbody>
@@ -4410,7 +4411,7 @@ function progMateriais() {
   const todas = linhasHist(), rows = filtrar(todas), ano = anoF(), sapNome = MAT.sapata.nome;
   const mat = {}, porVagao = {}, posSap = Object.fromEntries(POSICOES.map(p => [p, 0]));
   rows.forEach(r => {
-    Object.entries(r.mats).forEach(([n, q]) => mat[n] = (mat[n] || 0) + q);
+    Object.entries(r.mats).forEach(([n, q]) => { n = matGrupo(n); mat[n] = (mat[n] || 0) + q; });
     const vistos = new Set();
     r.apl.forEach(x => {
       const o = porVagao[x.vagao] || (porVagao[x.vagao] = { itens: 0, vezes: 0, sap: 0, ultimo: r.dataISO });
@@ -5234,8 +5235,7 @@ document.addEventListener('click', async e => {
     case 'oc': M.oc = el.checked ? [...M.oc, el.value] : M.oc.filter(x => x !== el.value); renderModal(); return;
     case 'qtd': M.novoQtd = Math.max(1, M.novoQtd + +v); renderModal(); return;
     case 'add-mat': {
-      if (M.novoMat === 'outro' && !M.outroNome.trim()) { toast('Escreva o nome do material'); return; }
-      M.mats.push({ id: M.novoMat, nome: M.novoMat === 'outro' ? M.outroNome.trim() : matPorId(M.novoMat).nome, qtd: M.novoQtd, pos: [] });
+      M.mats.push({ id: M.novoMat, nome: M.novoMat === 'outro' ? 'Outros' : matPorId(M.novoMat).nome, qtd: M.novoQtd, pos: [] });
       M.novoMat = ''; M.novoQtd = 1; M.outroNome = ''; renderModal(); return;
     }
     case 'rem-mat': M.mats.splice(+el.dataset.i, 1); renderModal(); return;
