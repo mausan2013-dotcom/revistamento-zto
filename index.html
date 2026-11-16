@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.27';
+const VERSAO = '2.28';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3873,7 +3873,7 @@ function spSaida() {
     <div class="card larga"><h2>Por hora da liberação <span class="dir">tempo médio em minutos</span></h2>${colunas(horas, { cor: 'var(--s4)', larg: 20, fmtV: v => dur(v) })}</div>
     <div class="card"><h2>Onde o trem fica por último <span class="dir">seção · trens · tempo médio</span></h2>${hbars(secoes.map(x => [x[0], x[1]]), 'trens', (v, i) => ` <span class="muted" style="font-weight:600">· ${dur(secoes[i][2])}</span>`)}</div>
     <div class="card larga"><h2>Trens com maior tempo <span class="dir">${tab.length}${rows.length > tab.length ? ' de ' + rows.length : ''}</span></h2><div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Liberado</th><th class="num">Saída</th><th class="num">Tempo</th><th>Última seção</th><th class="num">Paradas</th></tr></thead><tbody>${tab.map(r =>
-      `<tr class="nr-trem ${SP.aberto === r.id ? 'on' : ''}" data-act="sp-abrir" data-id="${esc(r.id)}"><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${SP.aberto === r.id ? '▾' : '▸'} ${esc(r.prefixo)}</b></td><td>${esc(r.linha || '–')}</td><td class="num">${spHora(r.lib)}</td><td class="num">${spHora(r.saida)}</td><td class="num"><span class="tag ${r.tempo > 120 ? 'bad' : r.tempo > 60 ? 'warn' : 'ok'}">${dur(r.tempo)}</span></td><td>${esc(r.secao)}</td><td class="num">${r.n}</td></tr>${SP.aberto === r.id ? spFicha(r) : ''}`).join('')}</tbody></table></div><p class="small muted" style="margin:8px 0 0">Toque em um trem para ver a linha do tempo das paradas.</p></div>
+      `<tr class="nr-trem ${SP.aberto === r.id ? 'on' : ''}" data-act="sp-abrir" data-id="${esc(r.id)}"><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${SP.aberto === r.id ? '▾' : '▸'} ${esc(r.prefixo)}</b></td><td>${esc(r.linha || '–')}</td><td class="num">${spHora(r.lib)}</td><td class="num">${spHora(r.saida)}</td><td class="num"><span class="tag ${r.tempo > 60 ? 'bad' : r.tempo > 15 ? 'warn' : 'ok'}">${dur(r.tempo)}</span></td><td>${esc(r.secao)}</td><td class="num">${r.n}</td></tr>${SP.aberto === r.id ? spFicha(r) : ''}`).join('')}</tbody></table></div><p class="small muted" style="margin:8px 0 0">Toque em um trem para ver a linha do tempo das paradas.</p></div>
   </div>`;
 }
 
