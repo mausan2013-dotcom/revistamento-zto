@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.29';
+const VERSAO = '2.30';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -4299,6 +4299,14 @@ function vistaIndic() {
 const NF = { de: isoData(new Date(Date.now() - 29 * 864e5)), ate: isoData(new Date()), turno: null, st: 'todas', ver: 50, l: [], ok: false, erro: '', buscando: false };
 const NF_ST = [['Será fechada', 'var(--ok)'], ['Fica aberta', 'var(--warn)'], ['Sem sinalização', 'var(--muted)']];
 const nfSt = x => x.fechar === true ? 0 : x.fechar === false ? 1 : 2;
+const nfPodeFechar = () => ['pcm', 'programador'].includes(DB.me?.perfil);   // v2.30: só PCM e Programador sinalizam o fechamento no SAP
+const nfPend = x => x.fechar === true && !x.fechada_sap_em;
+const nfSapCel = x => {
+  if (x.fechar !== true) return '';
+  if (x.fechada_sap_em) { const d = new Date(x.fechada_sap_em), q = String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    return `<span class="tag ok">✔ Fechada no SAP</span><br><span class="small muted">${esc(x.fechada_sap_por ? C(x.fechada_sap_por).nome : '')} · ${q}</span>${nfPodeFechar() ? ` <button class="btn sm" data-act="nf-sap" data-id="${esc(x.id)}" data-v="0" title="Desfazer, se foi marcada por engano">↩</button>` : ''}`; }
+  return nfPodeFechar() ? `<button class="btn sm" data-act="nf-sap" data-id="${esc(x.id)}" data-v="1">Fechada no SAP</button>` : '<span class="tag warn">Aguardando SAP</span>';
+};
 const nfDias = x => x.data_nota && x.data_trem ? Math.max(0, Math.round((new Date(x.data_trem) - new Date(x.data_nota)) / 864e5)) : null;
 const nfDupla = x => (x.membros || []).length ? nomesEquipe(x.membros) : 'Equipe ' + (x.equipe ?? '?');
 async function nfCarregar(forca) {
@@ -4338,7 +4346,7 @@ function vistaNotasFech() {
   const duplas = Object.values(L.reduce((m, x) => { const k = (x.membros || []).slice().sort().join(',') + '|' + x.turno; const o = (m[k] ||= { nome: nfDupla(x), turno: x.turno, p: [0, 0, 0] }); o.p[nfSt(x)]++; return m; }, {}))
     .sort((a, b) => b.p[0] - a.p[0] || b.p.reduce((s, v) => s + v, 0) - a.p.reduce((s, v) => s + v, 0));
   const grupos = nfAgrupa(L, x => x.grupo);
-  const lista = L.filter(x => NF.st === 'todas' || nfSt(x) === +NF.st).sort((a, b) => String(b.data_trem).localeCompare(String(a.data_trem)) || String(b.quando).localeCompare(String(a.quando)));
+  const nPend = fe.filter(nfPend).length, lista = L.filter(x => NF.st === 'todas' || (NF.st === 'pend' ? nfPend(x) : nfSt(x) === +NF.st)).sort((a, b) => String(b.data_trem).localeCompare(String(a.data_trem)) || String(b.quando).localeCompare(String(a.quando)));
   const leit = [];
   if (grupos[0]?.partes[0]) leit.push(`Classificação com mais notas fechadas: <b>${esc(grupos[0].rot)}</b> (${grupos[0].partes[0]}).`);
   const piorG = grupos.filter(g => g.partes[0] + g.partes[1] >= 3).sort((a, b) => b.partes[1] / (b.partes[0] + b.partes[1]) - a.partes[1] / (a.partes[0] + a.partes[1]))[0];
@@ -4359,20 +4367,21 @@ function vistaNotasFech() {
       ${duplas.map(o => { const t = o.p[0] + o.p[1] + o.p[2], p = t ? Math.round(o.p[0] / t * 100) : 0; return `<tr><td>${esc(o.nome)}</td><td>${esc(o.turno || '')}</td><td class="num">${t}</td><td class="num"><b style="color:var(--ok)">${o.p[0]}</b></td><td><span class="cam-pct"><i style="width:${p}%;background:var(--ok)"></i></span><b>${p}%</b></td><td class="num">${o.p[1] || '<span class="muted">·</span>'}</td><td class="num">${o.p[2] || '<span class="muted">·</span>'}</td></tr>`; }).join('')}
       </tbody></table></div><p class="small muted" style="margin:6px 0 0">% fechamento = notas que serão fechadas ÷ notas apontadas nos vagões da dupla.</p></div>
     <div class="card larga"><h2>Notas <span class="dir">${fmt(lista.length)}</span></h2>
-      <div class="chips" style="margin:0 0 8px">${[['todas', 'Todas', n], ...NF_ST.map(([nm], k) => [String(k), nm, [fe.length, ab.length, sem][k]])].map(([k, nm, q]) => `<button class="chip ${NF.st === k ? 'on' : ''}" data-act="nf-st" data-v="${k}">${nm} (${q})</button>`).join('')}
+      <div class="chips" style="margin:0 0 8px">${[['todas', 'Todas', n], ...NF_ST.map(([nm], k) => [String(k), nm, [fe.length, ab.length, sem][k]]), ['pend', 'Aguardando fechar no SAP', nPend]].map(([k, nm, q]) => `<button class="chip ${NF.st === k ? 'on' : ''}" data-act="nf-st" data-v="${k}">${nm} (${q})</button>`).join('')}
         <button class="btn sm" data-act="exportar-nf" style="margin-left:auto">⬇ Excel (${fmt(n)})</button></div>
-      ${lista.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Vagão</th><th>Nota</th><th>Classificação</th><th>Sistema</th><th>Descrição</th><th>Turno</th><th>Dupla</th><th>Sinalização</th></tr></thead><tbody>
+      ${lista.length ? `<div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Trem</th><th>Vagão</th><th>Nota</th><th>Classificação</th><th>Sistema</th><th>Descrição</th><th>Turno</th><th>Dupla</th><th>Sinalização</th><th>No SAP</th></tr></thead><tbody>
       ${lista.slice(0, NF.ver).map(x => `<tr><td>${fmtDiaISO(x.data_trem)}</td><td>${esc(x.prefixo || '')}</td><td><b>${esc(x.vagao)}</b></td><td>${esc(x.nota)}<br><span class="small muted">${esc(x.tp_nota || '')} ${x.data_nota ? 'de ' + fmtDiaISO(x.data_nota) : ''}</span></td><td>${esc(x.grupo || '')}</td><td>${esc(x.sistema || sistemaNota(x.grupo))}</td>
-        <td class="small" style="min-width:200px">${esc(x.descricao || '')}</td><td>${esc(x.turno || '')}</td><td class="small">${esc(nfDupla(x))}</td><td>${x.fechar == null ? '<span class="tag">sem sinalização</span>' : tagNbx({ f: x.fechar })}${x.por ? `<br><span class="small muted">${esc(C(x.por).nome)}</span>` : ''}</td></tr>`).join('')}
+        <td class="small" style="min-width:200px">${esc(x.descricao || '')}</td><td>${esc(x.turno || '')}</td><td class="small">${esc(nfDupla(x))}</td><td>${x.fechar == null ? '<span class="tag">sem sinalização</span>' : tagNbx({ f: x.fechar })}${x.por ? `<br><span class="small muted">${esc(C(x.por).nome)}</span>` : ''}</td><td>${nfSapCel(x)}</td></tr>`).join('')}
       </tbody></table></div>${lista.length > NF.ver ? `<button class="btn sm" style="margin-top:8px" data-act="nf-mais">Mostrar mais (${lista.length - NF.ver})</button>` : ''}` : semDados}</div>
   </div>`;
 }
 async function exportarNF() {
   const L = NF.l.filter(x => !NF.turno || x.turno === NF.turno);
   try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
-  const a1 = [['Data da revista', 'Trem', 'Turno', 'Equipe', 'Dupla', 'Vagão', 'Nota', 'Tipo', 'Abertura da nota', 'Idade (dias)', 'Classificação', 'Sistema', 'Descrição', 'Sinalização', 'Sinalizado por', 'Quando']];
+  const a1 = [['Data da revista', 'Trem', 'Turno', 'Equipe', 'Dupla', 'Vagão', 'Nota', 'Tipo', 'Abertura da nota', 'Idade (dias)', 'Classificação', 'Sistema', 'Descrição', 'Sinalização', 'Sinalizado por', 'Quando', 'Fechada no SAP', 'Marcada por', 'Marcada em']];
   L.forEach(x => a1.push([fmtDiaISO(x.data_trem), x.prefixo || '', x.turno || '', x.equipe ?? '', nfDupla(x), x.vagao, x.nota, x.tp_nota || '', fmtDiaISO(x.data_nota), nfDias(x) ?? '', x.grupo || '', x.sistema || sistemaNota(x.grupo), x.descricao || '',
-    NF_ST[nfSt(x)][0], x.por ? C(x.por).nome : '', x.quando ? dataBR(new Date(x.quando)) + ' ' + horaDe(x.quando) : '']));
+    NF_ST[nfSt(x)][0], x.por ? C(x.por).nome : '', x.quando ? dataBR(new Date(x.quando)) + ' ' + horaDe(x.quando) : '',
+    x.fechar !== true ? '' : x.fechada_sap_em ? 'Sim' : 'Aguardando', x.fechada_sap_por ? C(x.fechada_sap_por).nome : '', x.fechada_sap_em ? dataBR(new Date(x.fechada_sap_em)) + ' ' + horaDe(x.fechada_sap_em) : '']));
   const resumo = (tit, ch) => [[tit, 'Apontadas', 'Serão fechadas', 'Ficam abertas', 'Sem sinalização', '% fechamento'], ...nfAgrupa(L, ch).map(o => { const t = o.partes.reduce((a, b) => a + b, 0); return [o.rot, t, ...o.partes, Math.round(o.partes[0] / t * 1000) / 10]; })];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(a1), 'Notas');
@@ -5407,6 +5416,17 @@ document.addEventListener('click', async e => {
     case 'nf-turno': NF.turno = v; NF.ver = 50; break;
     case 'nf-mais': NF.ver += 100; break;
     case 'nf-buscar': await nfCarregar(true); break;
+    case 'nf-sap': {
+      if (!nfPodeFechar()) return;
+      const x = NF.l.find(n => String(n.id) === el.dataset.id); if (!x) return;
+      const ok = v === '1';
+      if (DEMO) { x.fechada_sap_em = ok ? new Date().toISOString() : null; x.fechada_sap_por = ok ? DB.me.id : null; break; }
+      el.disabled = true;
+      const { error } = await sb.rpc('fechar_nota_sap', { p_id: x.id, p_fechada: ok });
+      if (error) { el.disabled = false; toast('⚠ ' + (/function|schema cache|fechada_sap/i.test(error.message) ? 'Rode o 45-notas-fechadas-sap.sql no Supabase' : error.message)); return; }
+      x.fechada_sap_em = ok ? new Date().toISOString() : null; x.fechada_sap_por = ok ? DB.me.id : null;
+      toast(ok ? 'Nota ' + x.nota + ' marcada como fechada no SAP' : 'Marcação desfeita'); break;
+    }
     case 'exportar-nf': exportarNF(); return;
     case 'fila-mover': {
       const t = tremPorId(el.dataset.id), f = filaTurno(t.turno), k = f.indexOf(t), j = k + +v;
