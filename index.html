@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.28';
+const VERSAO = '2.29';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -4173,18 +4173,25 @@ function freioLocal(trens) {
   }));
   return L;
 }
-const freioFiltrado = () => { const l = freioEventos() || []; return S.freSt ? l.filter(e => e.k === S.freSt) : l; };
+// série do vagão = letras do começo do código ("HPT 031893-1" -> HPT); filtro da aba Freio isolado (v2.29)
+const serieVag = c => (String(c || '').trim().toUpperCase().match(/^[A-Z]{2,4}/) || ['–'])[0];
+const freioPorSerie = ev => S.freSer ? ev.filter(e => serieVag(e.c) === S.freSer) : ev;
+const freioFiltrado = () => { const l = freioPorSerie(freioEventos() || []); return S.freSt ? l.filter(e => e.k === S.freSt) : l; };
 function vistaFreio() {
-  const todas = linhasHist(), ev = freioEventos(), lim = 400, [, , nomePer] = periodoDe(F.per);
-  if (ev === undefined) return barraFiltros(todas) + carregandoHV('os vagões de freio isolado');
-  const l = S.freSt ? ev.filter(e => e.k === S.freSt) : ev;
+  const todas = linhasHist(), ev0 = freioEventos(), lim = 400, [, , nomePer] = periodoDe(F.per);
+  if (ev0 === undefined) return barraFiltros(todas) + carregandoHV('os vagões de freio isolado');
+  const cont = {}; ev0.forEach(e => { const k = serieVag(e.c); cont[k] = (cont[k] || 0) + 1; });
+  const series = Object.keys(cont).sort((a, b) => cont[b] - cont[a] || a.localeCompare(b));
+  if (S.freSer && !cont[S.freSer]) S.freSer = '';
+  const ev = freioPorSerie(ev0), l = S.freSt ? ev.filter(e => e.k === S.freSt) : ev;
   const por = k => ev.filter(e => e.k === k), vd = a => new Set(a.map(e => normVag(e.c))).size;
   const rot = k => FRE.find(x => x[0] === k)[1], cor = k => FRE.find(x => x[0] === k)[2];
   return `${barraFiltros(todas, `<span class="filtro-acoes"><button class="btn sm" data-act="exportar-freio" ${l.length ? '' : 'disabled'}>⬇ Excel (${fmt(l.length)})</button></span>`)}
   ${notaBaseHV(HV.fre)}<p class="nota">Vagões com <b>freio isolado</b> e normalizados (${esc(nomePer)}${HV.fre.local ? ', só os trens do app guardados no aparelho' : ', histórico completo do banco'}). <b>Na ficha</b>: restrição “freio isolado” que veio na ficha do trem (só trens do app). As demais linhas vêm da ocorrência marcada pela equipe no vagão (App) ou do que foi escrito nas perguntas de isolamento do Forms em 2026 (Forms: texto livre, sem posição, hora e equipe).</p>
   <div class="kpis">${FRE.map(([k, n]) => kpi(n, fmt(vd(por(k))), por(k).length === vd(por(k)) ? 'vagões' : 'vagões · ' + fmt(por(k).length) + ' ocorrências')).join('')}</div>
   <div class="card"><h2>Vagões por status <span class="dir">${fmt(l.length)} linha(s)</span></h2>
-    <div class="chips"><button class="chip ${S.freSt ? '' : 'on'}" data-act="fre-st" data-v="">Todos (${fmt(ev.length)})</button>${FRE.map(([k, n]) => `<button class="chip ${S.freSt === k ? 'on' : ''}" data-act="fre-st" data-v="${k}">${esc(n)} (${fmt(por(k).length)})</button>`).join('')}</div>
+    <div class="chips"><span class="small muted" style="align-self:center">Série:</span><button class="chip ${S.freSer ? '' : 'on'}" data-act="fre-ser" data-v="">Todas (${fmt(ev0.length)})</button>${series.map(k => `<button class="chip ${S.freSer === k ? 'on' : ''}" data-act="fre-ser" data-v="${esc(k)}">${esc(k)} (${fmt(cont[k])})</button>`).join('')}</div>
+    <div class="chips"><span class="small muted" style="align-self:center">Status:</span><button class="chip ${S.freSt ? '' : 'on'}" data-act="fre-st" data-v="">Todos (${fmt(ev.length)})</button>${FRE.map(([k, n]) => `<button class="chip ${S.freSt === k ? 'on' : ''}" data-act="fre-st" data-v="${k}">${esc(n)} (${fmt(por(k).length)})</button>`).join('')}</div>
     ${l.length ? `<div class="rolagem alto"><table class="tabela compacta"><thead><tr><th>Status</th><th>Vagão</th><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Pos.</th><th>Equipe</th><th>Hora</th><th>Origem</th><th>Detalhe</th></tr></thead><tbody>
       ${l.slice(0, lim).map(e => `<tr><td><span class="tag ${cor(e.k)}">${esc(rot(e.k))}</span></td><td><a href="#" data-act="ver-vagao" data-v="${esc(e.c)}"><b>${esc(e.c)}</b></a></td><td>${diaRot(e.t.dataISO)}</td><td>${e.t.turno}</td><td><b>${esc(e.t.prefixo)}</b></td><td>${esc(e.t.linha)}</td><td class="num">${e.pf}</td><td class="small">${esc(e.eq)}</td><td>${esc(e.h)}</td><td class="small muted">${e.org}</td><td class="small">${esc(e.det)}</td></tr>`).join('')}
     </tbody></table></div>${l.length > lim ? `<p class="muted small">Mostrando ${lim} de ${fmt(l.length)}. O Excel traz todas.</p>` : ''}` : '<p class="muted small" style="margin:0">Nenhum vagão neste filtro.</p>'}</div>`;
@@ -4192,16 +4199,16 @@ function vistaFreio() {
 async function exportarFreio() {
   const ev = freioEventos(), [, , nomePer] = periodoDe(F.per);
   if (ev === undefined) { toast('Aguarde: carregando do banco'); return; }
-  const l = S.freSt ? ev.filter(e => e.k === S.freSt) : ev;
+  const l = freioFiltrado();
   try { await carregarXlsx(); } catch (e) { toast('⚠ ' + e.message); return; }
   const rot = k => FRE.find(x => x[0] === k)[1], br = d => d.split('-').reverse().join('/');
-  const a1 = [['Indicador', 'Vagões distintos', 'Ocorrências'], ...FRE.map(([k, n]) => { const a = ev.filter(e => e.k === k); return [n, new Set(a.map(e => normVag(e.c))).size, a.length]; }), [], ['Período', nomePer]];
+  const evS = freioPorSerie(ev), a1 = [['Indicador', 'Vagões distintos', 'Ocorrências'], ...FRE.map(([k, n]) => { const a = evS.filter(e => e.k === k); return [n, new Set(a.map(e => normVag(e.c))).size, a.length]; }), [], ['Período', nomePer], ['Série', S.freSer || 'Todas']];
   const a2 = [['Status', 'Vagão', 'Data', 'Turno', 'Trem', 'OS', 'Linha', 'Posição na ficha', 'Equipe', 'Hora', 'Detalhe', 'Origem']];
   l.forEach(e => a2.push([rot(e.k), e.c, br(e.t.dataISO), e.t.turno, e.t.prefixo, e.t.os || '', e.t.linha, e.pf, e.eq, e.h, e.det, e.org]));
   const w1 = XLSX.utils.aoa_to_sheet(a1), w2 = XLSX.utils.aoa_to_sheet(a2);
   w1['!cols'] = [38, 16, 12].map(w => ({ wch: w })); w2['!cols'] = [34, 15, 12, 6, 10, 10, 8, 10, 12, 8, 50, 8].map(w => ({ wch: w })); w2['!autofilter'] = { ref: 'A1:L1' };
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, w1, 'Indicadores'); XLSX.utils.book_append_sheet(wb, w2, 'Vagões');
-  XLSX.writeFile(wb, `revistamento-zto-freio-isolado${S.freSt ? '-' + arqNome(rot(S.freSt)) : ''}-${arqNome(nomePer)}.xlsx`);
+  XLSX.writeFile(wb, `revistamento-zto-freio-isolado${S.freSer ? '-' + S.freSer : ''}${S.freSt ? '-' + arqNome(rot(S.freSt)) : ''}-${arqNome(nomePer)}.xlsx`);
   toast('Planilha gerada (' + fmt(l.length) + ' linhas)');
 }
 // ---------- Indicadores: visão anual, mês a mês ----------
@@ -5472,6 +5479,7 @@ document.addEventListener('click', async e => {
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'fre-st': S.freSt = v || ''; break;
+    case 'fre-ser': S.freSer = v || ''; break;
     case 'ret-mot': S.retMot = S.retMot === v ? '' : (v || ''); break;
     case 'exportar-retidos': exportarRetidos(); return;
     case 'exportar-indic': exportarIndic(); return;
