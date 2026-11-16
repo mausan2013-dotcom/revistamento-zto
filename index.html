@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.26';
+const VERSAO = '2.27';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -3715,7 +3715,7 @@ async function printAtrasos() {
 // ---------- Saída do pátio (programador): quanto tempo depois da liberação do revistamento o trem parte ----------
 // Cruza a planilha de paradas (PATIO OP) com os trens do app pela OS. Liberação = fim da revisão no app.
 // Saída = fim da última parada registrada depois da liberação (o trem só volta a andar quando a última parada acaba).
-const SP = { plan: undefined, app: undefined, carregando: false, de: '', ate: '', turno: 'todos', linha: 'todas', faixa: 'todas', janela: 'todas', aberto: null, info: null };
+const SP = { plan: undefined, app: undefined, carregando: false, enviando: false, de: '', ate: '', turno: 'todos', linha: 'todas', faixa: 'todas', janela: 'todas', nova: 'todas', aberto: null, info: null, erro: '' };
 const SP_FAIXAS = [['Até 30 min', 0, 30], ['31 a 60 min', 31, 60], ['61 a 120 min', 61, 120], ['Mais de 2 h', 121, 1e9]];
 const SP_JANELA_MAX = 360, SP_TOL_HORARIO = 180;   // só conta parada que começa até 6 h após a liberação; o horário do app precisa estar a até 3 h de uma parada da planilha
 const spMin = (iso, hhmm) => { const [y, m, d] = iso.split('-').map(Number), [h, mi] = hhmm.split(':').map(Number); return Math.round((Date.UTC(y, m - 1, d) / 864e5 + 25569) * 1440) + h * 60 + mi; };
@@ -3725,10 +3725,28 @@ const spDia = min => { const d = spData(min); return d.getUTCFullYear() + '-' + 
 const spMediana = v => { if (!v.length) return 0; const s = v.slice().sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 async function spCarregar() {
   if (SP.carregando) return; SP.carregando = true;
+  try { await spCarregarPlan(); await spCarregarApp(); } finally { SP.carregando = false; render(); }
+}
+// v2.27: as paradas ficam no Supabase (44-saida-paradas.sql), visíveis para todos os programadores
+const spSemTabela = e => /relation|does not exist|schema cache/i.test(e?.message || '') ? 'Rode o 44-saida-paradas.sql no Supabase' : (e?.message || String(e));
+async function spCarregarPlan() {
+  SP.erro = '';
+  if (DEMO || OFFLINE) { const c = await IDB.ler('saida_plan'); SP.plan = c?.plan || {}; SP.info = c ? { arq: c.arq, em: c.em } : null; return; }
+  const plan = {}; let ult = null;
   try {
-    const c = await IDB.ler('saida_plan'); SP.plan = c?.plan || {}; SP.info = c ? { arq: c.arq, em: c.em } : null;
-    await spCarregarApp();
-  } finally { SP.carregando = false; render(); }
+    for (let p = 0; ; p++) {
+      const { data, error } = await sb.from('saida_paradas').select('id,os,prefixo,sentido,trecho,secao,tipo,motivo,ini_min,fim_min,arquivo,enviado_por,enviado_em').order('id').range(p * 1000, p * 1000 + 999);
+      if (error) throw error;
+      data.forEach(r => {
+        const o = plan[r.os] ||= { pref: r.prefixo || '', sent: r.sentido || '', trecho: r.trecho || '', p: [] };
+        o.p.push([r.ini_min, r.fim_min, r.secao || '', r.tipo || '', r.motivo || '']);
+        if (!ult || r.enviado_em > ult.enviado_em) ult = r;
+      });
+      if (data.length < 1000) break;
+    }
+  } catch (e) { SP.erro = spSemTabela(e); }
+  Object.values(plan).forEach(o => o.p.sort((a, b) => a[0] - b[0]));
+  SP.plan = plan; SP.info = ult ? { arq: ult.arquivo, em: new Date(ult.enviado_em).getTime(), por: ult.enviado_por ? C(ult.enviado_por).nome : '' } : null;
 }
 async function spCarregarApp() {
   const doApp = t => ({ os: String(t.os).trim(), prefixo: t.prefixo, turno: t.turno, linha: t.linha, ini: t.ini || '', fim: t.fim || '', dataISO: t.dataISO });
@@ -3768,9 +3786,17 @@ async function spLerPlanilha(arq) {
   if (!n) throw new Error('Nenhuma parada com data válida na planilha');
   Object.values(plan).forEach(o => o.p.sort((a, b) => a[0] - b[0]));
   // planilhas novas somam às anteriores; a OS que vier de novo é substituída
-  SP.plan = { ...(SP.plan || {}), ...plan }; SP.info = { arq: arq.name, em: Date.now() };
-  await IDB.gravar('saida_plan', { plan: SP.plan, arq: arq.name, em: SP.info.em });
-  return { trens: Object.keys(plan).length, paradas: n };
+  if (DEMO || OFFLINE) {
+    SP.plan = { ...(SP.plan || {}), ...plan }; SP.info = { arq: arq.name, em: Date.now() };
+    await IDB.gravar('saida_plan', { plan: SP.plan, arq: arq.name, em: SP.info.em });
+    return { trens: Object.keys(plan).length, paradas: n };
+  }
+  const oss = Object.keys(plan);
+  for (let i = 0; i < oss.length; i += 150) { const { error } = await sb.from('saida_paradas').delete().in('os', oss.slice(i, i + 150)); if (error) throw new Error(spSemTabela(error)); }
+  const linhasDb = oss.flatMap(os => plan[os].p.map(x => ({ os, prefixo: plan[os].pref || null, sentido: plan[os].sent || null, trecho: plan[os].trecho || null, secao: x[2] || null, tipo: x[3] || null, motivo: x[4] || null, ini_min: x[0], fim_min: x[1], arquivo: arq.name })));
+  for (let i = 0; i < linhasDb.length; i += 500) { const { error } = await sb.from('saida_paradas').insert(linhasDb.slice(i, i + 500)); if (error) throw new Error(spSemTabela(error)); }
+  await spCarregarPlan();
+  return { trens: oss.length, paradas: n };
 }
 // cruza app × planilha
 function spCalc() {
@@ -3786,9 +3812,10 @@ function spCalc() {
     }
     if (dist > SP_TOL_HORARIO) { res.horario++; return; }
     const apos = p.p.filter(x => x[1] > lib && x[0] <= lib + SP_JANELA_MAX);
-    if (!apos.length) { res.semParada++; return; }
-    const ult = apos.reduce((m, x) => x[1] > m[1] ? x : m, apos[0]), tempo = Math.max(0, ult[1] - lib);
-    rows.push({ id: a.os, os: a.os, prefixo: a.prefixo, turno: a.turno, linha: a.linha, lib, saida: ult[1], tempo, secao: ult[2] || '–', n: apos.length, dataISO: spDia(lib), hLib: spData(lib).getUTCHours(), ini: a.ini, fimH: a.fim, ajuste: lib !== base, p: p.p, trecho: p.trecho });
+    // sem parada depois da liberação: o trem saiu sem parar de novo; conta como saída imediata (0 min), em grupo à parte
+    if (!apos.length) res.semParada++;
+    const ult = apos.length ? apos.reduce((m, x) => x[1] > m[1] ? x : m, apos[0]) : null, tempo = ult ? Math.max(0, ult[1] - lib) : 0;
+    rows.push({ id: a.os, os: a.os, prefixo: a.prefixo, turno: a.turno, linha: a.linha, lib, saida: ult ? ult[1] : lib, tempo, semNova: !ult, secao: ult ? ult[2] || '–' : 'Sem nova parada', n: apos.length, dataISO: spDia(lib), hLib: spData(lib).getUTCHours(), ini: a.ini, fimH: a.fim, ajuste: lib !== base, p: p.p, trecho: p.trecho });
   });
   return { rows, res };
 }
@@ -3800,26 +3827,30 @@ function spFicha(r) {
     <table class="tabela compacta"><thead><tr><th>Parada</th><th>Seção</th><th>Tipo</th><th>Motivo</th><th class="num">Começa</th><th class="num">Termina</th></tr></thead><tbody>${ev.map(e => e.lib
       ? `<tr style="font-weight:700"><td colspan="4">▶ Revistamento liberado às ${spHora(e.t)}</td><td class="num">${spHora(e.t)}</td><td class="num">–</td></tr>`
       : `<tr ${e.f === r.saida ? 'style="font-weight:700"' : ''}><td>${spHora(e.t)}–${spHora(e.f)}${e.f === r.saida ? ' ◀ saída' : ''}</td><td>${esc(e.s || '–')}</td><td>${esc(e.tipo || '–')}</td><td>${esc(e.m || '–')}</td><td class="num">${sinal(e.t - r.lib)}</td><td class="num">${sinal(e.f - r.lib)}</td></tr>`).join('')}</tbody></table>
+    ${r.semNova ? '<p class="small" style="margin:6px 0 0"><b>Nenhuma parada registrada depois da liberação:</b> considerado saída imediata (0 min).</p>' : ''}
     <p class="small muted" style="margin:6px 0 0">Os tempos são contados a partir da liberação. Só entram paradas que começam até ${SP_JANELA_MAX / 60} h depois dela.</p></td></tr>`;
 }
 function spSaida() {
   if (SP.plan === undefined || SP.app === undefined) { if (!SP.carregando) setTimeout(spCarregar); return '<div class="card muted">Carregando a planilha de paradas…</div>'; }
-  const envio = `<div class="acoes" style="margin:0 0 10px"><label class="btn sm primary" style="cursor:pointer"><input type="file" accept=".xlsx,.xls" data-act="sp-arq" style="display:none">📄 ${Object.keys(SP.plan).length ? 'Enviar outra planilha de paradas' : 'Enviar planilha de paradas'}</label>
-    ${Object.keys(SP.plan).length ? `<button class="btn sm" data-act="sp-limpar">Apagar planilhas</button>` : ''}</div>`;
-  const nota = `<p class="small muted" style="margin:0 0 10px">Tempo entre a <b>liberação do revistamento</b> (fim da revisão no app) e a <b>saída</b> do trem do pátio (fim da última parada “PATIO OP” registrada depois da liberação). Cruzamento pela OS. A planilha fica guardada neste aparelho; planilhas novas somam às anteriores.</p>`;
+  const temPlan = Object.keys(SP.plan).length;
+  const envio = `<div class="acoes" style="margin:0 0 10px">${SP.enviando ? '<span class="btn sm primary" aria-disabled="true">⏳ Enviando a planilha…</span>' : `<label class="btn sm primary" style="cursor:pointer"><input type="file" accept=".xlsx,.xls" data-act="sp-arq" style="display:none">📄 ${temPlan ? 'Enviar outra planilha de paradas' : 'Enviar planilha de paradas'}</label>`}
+    ${temPlan && !SP.enviando ? `<button class="btn sm" data-act="sp-limpar">Apagar planilhas</button>` : ''}</div>
+    ${SP.erro ? `<div class="alerta"><span>⚠ ${esc(SP.erro)}</span></div>` : ''}
+    ${SP.info ? `<p class="small muted" style="margin:0 0 8px">Última planilha: <b>${esc(SP.info.arq || '–')}</b>${SP.info.por ? ' · enviada por ' + esc(SP.info.por) : ''} · ${dataBR(new Date(SP.info.em))} ${pad(new Date(SP.info.em).getHours())}:${pad(new Date(SP.info.em).getMinutes())} · ${fmt(temPlan)} trens na base</p>` : ''}`;
+  const nota = `<p class="small muted" style="margin:0 0 10px">Tempo entre a <b>liberação do revistamento</b> (fim da revisão no app) e a <b>saída</b> do trem do pátio (fim da última parada “PATIO OP” registrada depois da liberação). Trem sem parada depois da liberação conta como saída imediata (0 min). Cruzamento pela OS. A base é a mesma para todos os programadores; planilhas novas somam às anteriores e substituem as OS repetidas.</p>`;
   if (!Object.keys(SP.plan).length) return envio + nota + `<div class="card"><span class="muted small">Envie a planilha de paradas (colunas OS, Data Inicial, Data Fim, Seção Bloqueio…) para ver a análise.</span></div>`;
   const { rows: todas, res } = spCalc();
   const de = SP.de && SP.ate && SP.de > SP.ate ? SP.ate : SP.de, ate = SP.de && SP.ate && SP.de > SP.ate ? SP.de : SP.ate;
   const ff = SP_FAIXAS.find(f => f[0] === SP.faixa), fj = AT_JANELAS.find(j => j[0] === SP.janela);
   const rows = todas.filter(r => (!de || r.dataISO >= de) && (!ate || r.dataISO <= ate) && (SP.turno === 'todos' || r.turno === SP.turno) && (SP.linha === 'todas' || r.linha === SP.linha)
-    && (!ff || (r.tempo >= ff[1] && r.tempo < ff[2] + 1)) && (!fj || (r.hLib >= fj[1] && r.hLib < fj[2])));
+    && (!ff || (r.tempo >= ff[1] && r.tempo < ff[2] + 1)) && (!fj || (r.hLib >= fj[1] && r.hLib < fj[2])) && (SP.nova === 'todas' || (SP.nova === 'sem') === r.semNova));
   const sel = (k, rot, ops) => `<label class="filtro"><span>${rot}</span><select data-act="sp" data-k="${k}">${ops.map(([v, l]) => `<option value="${esc(v)}" ${SP[k] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
   const barra = `<div class="filtros-bar">
     <label class="filtro"><span>De</span><input type="date" data-act="sp" data-k="de" value="${SP.de}"></label><label class="filtro"><span>Até</span><input type="date" data-act="sp" data-k="ate" value="${SP.ate}"></label>
     ${sel('turno', 'Equipe (turno)', [['todos', 'Todas'], ...'ABCD'.split('').map(t => [t, 'Turno ' + t])])}${sel('linha', 'Linha', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
-    ${sel('faixa', 'Tempo até sair', [['todas', 'Todos'], ...SP_FAIXAS.map(f => [f[0], f[0]])])}${sel('janela', 'Hora da liberação', [['todas', 'Todas'], ...AT_JANELAS.map(j => [j[0], j[0]])])}</div>
+    ${sel('faixa', 'Tempo até sair', [['todas', 'Todos'], ...SP_FAIXAS.map(f => [f[0], f[0]])])}${sel('janela', 'Hora da liberação', [['todas', 'Todas'], ...AT_JANELAS.map(j => [j[0], j[0]])])}${sel('nova', 'Parada depois de liberar', [['todas', 'Todos'], ['com', 'Com parada'], ['sem', 'Sem nova parada (0 min)']])}</div>
     <div class="chips" style="margin:-4px 0 12px">${[['d7', '7 dias'], ['d30', '30 dias'], ['tudo', 'Todo o período']].map(([v, l]) => `<button class="chip" data-act="sp-rapido" data-v="${v}">${l}</button>`).join('')}</div>`;
-  const avisos = `<p class="small muted" style="margin:0 0 10px">Trens do app sem a OS na planilha: <b>${fmt(res.semPlan)}</b> · com horário que não bate com a planilha: <b>${fmt(res.horario)}</b> · sem parada depois da liberação (não medidos): <b>${fmt(res.semParada)}</b>.</p>`;
+  const avisos = `<p class="small muted" style="margin:0 0 10px">Trens do app sem a OS na planilha: <b>${fmt(res.semPlan)}</b> · com horário que não bate com a planilha: <b>${fmt(res.horario)}</b> · sem parada depois da liberação (contados como 0 min): <b>${fmt(res.semParada)}</b>.</p>`;
   if (!rows.length) return envio + nota + barra + avisos + `<div class="card">${semDados}</div>`;
   const tm = rows.map(r => r.tempo), pct = n => Math.round(rows.filter(r => r.tempo <= n).length / rows.length * 100), pior = rows.reduce((m, r) => r.tempo > m.tempo ? r : m, rows[0]);
   const por = (f, ordem) => { const o = {}; rows.forEach(r => (o[f(r)] ||= []).push(r.tempo)); return Object.entries(o).sort(ordem || ((a, b) => a[0].localeCompare(b[0]))); };
@@ -3831,7 +3862,7 @@ function spSaida() {
   const secoes = por(r => r.secao, (a, b) => b[1].length - a[1].length).map(([s, v]) => [s, v.length, v.reduce((a, b) => a + b, 0) / v.length]);
   const tab = rows.slice().sort((a, b) => b.tempo - a.tempo).slice(0, 200);
   return `${envio}${nota}${barra}${avisos}
-  <div class="kpis">${kpi('Trens medidos', fmt(rows.length), 'liberação → saída do pátio')}${kpi('Mediana', dur(spMediana(tm)), 'metade sai em até esse tempo')}
+  <div class="kpis">${kpi('Trens medidos', fmt(rows.length), (k => k ? k + ' sem nova parada (0 min)' : 'liberação → saída do pátio')(rows.filter(r => r.semNova).length))}${kpi('Mediana', dur(spMediana(tm)), 'metade sai em até esse tempo')}
     ${kpi('Média', dur(tm.reduce((a, b) => a + b, 0) / tm.length), 'puxada pelos casos longos')}${kpi('Saem em até 60 min', pct(60) + '%', 'até 30 min: ' + pct(30) + '% · até 2 h: ' + pct(120) + '%')}
     ${kpi('Maior tempo', dur(pior.tempo), pior.prefixo + ' · ' + diaRot(pior.dataISO))}</div>
   <div class="grid">
@@ -5432,7 +5463,11 @@ document.addEventListener('click', async e => {
     case 'res-turno': S.resTurno = S.resTurno === v ? null : v; break;
     case 'sp-abrir': SP.aberto = SP.aberto === el.dataset.id ? null : el.dataset.id; break;
     case 'sp-rapido': spRapido(v); break;
-    case 'sp-limpar': if (confirm('Apagar as planilhas de paradas guardadas neste aparelho?')) { SP.plan = {}; SP.info = null; IDB.apagar('saida_plan'); } break;
+    case 'sp-limpar':
+      if (!confirm('Apagar todas as paradas da base? Some para todos os programadores.')) return;
+      if (DEMO || OFFLINE) { SP.plan = {}; SP.info = null; IDB.apagar('saida_plan'); break; }
+      sb.from('saida_paradas').delete().gte('id', 0).then(({ error }) => { if (error) toast('⚠ ' + spSemTabela(error)); else { SP.plan = {}; SP.info = null; toast('Paradas apagadas'); } render(); });
+      return;
     case 'at-abrir': S.atAberto = S.atAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
@@ -5808,7 +5843,8 @@ document.addEventListener('change', async e => {
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
   else if (a === 'at') { AT[el.dataset.k] = el.value; render(); }
   else if (a === 'sp') { SP[el.dataset.k] = el.value; render(); }
-  else if (a === 'sp-arq') { const arq = el.files[0]; el.value = ''; if (!arq) return; toast('Lendo a planilha…'); spLerPlanilha(arq).then(r => { toast(`Planilha lida: ${fmt(r.trens)} trens, ${fmt(r.paradas)} paradas`); render(); }).catch(err => toast('⚠ ' + err.message)); }
+  else if (a === 'sp-arq') { const arq = el.files[0]; el.value = ''; if (!arq) return; SP.enviando = true; render(); toast('Lendo e enviando a planilha…');
+    spLerPlanilha(arq).then(r => toast(`Planilha enviada: ${fmt(r.trens)} trens, ${fmt(r.paradas)} paradas`)).catch(err => toast('⚠ ' + err.message)).finally(() => { SP.enviando = false; render(); }); }
   else if (a === 'trem-linha') {
     const t = tremPorId(el.dataset.id); if (!t || !el.value || el.value === t.linha) return;
     t.linha = el.value; enviar({ tabela: 'trens', acao: 'update', dados: { linha: el.value }, filtro: [['id', 'eq', t.id]], desc: 'Linha do trem ' + t.prefixo });
