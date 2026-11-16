@@ -77,6 +77,11 @@ main.estreito { max-width: 620px; }
 .cron { font-size: 34px; font-weight: 800; color: var(--warn); font-variant-numeric: tabular-nums; line-height: 1.1; }
 .parada-lista { margin-top: 10px; }
 .restr-card { margin: 8px 0 0; font-size: 13px; color: var(--warn); } .restr-card summary { cursor: pointer; } .restr-card ul { margin: 6px 0 0; padding-left: 18px; color: var(--ink); } .restr-card li { margin: 2px 0; }
+.aviso-mudanca { display: flex; gap: 10px 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; max-width: 1180px; margin: 8px auto 0; background: var(--info-bg); color: var(--info); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 14px; }
+.aviso-mudanca[hidden] { display: none; }
+.aviso-mudanca b { color: var(--info); }
+.aviso-mudanca a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.mudanca-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
 .nova-versao { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); z-index: 45; background: var(--primary); color: var(--primary-ink); border: 0; border-radius: 999px; padding: 10px 18px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; max-width: calc(100% - 24px); }
 .os-linha { display: flex; align-items: center; gap: 8px; margin: -2px 0 8px; flex-wrap: wrap; } .os-tag { font-size: 14px; color: var(--title); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
 table.tab-larga { min-width: 760px; }
@@ -543,6 +548,7 @@ div.campo { display: block; margin-bottom: 10px; font-size: 13px; font-weight: 7
     </div>
     <nav class="tabs" id="tabs"></nav>
   </header>
+  <div id="aviso-mudanca" class="aviso-mudanca" role="status" hidden></div>
   <main id="main"></main>
 </div>
 <div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
@@ -700,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.22';
+const VERSAO = '2.23';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -710,6 +716,20 @@ const sb = supabase.createClient(SUPA_URL, SUPA_CHAVE, { auth: { persistSession:
 // Entrar troca os dados da tela por uma cena fictícia; sair recarrega o app. Enquanto durar, a fila de envio fica parada
 // (o que já estava pendente de verdade continua guardado) e qualquer gravação no Supabase é barrada aqui.
 let DEMO = false;
+// v2.23: mudança para o domínio próprio. Para o navegador o endereço novo é outra "origem": login, fila de envio e atalho da tela
+// inicial não passam de um para o outro. Por isso o link só aparece com a fila vazia (nada a enviar nem recusado) e cada pessoa
+// troca no seu tempo. No endereço novo o aviso nem aparece.
+const NOVO_ENDERECO = 'https://app.revistamentozto.com.br/';
+const NO_ENDERECO_ANTIGO = /\.github\.io$/i.test(location.hostname);
+function avisoMudanca() {
+  const el = $('aviso-mudanca'); if (!el) return;
+  if (!NO_ENDERECO_ANTIGO || DEMO || lsLer('rzto_mudanca_oculto', 0) > Date.now()) { el.hidden = true; return; }
+  const pend = FILA.length + REJ.length;
+  el.hidden = false;
+  el.innerHTML = pend
+    ? `<div><b>O app vai mudar de endereço.</b> Ainda há ${pend} alteração(ões) neste aparelho. Quando tudo for enviado (com sinal), este aviso libera o endereço novo.</div>`
+    : `<div><b>O app mudou de endereço:</b> app.revistamentozto.com.br<br><span class="small">Abra o novo, entre com o mesmo usuário e senha e, se usa o atalho na tela inicial, crie o atalho de novo. Este endereço continua funcionando por enquanto.</span></div><div class="mudanca-acoes"><a class="btn primary" href="${NOVO_ENDERECO}">Abrir endereço novo</a><button class="btn" type="button" data-act="mudanca-depois">Depois</button></div>`;
+}
 const DEMO_LOGINS = ['mauricio.santiago'];
 const podeDemo = () => DEMO_LOGINS.includes(String(DB.me?.login || '').toLowerCase());
 (() => {
@@ -1374,6 +1394,7 @@ async function processarFila() {
   if (semSinal) setTimeout(processarFila, 15000);
 }
 function indicador() {
+  avisoMudanca();
   const el = $('sinc'); if (!el) return;
   if (DEMO) { el.className = 'sinc'; el.textContent = '🎬 demonstração' + (FILA.length ? ` · ${FILA.length} real a enviar ao sair` : ''); el.title = 'Modo demonstração: nada é gravado'; return; }
   el.className = 'sinc' + (OFFLINE || semSinal ? ' off' : erroFila ? ' erro' : '');
@@ -4953,6 +4974,7 @@ function telaLogin(msg) {
       <label class="campo">Senha<input id="l-senha" name="password" type="password" autocomplete="current-password" required></label>
       ${msg ? `<p class="erro-login">${esc(msg)}</p>` : ''}
       <button class="btn primary big" type="submit" id="l-entrar">Entrar</button>
+      ${NO_ENDERECO_ANTIGO ? `<p class="small" style="text-align:center;margin:14px 0 0"><b>O app mudou de endereço:</b> <a href="${NOVO_ENDERECO}">app.revistamentozto.com.br</a></p>` : ''}
       <p class="small muted" style="text-align:center;margin:14px 0 0">Esqueceu a senha? Peça ao seu líder ou a um programador para gerar uma nova.</p></form>`;
   $('f-login').onsubmit = async e => {
     e.preventDefault();
@@ -5071,6 +5093,7 @@ document.addEventListener('click', async e => {
       await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); REJ = []; lsGravar('rzto_rejeitados', []); mostrarRejeitados(); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); IDB.apagar('raw'); IDB.apagar('hist'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
     }
     case 'recarregar': entrar(); return;
+    case 'mudanca-depois': lsGravar('rzto_mudanca_oculto', Date.now() + 12 * 3600e3); avisoMudanca(); return;
     case 'atualizar-app': if (FILA.length && !confirm(`Ainda há ${FILA.length} alteração(ões) para enviar. Elas ficam guardadas no aparelho. Atualizar mesmo assim?`)) return; location.reload(); return;
     case 'nuvem': S.modal = { tipo: 'nuvem' }; renderModal(); return;
     case 'rej-tentar': if (!precisaNuvem()) return; FILA = REJ.map(({ erro, recusadoEm, ...o }) => o).concat(FILA); REJ = []; lsGravar('rzto_fila', FILA); lsGravar('rzto_rejeitados', REJ); erroFila = ''; mostrarRejeitados(); toast('Enviando de novo…'); await processarFila(); render(); return;
