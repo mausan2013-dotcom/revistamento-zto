@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.30';
+const VERSAO = '2.31';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1018,16 +1018,16 @@ async function carregarNotasTec() {
   try {
     const { data: c, error } = await sb.from('notas_cargas').select('id').order('quando', { ascending: false }).limit(1);
     if (error) return;
-    if (!c.length) { Object.assign(NTEC, { mapa: {}, chave: ch, carga: null, regra, em: Date.now() }); return; }
-    if (ch === NTEC.chave && c[0].id === NTEC.carga && NTEC.regra === regra) { NTEC.em = Date.now(); return; }
+    if (!c.length) { Object.assign(NTEC, { mapa: {}, chave: ch, carga: null, regra, em: Date.now(), cods }); return; }
+    if (ch === NTEC.chave && c[0].id === NTEC.carga && NTEC.regra === regra) { NTEC.em = Date.now(); NTEC.cods ||= cods; return; }
     const mapa = {};
     for (let i = 0; i < cods.length; i += 100) {
       const rows = await tudo(() => sb.from('notas_sap').select('vagao,tp_nota,data_nota,nota,descricao,texto').eq('carga_id', c[0].id).in('vagao', cods.slice(i, i + 100)).order('id'));
       rows.forEach(r => { const g = grupoNota(r); if (!g) return; const l = (mapa[r.vagao] ||= []);
         if (!l.some(x => x.nota === r.nota && x.grupo === g)) l.push({ grupo: g, tp: r.tp_nota, data: r.data_nota, nota: r.nota, desc: partesSap(r.descricao) || partesSap(r.texto) }); });
     }
-    Object.assign(NTEC, { mapa, chave: ch, carga: c[0].id, regra, em: Date.now() });
-    lsGravar('rzto_notas_tec', { mapa, chave: ch, carga: c[0].id, regra });
+    Object.assign(NTEC, { mapa, chave: ch, carga: c[0].id, regra, em: Date.now(), cods });
+    lsGravar('rzto_notas_tec', { mapa, chave: ch, carga: c[0].id, regra, cods });
   } catch {}
 }
 const notasPend = cod => NTEC.mapa[cod] || [];
@@ -1088,6 +1088,29 @@ function nbxSemResposta(t, d) {                        // ao encerrar a parte; n
 }
 // v2.17: os botões ficam na janela do vagão (onde o técnico registra defeito ou material); o bloco só finaliza com todas as notas sinalizadas
 const podeSinNota = t => NBX.sql && !ehVis() && t.status === 'andamento';
+// v2.31: trava das notas SAP sem resposta. Antes de encerrar a parte, finalizar o bloco ou fechar o trem:
+// (1) app desatualizado recarrega (a trava nova vale na hora); (2) a base de notas é conferida de novo no banco;
+// (3) sem a base dos vagões deste trem no aparelho, não encerra (senão as notas não apareceriam e passariam sem resposta)
+const ntecCobre = t => { const s = new Set(NTEC.cods || []); return t.vagoes.every(c => s.has(c)); };
+const cmpVer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d; } return 0; };
+async function appDesatualizado() {
+  if (location.protocol !== 'https:') return false;
+  try { const r = await fetch('./index.html?v=' + Date.now(), { cache: 'no-store' }); if (!r.ok) return false;
+    const m = (await r.text()).match(/const VERSAO = '([\d.]+)'/); return !!m && cmpVer(m[1], VERSAO) > 0; } catch { return false; }
+}
+async function travaNotas(t) {
+  if (DEMO || !NBX.sql || !t) return true;
+  if (navigator.onLine && !OFFLINE) {
+    if (await appDesatualizado()) { toast('🔄 Há uma versão nova do app. Atualizando… depois toque de novo para encerrar.'); setTimeout(() => location.reload(), 1200); return false; }
+    NTEC.em = 0; NTEC.tent = 0; await carregarNotasTec();
+  }
+  if (!ntecCobre(t)) { toast(navigator.onLine && !OFFLINE ? '⚠ Não consegui conferir as notas SAP deste trem no banco. Tente de novo em instantes.' : '📶 Sem sinal: conecte à internet para conferir as notas SAP antes de encerrar.'); return false; }
+  return true;
+}
+// notas SAP sem resposta nos vagões já registrados do trem (fechamento pelo líder)
+const notasSemRespTrem = t => { if (!podeSinNota(t)) return []; const out = [];
+  t.vagoes.forEach((c, i) => { const p = i + 1; if (!t.reg[p]) return; juntarNotas(notasVag(c)).forEach(g => { const e = estadoGrupo(t, p, g); if (!e || e.f == null) out.push({ p, cod: c, plano: '📝 Nota SAP ' + g.grupo }); }); });
+  return out; };
 const notasResumo = (t, pos) => juntarNotas(notasVag(t.vagoes[pos - 1])).map(g => { const e = estadoGrupo(t, pos, g), ns = esc(g.notas.join(','));
   return `<span class="nota-sin">📝 <b>${esc(g.grupo)}</b> · ${esc(g.tp || '')} ${datasNota(g)} · ${rotNotas(g)}<br><span class="small muted">${esc(g.desc)}</span>
     <span class="nota-bts"><button class="btn sm ${e?.f === true ? 'ok' : ''}" data-act="nota-fech" data-trem="${t.id}" data-p="${pos}" data-nota="${ns}" data-v="1">✓ Será fechada</button>
@@ -4298,6 +4321,7 @@ function vistaIndic() {
 // ---------- v2.14: aba Notas fechadas (análise das sinalizações da revista) ----------
 const NF = { de: isoData(new Date(Date.now() - 29 * 864e5)), ate: isoData(new Date()), turno: null, st: 'todas', ver: 50, l: [], ok: false, erro: '', buscando: false };
 const NF_ST = [['Será fechada', 'var(--ok)'], ['Fica aberta', 'var(--warn)'], ['Sem sinalização', 'var(--muted)']];
+const NF_INICIO = '2026-11-14';   // v2.31: 12 e 13/11 foram a implantação da sinalização (trava só a partir da v2.17); o "sem sinalização" desses dias não conta
 const nfSt = x => x.fechar === true ? 0 : x.fechar === false ? 1 : 2;
 const nfPodeFechar = () => ['pcm', 'programador'].includes(DB.me?.perfil);   // v2.30: só PCM e Programador sinalizam o fechamento no SAP
 const nfPend = x => x.fechar === true && !x.fechada_sap_em;
@@ -4313,7 +4337,7 @@ async function nfCarregar(forca) {
   if (NF.buscando || (NF.ok && !forca)) return;
   if (DEMO) { NF.ok = true; return; }
   NF.buscando = true;
-  try { NF.l = await tudo(() => sb.from('notas_baixa').select('*').gte('data_trem', NF.de).lte('data_trem', NF.ate).order('id')); NF.erro = ''; NF.ok = true; }
+  try { NF.l = (await tudo(() => sb.from('notas_baixa').select('*').gte('data_trem', NF.de).lte('data_trem', NF.ate).order('id'))).filter(x => !(x.fechar == null && x.data_trem < NF_INICIO)); NF.erro = ''; NF.ok = true; }
   catch (e) { NF.erro = /relation|schema cache|does not exist/i.test(e.message || '') ? 'sql' : (e.message || 'erro'); }
   finally { NF.buscando = false; }
 }
@@ -5328,6 +5352,7 @@ document.addEventListener('click', async e => {
       const t = tremQualquer(el.dataset.id), d = t && t.dist[eqDoTrem(t)]; if (!d || d.termino) { toast('A sua faixa neste trem mudou ou já foi encerrada. Confira a lista.'); return; }
       const livres = []; for (let p = d.ini; p <= d.fim; p++) if (!t.reg[p]) livres.push(p);
       if (!livres.length) { toast('Todos os vagões da faixa já estão registrados'); return; }
+      if (!(await travaNotas(t))) { render(); return; }
       // trava: nenhum plano especial da faixa pode ficar sem resposta (Realizado / Não realizado)
       const sr = planosAbertosFaixa(t, d);
       if (sr.length) { S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial, câmeras ou nota SAP): ${pendVag(sr).map(([c]) => c).join(', ')}. Responda para finalizar o bloco.`); return; }
@@ -5358,6 +5383,7 @@ document.addEventListener('click', async e => {
       // fall through
     case 'comeco-sim': case 'encerrar': {
       const t = tremPorId(S.tecTrem), d = t.dist[eqDoTrem(t)], campo = a === 'encerrar' ? 'termino' : 'inicio';
+      if (campo === 'termino' && !(await travaNotas(t))) { render(); return; }
       if (campo === 'termino' && planosAbertosFaixa(t, d).length) { const sr = planosAbertosFaixa(t, d); S.tecFiltro = 'atencao'; render(); toast(`📋 Sem resposta (plano especial, câmeras ou nota SAP): ${pendVag(sr).map(([c]) => c).join(', ')}`); return; }
       if (a === 'comeco-sim') S.modal = null;
       d[campo] = agora(); enviar({ tabela: 'trem_equipes', acao: 'update', dados: { [campo]: d[campo] }, filtro: [['id', 'eq', d.rowId]], desc: campo === 'inicio' ? 'Início da revista' : 'Fim da revista' });
@@ -5655,6 +5681,8 @@ document.addEventListener('click', async e => {
     case 'confirmar-fech': {
       const t = tremPorId(M.id), tf = tempoModal(M); lerCampos();
       if (camSemRetTrem(t).length) { toast('📷 Dê o retorno das câmeras antes de fechar: ' + camSemRetTrem(t).map(a => a.vagao).join(', ')); return; }
+      if (!(await travaNotas(t))) return;
+      { const ns = notasSemRespTrem(t); if (ns.length) { const v = pendVag(ns).map(([c]) => c); toast(`📝 Nota SAP sem resposta (Será fechada / Fica aberta) em ${v.length} vagão(ões): ${v.slice(0, 8).join(', ')}${v.length > 8 ? '…' : ''}. Responda na janela do vagão antes de fechar o trem.`); return; } }
       if (tf.min == null) { toast(tf.erro); return; }
       if (tf.min > META_MIN && !M.motivoAtraso) { toast('Escolha o motivo do atraso'); return; }
       if (tf.min > META_MIN && M.motivoAtraso === OUTRO_ATRASO && !M.obs.trim()) { toast('Descreva o motivo do atraso nas observações'); $('obs-fech')?.focus(); return; }
