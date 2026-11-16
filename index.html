@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.25';
+const VERSAO = '2.26';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1710,7 +1710,7 @@ const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
   esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['atrasos', 'Análise de atrasos'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
+  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['atrasos', 'Análise de atrasos'], ['saida', 'Saída do pátio'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
   pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
   vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos']],
   cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard'], ['camescala', 'Escala']],
@@ -3712,6 +3712,140 @@ async function printAtrasos() {
   box.remove();
 }
 
+// ---------- Saída do pátio (programador): quanto tempo depois da liberação do revistamento o trem parte ----------
+// Cruza a planilha de paradas (PATIO OP) com os trens do app pela OS. Liberação = fim da revisão no app.
+// Saída = fim da última parada registrada depois da liberação (o trem só volta a andar quando a última parada acaba).
+const SP = { plan: undefined, app: undefined, carregando: false, de: '', ate: '', turno: 'todos', linha: 'todas', faixa: 'todas', janela: 'todas', aberto: null, info: null };
+const SP_FAIXAS = [['Até 30 min', 0, 30], ['31 a 60 min', 31, 60], ['61 a 120 min', 61, 120], ['Mais de 2 h', 121, 1e9]];
+const SP_JANELA_MAX = 360, SP_TOL_HORARIO = 180;   // só conta parada que começa até 6 h após a liberação; o horário do app precisa estar a até 3 h de uma parada da planilha
+const spMin = (iso, hhmm) => { const [y, m, d] = iso.split('-').map(Number), [h, mi] = hhmm.split(':').map(Number); return Math.round((Date.UTC(y, m - 1, d) / 864e5 + 25569) * 1440) + h * 60 + mi; };
+const spData = min => new Date(Math.round((min / 1440 - 25569) * 864e5));
+const spHora = min => { const d = spData(min); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+const spDia = min => { const d = spData(min); return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()); };
+const spMediana = v => { if (!v.length) return 0; const s = v.slice().sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+async function spCarregar() {
+  if (SP.carregando) return; SP.carregando = true;
+  try {
+    const c = await IDB.ler('saida_plan'); SP.plan = c?.plan || {}; SP.info = c ? { arq: c.arq, em: c.em } : null;
+    await spCarregarApp();
+  } finally { SP.carregando = false; render(); }
+}
+async function spCarregarApp() {
+  const doApp = t => ({ os: String(t.os).trim(), prefixo: t.prefixo, turno: t.turno, linha: t.linha, ini: t.ini || '', fim: t.fim || '', dataISO: t.dataISO });
+  let lista = null;
+  if (!DEMO && !OFFLINE) {
+    try {
+      const out = [];
+      for (let p = 0; ; p++) {
+        const { data, error } = await sb.from('trens').select('id,os,prefixo,data,turno,linha,inicio,fim').neq('os', '').not('fim', 'is', null).order('id').range(p * 1000, p * 1000 + 999);
+        if (error) throw error; out.push(...data); if (data.length < 1000) break;
+      }
+      lista = out.map(r => doApp({ os: r.os, prefixo: r.prefixo, turno: r.turno, linha: r.linha, ini: hm(r.inicio), fim: hm(r.fim), dataISO: r.data }));
+    } catch { lista = null; }
+  }
+  if (!lista) lista = fechadosT().filter(t => t.os && t.fim).map(t => doApp({ os: t.os, prefixo: t.prefixo, turno: t.turno, linha: t.linha, ini: t.inicio, fim: t.fim, dataISO: t.dataISO }));
+  // a mesma OS pode ter dois lançamentos (um vazio): fica o de maior duração
+  const porOs = {};
+  lista.forEach(t => { const d = t.ini && t.fim ? (difMin(t.ini, t.fim)) : 0, o = porOs[t.os]; if (!o || d > o.d || (d === o.d && t.fim > o.t.fim)) porOs[t.os] = { t, d }; });
+  SP.app = Object.values(porOs).map(x => x.t);
+}
+async function spLerPlanilha(arq) {
+  await carregarXlsx();
+  const wb = XLSX.read(await arq.arrayBuffer(), { type: 'array' });   // sem cellDates: as datas ficam como número de série (horário de parede, sem fuso)
+  const sem = x => String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const ws = wb.Sheets[wb.SheetNames[0]], linhas = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
+  if (!linhas.length) throw new Error('A planilha está vazia');
+  const ch = Object.keys(linhas[0]), k = n => ch.find(c => sem(c) === n);
+  const cOS = k('os'), cI = k('data inicial'), cF = k('data fim'), cS = k('secao bloqueio'), cP = k('prefixo'), cT = k('tipo'), cM = k('motivo macro 9'), cD = k('sentido'), cR = k('trecho'), cId = k('id parada');
+  if (!cOS || !cI || !cF) throw new Error('Não achei as colunas OS, Data Inicial e Data Fim');
+  const plan = {}, vistos = new Set(); let n = 0;
+  linhas.forEach(l => {
+    const os = String(l[cOS] ?? '').trim(), i = l[cI], f = l[cF]; if (!os || typeof i !== 'number' || typeof f !== 'number') return;
+    const id = cId ? l[cId] : null; if (id != null) { if (vistos.has(id)) return; vistos.add(id); }
+    const o = plan[os] ||= { pref: cP ? String(l[cP] || '') : '', sent: cD ? String(l[cD] || '') : '', trecho: cR ? String(l[cR] || '') : '', p: [] };
+    o.p.push([Math.round(i * 1440), Math.round(f * 1440), cS ? String(l[cS] || '') : '', cT ? String(l[cT] || '') : '', cM ? String(l[cM] || '') : '']); n++;
+  });
+  if (!n) throw new Error('Nenhuma parada com data válida na planilha');
+  Object.values(plan).forEach(o => o.p.sort((a, b) => a[0] - b[0]));
+  // planilhas novas somam às anteriores; a OS que vier de novo é substituída
+  SP.plan = { ...(SP.plan || {}), ...plan }; SP.info = { arq: arq.name, em: Date.now() };
+  await IDB.gravar('saida_plan', { plan: SP.plan, arq: arq.name, em: SP.info.em });
+  return { trens: Object.keys(plan).length, paradas: n };
+}
+// cruza app × planilha
+function spCalc() {
+  const rows = [], res = { semPlan: 0, horario: 0, semParada: 0 };
+  (SP.app || []).forEach(a => {
+    const p = SP.plan[a.os]; if (!p) { res.semPlan++; return; }
+    let base = spMin(a.dataISO, a.fim); if (a.ini && a.fim < a.ini) base += 1440;   // revisão que virou o dia
+    // a data do app às vezes difere em 1 dia da planilha: vale o dia em que a liberação cai junto de uma parada
+    let lib = null, dist = 1e9;
+    for (const k of [0, 1, -1, 2, -2]) {
+      const l = base + k * 1440, d = Math.min(...p.p.map(x => l >= x[0] && l <= x[1] ? 0 : Math.min(Math.abs(l - x[0]), Math.abs(l - x[1]))));
+      if (d < dist) { dist = d; lib = l; }
+    }
+    if (dist > SP_TOL_HORARIO) { res.horario++; return; }
+    const apos = p.p.filter(x => x[1] > lib && x[0] <= lib + SP_JANELA_MAX);
+    if (!apos.length) { res.semParada++; return; }
+    const ult = apos.reduce((m, x) => x[1] > m[1] ? x : m, apos[0]), tempo = Math.max(0, ult[1] - lib);
+    rows.push({ id: a.os, os: a.os, prefixo: a.prefixo, turno: a.turno, linha: a.linha, lib, saida: ult[1], tempo, secao: ult[2] || '–', n: apos.length, dataISO: spDia(lib), hLib: spData(lib).getUTCHours(), ini: a.ini, fimH: a.fim, ajuste: lib !== base, p: p.p, trecho: p.trecho });
+  });
+  return { rows, res };
+}
+const spRapido = v => { const h = isoData(new Date()); SP.ate = h; if (v === 'tudo') { SP.de = ''; SP.ate = ''; } else SP.de = _ontem(v === 'd7' ? 6 : 29); };
+function spFicha(r) {
+  const ev = r.p.map(x => ({ t: x[0], f: x[1], s: x[2], tipo: x[3], m: x[4] })).concat([{ t: r.lib, f: r.lib, s: '', tipo: 'LIBERAÇÃO', m: 'Revistamento liberado (app)', lib: true }]).sort((a, b) => a.t - b.t || (a.lib ? -1 : 1));
+  const sinal = m => (m >= 0 ? '+' : '−') + dur(Math.abs(m));
+  return `<tr class="nr-ficha"><td colspan="9"><div class="small" style="margin:0 0 8px">OS <b>${esc(r.os)}</b>${r.trecho ? ' · ' + esc(r.trecho) : ''} · revisão no app ${esc(r.ini || '–')}–${esc(r.fimH || '–')}${r.ajuste ? ' · <span class="tag warn">data do app difere da planilha</span>' : ''}</div>
+    <table class="tabela compacta"><thead><tr><th>Parada</th><th>Seção</th><th>Tipo</th><th>Motivo</th><th class="num">Começa</th><th class="num">Termina</th></tr></thead><tbody>${ev.map(e => e.lib
+      ? `<tr style="font-weight:700"><td colspan="4">▶ Revistamento liberado às ${spHora(e.t)}</td><td class="num">${spHora(e.t)}</td><td class="num">–</td></tr>`
+      : `<tr ${e.f === r.saida ? 'style="font-weight:700"' : ''}><td>${spHora(e.t)}–${spHora(e.f)}${e.f === r.saida ? ' ◀ saída' : ''}</td><td>${esc(e.s || '–')}</td><td>${esc(e.tipo || '–')}</td><td>${esc(e.m || '–')}</td><td class="num">${sinal(e.t - r.lib)}</td><td class="num">${sinal(e.f - r.lib)}</td></tr>`).join('')}</tbody></table>
+    <p class="small muted" style="margin:6px 0 0">Os tempos são contados a partir da liberação. Só entram paradas que começam até ${SP_JANELA_MAX / 60} h depois dela.</p></td></tr>`;
+}
+function spSaida() {
+  if (SP.plan === undefined || SP.app === undefined) { if (!SP.carregando) setTimeout(spCarregar); return '<div class="card muted">Carregando a planilha de paradas…</div>'; }
+  const envio = `<div class="acoes" style="margin:0 0 10px"><label class="btn sm primary" style="cursor:pointer"><input type="file" accept=".xlsx,.xls" data-act="sp-arq" style="display:none">📄 ${Object.keys(SP.plan).length ? 'Enviar outra planilha de paradas' : 'Enviar planilha de paradas'}</label>
+    ${Object.keys(SP.plan).length ? `<button class="btn sm" data-act="sp-limpar">Apagar planilhas</button>` : ''}</div>`;
+  const nota = `<p class="small muted" style="margin:0 0 10px">Tempo entre a <b>liberação do revistamento</b> (fim da revisão no app) e a <b>saída</b> do trem do pátio (fim da última parada “PATIO OP” registrada depois da liberação). Cruzamento pela OS. A planilha fica guardada neste aparelho; planilhas novas somam às anteriores.</p>`;
+  if (!Object.keys(SP.plan).length) return envio + nota + `<div class="card"><span class="muted small">Envie a planilha de paradas (colunas OS, Data Inicial, Data Fim, Seção Bloqueio…) para ver a análise.</span></div>`;
+  const { rows: todas, res } = spCalc();
+  const de = SP.de && SP.ate && SP.de > SP.ate ? SP.ate : SP.de, ate = SP.de && SP.ate && SP.de > SP.ate ? SP.de : SP.ate;
+  const ff = SP_FAIXAS.find(f => f[0] === SP.faixa), fj = AT_JANELAS.find(j => j[0] === SP.janela);
+  const rows = todas.filter(r => (!de || r.dataISO >= de) && (!ate || r.dataISO <= ate) && (SP.turno === 'todos' || r.turno === SP.turno) && (SP.linha === 'todas' || r.linha === SP.linha)
+    && (!ff || (r.tempo >= ff[1] && r.tempo < ff[2] + 1)) && (!fj || (r.hLib >= fj[1] && r.hLib < fj[2])));
+  const sel = (k, rot, ops) => `<label class="filtro"><span>${rot}</span><select data-act="sp" data-k="${k}">${ops.map(([v, l]) => `<option value="${esc(v)}" ${SP[k] === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+  const barra = `<div class="filtros-bar">
+    <label class="filtro"><span>De</span><input type="date" data-act="sp" data-k="de" value="${SP.de}"></label><label class="filtro"><span>Até</span><input type="date" data-act="sp" data-k="ate" value="${SP.ate}"></label>
+    ${sel('turno', 'Equipe (turno)', [['todos', 'Todas'], ...'ABCD'.split('').map(t => [t, 'Turno ' + t])])}${sel('linha', 'Linha', [['todas', 'Todas'], ['ZTO 1', 'ZTO 1'], ['ZTO 2', 'ZTO 2']])}
+    ${sel('faixa', 'Tempo até sair', [['todas', 'Todos'], ...SP_FAIXAS.map(f => [f[0], f[0]])])}${sel('janela', 'Hora da liberação', [['todas', 'Todas'], ...AT_JANELAS.map(j => [j[0], j[0]])])}</div>
+    <div class="chips" style="margin:-4px 0 12px">${[['d7', '7 dias'], ['d30', '30 dias'], ['tudo', 'Todo o período']].map(([v, l]) => `<button class="chip" data-act="sp-rapido" data-v="${v}">${l}</button>`).join('')}</div>`;
+  const avisos = `<p class="small muted" style="margin:0 0 10px">Trens do app sem a OS na planilha: <b>${fmt(res.semPlan)}</b> · com horário que não bate com a planilha: <b>${fmt(res.horario)}</b> · sem parada depois da liberação (não medidos): <b>${fmt(res.semParada)}</b>.</p>`;
+  if (!rows.length) return envio + nota + barra + avisos + `<div class="card">${semDados}</div>`;
+  const tm = rows.map(r => r.tempo), pct = n => Math.round(rows.filter(r => r.tempo <= n).length / rows.length * 100), pior = rows.reduce((m, r) => r.tempo > m.tempo ? r : m, rows[0]);
+  const por = (f, ordem) => { const o = {}; rows.forEach(r => (o[f(r)] ||= []).push(r.tempo)); return Object.entries(o).sort(ordem || ((a, b) => a[0].localeCompare(b[0]))); };
+  const dias = por(r => r.dataISO).map(([d, v]) => ({ rot: diaRot(d), v: Math.round(v.reduce((a, b) => a + b, 0) / v.length), tip: `${diaRot(d)}: média ${dur(v.reduce((a, b) => a + b, 0) / v.length)} · ${v.length} trem(ns)` }));
+  const horas = Array.from({ length: 24 }, (_, h) => { const v = rows.filter(r => r.hLib === h).map(r => r.tempo); return { rot: pad(h), v: v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : 0, tip: v.length ? `${pad(h)}h: média ${dur(v.reduce((a, b) => a + b, 0) / v.length)} · ${v.length} trem(ns)` : `${pad(h)}h: sem trens` }; });
+  const faixas = SP_FAIXAS.map(([l, a, b]) => [l, rows.filter(r => r.tempo >= a && r.tempo < b + 1).length]);
+  const turnos = ['A', 'B', 'C', 'D'].map(t => { const v = rows.filter(r => r.turno === t).map(r => r.tempo); return [`Turno ${t}`, v.length, v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0]; }).filter(x => x[1]);
+  const linhas = LINHAS.map(l => { const v = rows.filter(r => r.linha === l).map(r => r.tempo); return [l, v.length, v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0]; }).filter(x => x[1]);
+  const secoes = por(r => r.secao, (a, b) => b[1].length - a[1].length).map(([s, v]) => [s, v.length, v.reduce((a, b) => a + b, 0) / v.length]);
+  const tab = rows.slice().sort((a, b) => b.tempo - a.tempo).slice(0, 200);
+  return `${envio}${nota}${barra}${avisos}
+  <div class="kpis">${kpi('Trens medidos', fmt(rows.length), 'liberação → saída do pátio')}${kpi('Mediana', dur(spMediana(tm)), 'metade sai em até esse tempo')}
+    ${kpi('Média', dur(tm.reduce((a, b) => a + b, 0) / tm.length), 'puxada pelos casos longos')}${kpi('Saem em até 60 min', pct(60) + '%', 'até 30 min: ' + pct(30) + '% · até 2 h: ' + pct(120) + '%')}
+    ${kpi('Maior tempo', dur(pior.tempo), pior.prefixo + ' · ' + diaRot(pior.dataISO))}</div>
+  <div class="grid">
+    <div class="card"><h2>Tempo até sair <span class="dir">trens</span></h2>${hbars(faixas, 'trens')}</div>
+    <div class="card"><h2>Por equipe <span class="dir">trens · tempo médio</span></h2>${hbars(turnos.map(x => [x[0], x[1]]), 'trens', (v, i) => ` <span class="muted" style="font-weight:600">· ${dur(turnos[i][2])}</span>`)}</div>
+    <div class="card"><h2>Por linha <span class="dir">trens · tempo médio</span></h2>${hbars(linhas.map(x => [x[0], x[1]]), 'trens', (v, i) => ` <span class="muted" style="font-weight:600">· ${dur(linhas[i][2])}</span>`)}</div>
+    <div class="card larga"><h2>Tempo médio dia a dia <span class="dir">minutos entre liberar e sair</span></h2>${colunas(dias, { cor: 'var(--s2)', larg: 36, fmtV: v => dur(v) })}</div>
+    <div class="card larga"><h2>Por hora da liberação <span class="dir">tempo médio em minutos</span></h2>${colunas(horas, { cor: 'var(--s4)', larg: 20, fmtV: v => dur(v) })}</div>
+    <div class="card"><h2>Onde o trem fica por último <span class="dir">seção · trens · tempo médio</span></h2>${hbars(secoes.map(x => [x[0], x[1]]), 'trens', (v, i) => ` <span class="muted" style="font-weight:600">· ${dur(secoes[i][2])}</span>`)}</div>
+    <div class="card larga"><h2>Trens com maior tempo <span class="dir">${tab.length}${rows.length > tab.length ? ' de ' + rows.length : ''}</span></h2><div class="rolagem alto"><table class="tabela"><thead><tr><th>Data</th><th>Turno</th><th>Trem</th><th>Linha</th><th class="num">Liberado</th><th class="num">Saída</th><th class="num">Tempo</th><th>Última seção</th><th class="num">Paradas</th></tr></thead><tbody>${tab.map(r =>
+      `<tr class="nr-trem ${SP.aberto === r.id ? 'on' : ''}" data-act="sp-abrir" data-id="${esc(r.id)}"><td>${diaRot(r.dataISO)}</td><td>${esc(r.turno)}</td><td><b>${SP.aberto === r.id ? '▾' : '▸'} ${esc(r.prefixo)}</b></td><td>${esc(r.linha || '–')}</td><td class="num">${spHora(r.lib)}</td><td class="num">${spHora(r.saida)}</td><td class="num"><span class="tag ${r.tempo > 120 ? 'bad' : r.tempo > 60 ? 'warn' : 'ok'}">${dur(r.tempo)}</span></td><td>${esc(r.secao)}</td><td class="num">${r.n}</td></tr>${SP.aberto === r.id ? spFicha(r) : ''}`).join('')}</tbody></table></div><p class="small muted" style="margin:8px 0 0">Toque em um trem para ver a linha do tempo das paradas.</p></div>
+  </div>`;
+}
+
 // ---------- Performance das equipes (turnos) ----------
 // trens do turno no período, com as mesmas colunas do resumo (abre ao tocar no líder)
 function trensDoTurno(rs, sapata) {
@@ -4987,7 +5121,7 @@ const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
   esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
-  prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, atrasos: progAtrasos, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
+  prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, atrasos: progAtrasos, saida: spSaida, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
   pcm: { geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   vis: { geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, freio: vistaFreio, retidos: vistaRetidos },
   cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala },
@@ -5296,6 +5430,9 @@ document.addEventListener('click', async e => {
     }
     case 'par-mot': S.parMot = v || ''; break;
     case 'res-turno': S.resTurno = S.resTurno === v ? null : v; break;
+    case 'sp-abrir': SP.aberto = SP.aberto === el.dataset.id ? null : el.dataset.id; break;
+    case 'sp-rapido': spRapido(v); break;
+    case 'sp-limpar': if (confirm('Apagar as planilhas de paradas guardadas neste aparelho?')) { SP.plan = {}; SP.info = null; IDB.apagar('saida_plan'); } break;
     case 'at-abrir': S.atAberto = S.atAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'par-abrir': S.parAberto = S.parAberto === el.dataset.id ? null : el.dataset.id; break;
     case 'nr-abrir': S.nrAberto = S.nrAberto === el.dataset.id ? null : el.dataset.id; break;
@@ -5670,6 +5807,8 @@ document.addEventListener('change', async e => {
   const a = el.dataset.act, N = S.novo, M = S.modal;
   if (a === 'f') { F[el.dataset.k] = el.value; render(); }
   else if (a === 'at') { AT[el.dataset.k] = el.value; render(); }
+  else if (a === 'sp') { SP[el.dataset.k] = el.value; render(); }
+  else if (a === 'sp-arq') { const arq = el.files[0]; el.value = ''; if (!arq) return; toast('Lendo a planilha…'); spLerPlanilha(arq).then(r => { toast(`Planilha lida: ${fmt(r.trens)} trens, ${fmt(r.paradas)} paradas`); render(); }).catch(err => toast('⚠ ' + err.message)); }
   else if (a === 'trem-linha') {
     const t = tremPorId(el.dataset.id); if (!t || !el.value || el.value === t.linha) return;
     t.linha = el.value; enviar({ tabela: 'trens', acao: 'update', dados: { linha: el.value }, filtro: [['id', 'eq', t.id]], desc: 'Linha do trem ' + t.prefixo });
