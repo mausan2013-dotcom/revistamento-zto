@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.32';
+const VERSAO = '2.33';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1444,7 +1444,10 @@ const ehGestao = () => ['programador', 'pcm'].includes(DB.me?.perfil);     // pr
 // visualizador (v1.62, SQL 20): só lê Painel geral e Aderência; carrega os dados como a gestão, sem nenhum envio
 const ehVis = () => DB.me?.perfil === 'visualizador';
 const veIndic = () => ehGestao() || ehVis();
-const T = () => veIndic() ? S.turnoVer : DB.me.turno;                  // turno da tela atual
+const T = () => veIndic() ? S.turnoVer : visaoTecEsp() ? turnoVisaoV() : DB.me.turno;                  // turno da tela atual
+// v2.33: validador na Visão do técnico: vê os turnos que responde hoje (o dele + os que está cobrindo)
+const visaoTecEsp = () => DB.me?.perfil === 'especializado' && S.papel === 'esp' && S.aba.esp === 'tecvisao';
+const turnoVisaoV = () => { const l = meusTurnosV(); if (!l.includes(S.tvTurno)) S.tvTurno = l[0] || DB.me.turno; return S.tvTurno; };
 const meuTurnoV = () => T();
 const uidTec = () => DB.me.perfil === 'tecnico' ? DB.me.id : S.verTec;
 const atuais = () => DB.trens.filter(t => t.status === 'andamento');
@@ -1736,7 +1739,7 @@ function entrarDemo() {
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
-  esp: [['validacao', 'Validação'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
+  esp: [['validacao', 'Validação'], ['tecvisao', 'Visão do técnico'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
   tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
   prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['atrasos', 'Análise de atrasos'], ['saida', 'Saída do pátio'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
   pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
@@ -1941,7 +1944,8 @@ function cardTrem(t) {
   </div>`;
 }
 // líder vê o app como um mecânico do próprio turno (só visualização: quem registra é o mecânico, no celular dele)
-const visaoTecSup = () => S.papel === 'sup' && S.aba.sup === 'tecvisao';
+// v2.33: o validador também, nos turnos que responde (o dele + coberturas); para ele é só visualização, sem lançar
+const visaoTecSup = () => ['sup', 'esp'].includes(S.papel) && S.aba[S.papel] === 'tecvisao';
 function supVisaoTec() {
   const tt = T(), hoje = isoData(new Date()); if (!S.supData) S.supData = dataOp();
   const doDia = DB.trens.filter(t => t.turno === tt && t.dataISO === S.supData).sort((a, b) => (a.ordem ?? 1e9) - (b.ordem ?? 1e9) || a.criadoEm.localeCompare(b.criadoEm));
@@ -1955,6 +1959,16 @@ function supVisaoTec() {
   const filtros = `<div class="linha-campos" style="margin-bottom:6px"><label class="campo">Data<input type="date" data-act="sup-data" value="${S.supData}" max="${hoje}" min="${isoData(new Date(Date.now() - 6 * 864e5))}"></label>
     <label class="campo">Composição<select data-act="sup-trem">${S.supData === dataOp() ? `<option value="" ${!S.supTrem ? 'selected' : ''}>Fila atual do turno</option>` : ''}${doDia.map(t => `<option value="${t.id}" ${t.id === S.supTrem ? 'selected' : ''}>${esc(t.prefixo)} · ${esc(t.linha)} · ${stTrem(t)}</option>`).join('')}${!doDia.length && S.supData !== dataOp() ? '<option value="">Nenhum trem neste dia</option>' : ''}</select></label></div>`;
   const op = id => { const e = eqs.find(x => x.membros.includes(id)); return `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}${e ? ' · Equipe ' + e.n : ' · sem equipe hoje'}</option>`; };
+  if (S.papel === 'esp') {                                   // validador: só visualização, nos turnos que responde
+    if (S.supLanca) S.supLanca = false;
+    const tl = DB.me.perfil === 'especializado' ? meusTurnosV() : [tt], cob = k => minhasCob().find(c => c.turno === k);
+    const rot = k => `Turno ${k} · ${esc(liderDe(k))}${cob(k) ? ' · cobrindo' : DB.me.perfil === 'especializado' ? ' · seu turno' : ''}`;
+    const selT = tl.length > 1 ? `<label class="campo" style="margin:0 0 6px">Turno<select data-act="tv-turno">${tl.map(k => `<option value="${k}" ${k === tt ? 'selected' : ''}>${rot(k)}</option>`).join('')}</select></label>` : `<p class="small" style="margin:0 0 6px"><b>${rot(tt)}</b></p>`;
+    const c = cob(tt), notaC = c ? `<p class="nota" style="margin:0 0 8px">🔁 Você está cobrindo a validação do <b>turno ${c.turno}</b> desde ${fmtDiaISO(c.de)}${c.ate ? ' até ' + fmtDiaISO(c.ate) : ', sem data para terminar'}${c.motivo ? ' · ' + esc(c.motivo) : ''}.</p>` : '';
+    return `<div class="card visao-tec">${selT}${notaC}${filtros}<label class="campo" style="margin:0">Ver o app como o mecânico<select data-act="ver-tec">${tecs.map(op).join('')}</select></label>
+      <p class="small muted" style="margin:8px 0 0">Você vê exatamente o que aparece no celular dele (trem, faixa de vagões, avisos e planos). Só visualização: quem registra é o mecânico.</p></div>
+    <div class="somente-leitura">${tecs.length ? tecMeu() : '<div class="card muted">Nenhum mecânico ativo neste turno.</div>'}</div>`;
+  }
   return `<div class="card visao-tec ${S.supLanca ? 'lancando' : ''}">${filtros}<label class="campo" style="margin:0">Ver o app como o mecânico<select data-act="ver-tec">${tecs.map(op).join('')}</select></label>
     ${S.supLanca ? `<div class="alerta" style="margin:10px 0 0"><span>✏ <b>Lançando por ${esc(nomeTec(S.verTec) || '')}.</b> Os registros ficam com o seu nome em “apontado por”.</span><button class="btn sm" data-act="sup-lanca" data-v="0">Parar de lançar</button></div>`
       : `<p class="small muted" style="margin:8px 0 8px">Você vê exatamente o que aparece no celular dele (trem, faixa de vagões, avisos e planos). Para registrar no lugar dele, quando for necessário:</p>
@@ -5223,7 +5237,7 @@ function camRetorno(a, comObs) {
 const VIEWS = {
   sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
   tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
-  esp: { validacao: espValidacao, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
+  esp: { validacao: espValidacao, tecvisao: supVisaoTec, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
   prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, atrasos: progAtrasos, saida: spSaida, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
   pcm: { geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   vis: { geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, freio: vistaFreio, retidos: vistaRetidos },
@@ -6016,6 +6030,7 @@ document.addEventListener('change', async e => {
   else if (a === 'sup-data') { S.supData = el.value || dataOp(); S.supTrem = null; S.supLanca = false; render(); }
   else if (a === 'retro-trem' && M) { M.tremId = el.value; M.q = ''; renderModal(); }
   else if (a === 'sup-trem') { S.supTrem = el.value || null; S.supLanca = false; render(); }
+  else if (a === 'tv-turno') { S.tvTurno = el.value; S.supTrem = null; S.verTec = null; S.tecTrem = null; render(); }
   else if (a === 'plano-turno') { S.planoTurno = el.value; render(); }
   else if (a === 'novo-campo') { N[el.dataset.k] = el.value; if (el.dataset.k === 'texto') { N.lidos = null; N.dist = null; } render(); }
   else if (a === 'dist-fim') {
