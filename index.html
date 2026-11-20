@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.33';
+const VERSAO = '2.34';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -5055,6 +5055,7 @@ const CAM_GRUPOS = {
   ...Object.fromEntries(Object.keys(CAM_RET).map(k => ['ret_' + k, ['Retorno: ' + CAM_RET[k][0].replace(/^\S+ /, ''), l => l.filter(a => a.retorno === k)]])), ret_sem: ['Sem retorno do revisor', l => l.filter(a => !a.retorno)],
   ...Object.fromEntries(TURMAS.map(t => ['tu_' + t, ['Turma ' + t, l => l.filter(a => String(a.turma) === String(t))]])), tu_sem: ['Sem turma', l => l.filter(a => !a.turma)],
   ...Object.fromEntries(CAM_TIPO_NOMES.map((t, i) => ['nx_' + i, ['Não existia · ' + t, l => l.filter(a => a.retorno === 'nao_existia' && camTipo(a) === t)]])),
+  ...Object.fromEntries(CAM_TIPO_NOMES.map((t, i) => ['it_' + i, ['Itens apontados · ' + t, l => l.filter(a => camTipo(a) === t)]])),
   nx_duv: ['Não existia · apontamento de dúvida', l => l.filter(a => a.retorno === 'nao_existia' && camDuvida(a))],
   nx_cert: ['Não existia · apontamento afirmativo', l => l.filter(a => a.retorno === 'nao_existia' && !camDuvida(a))]
 };
@@ -5102,9 +5103,26 @@ function camDash() {
       ${porR.sem ? `<p class="small muted centro" style="margin:8px 0 0">${fmt(porR.sem)} apontamento(s) ainda sem retorno · <button class="btn sm" ${camClique('ret_sem')}>ver</button></p>` : ''}</div>
     ${camRestrito() ? '' : `<div class="card"><h2>Por turma <span class="dir">toque para ver os vagões</span></h2>${n ? rosca([...TURMAS.map((t, i) => ['Turma ' + t, porT[t] || 0, COR_TURMA[i % 4], camClique('tu_' + t)]), ...(porT['–'] ? [['Sem turma', porT['–'], 'var(--muted)', camClique('tu_sem')]] : [])], { centro: fmt(n), rot: 'apontamentos' }) : semDados}</div>`}
     <div class="card"><h2>Por assistente <span class="dir">confirmados / não existia / demais</span></h2>${porAss.length ? pilhas(porAss, ['Confirmado', 'Não existia', 'Sem retorno ou não localizado'], ['var(--ok)', 'var(--bad)', 'var(--muted)']) : semDados}</div>
+    ${camCardItens(l)}
     ${camCardNaoExistia(l)}
     <div class="card"><h2>Confirmação por assistente <span class="dir">% · com retorno</span></h2>${confAss.length ? `<div class="rolagem"><table class="tabela"><thead><tr><th>Assistente</th><th>Confirmação</th><th>Confirmados</th><th>Não existia</th></tr></thead><tbody>${confAss.map(([nm, p, c, x]) => `<tr><td>${esc(nm)}</td><td><span class="cam-pct"><i style="width:${p}%;background:${p >= 80 ? 'var(--ok)' : p >= 60 ? 'var(--warn)' : 'var(--bad)'}"></i></span><b>${p}%</b></td><td>${c}</td><td>${x}</td></tr>`).join('')}</tbody></table></div>` : semDados}</div>
   </div>`;
+}
+// v2.34: itens mais apontados pelo time do Portal, classificados por tipo de avaria (mesma classificação do v2.13):
+// volume, fatia do total, resultado do revisor e taxa de confirmação por item, mais a distribuição por turma
+function camCardItens(l) {
+  const cab = `<div class="card larga"><h2>Itens mais apontados <span class="dir">classificação por tipo de avaria · todos os apontamentos</span></h2>`;
+  if (!l.length) return cab + semDados + '</div>';
+  const n = l.length, pc = (a, b) => b ? Math.round(a / b * 100) : 0, corC = p => p >= 80 ? 'var(--ok)' : p >= 60 ? 'var(--warn)' : 'var(--bad)';
+  const itens = CAM_TIPO_NOMES.map((t, i) => { const m = l.filter(a => camTipo(a) === t), c = m.filter(a => ['realizado', 'cortado'].includes(a.retorno)).length, x = m.filter(a => a.retorno === 'nao_existia').length,
+      porT = Object.fromEntries(TURMAS.map(u => [u, m.filter(a => String(a.turma) === String(u)).length])); return { t, i, n: m.length, c, x, sem: m.length - c - x, p: c + x ? pc(c, c + x) : null, porT }; })
+    .filter(o => o.n).sort((a, b) => b.n - a.n), max = itens[0].n, top3 = itens.slice(0, 3).reduce((s, o) => s + o.n, 0), turmas = camRestrito() ? [] : TURMAS;
+  return cab + `<p class="small" style="margin:0 0 10px">Os <b>${n}</b> apontamentos do período agrupados pelo tipo de avaria que o texto descreve. Os 3 itens mais apontados (<b>${itens.slice(0, 3).map(o => o.t).join(', ')}</b>) somam <b>${pc(top3, n)}%</b> do total. Toque em “ver” para abrir os vagões e o texto apontado.</p>
+    <div class="rolagem"><table class="tabela"><thead><tr><th>#</th><th>Item</th><th class="num">Apontados</th><th>% do total</th><th class="num">Confirmados</th><th class="num">Não existia</th><th class="num">Sem retorno</th><th>Confirmação</th>${turmas.map(u => `<th class="num">T${u}</th>`).join('')}<th></th></tr></thead><tbody>
+    ${itens.map((o, k) => `<tr><td class="muted">${k + 1}</td><td><b>${o.t}</b></td><td class="num"><b>${o.n}</b></td><td><span class="cam-pct"><i style="width:${o.n / max * 100}%;background:var(--s1)"></i></span><b>${pc(o.n, n)}%</b></td><td class="num">${o.c}</td><td class="num">${o.x ? `<b style="color:var(--bad)">${o.x}</b>` : '<span class="muted">·</span>'}</td><td class="num">${o.sem || '<span class="muted">·</span>'}</td>
+      <td>${o.p == null ? '<span class="muted">–</span>' : `<span class="cam-pct"><i style="width:${o.p}%;background:${corC(o.p)}"></i></span><b>${o.p}%</b>`}</td>${turmas.map(u => `<td class="num">${o.porT[u] || '<span class="muted">·</span>'}</td>`).join('')}<td><button class="btn sm" ${camClique('it_' + o.i)}>ver</button></td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="small muted" style="margin:6px 0 0"><b>% do total</b>: fatia do item entre todos os apontamentos (a barra é proporcional ao item mais apontado). <b>Confirmação</b>: confirmados ÷ (confirmados + não existia), só com retorno do revisor. A classificação vem das palavras do apontamento; “Outros” reúne o que não casou com nenhum tipo.</p></div>`;
 }
 // v2.13: vagões que baixam a taxa de confirmação (retorno "defeito não existia"), classificados por tipo de avaria,
 // por apontamento de dúvida × afirmativo e por assistente, para orientar os treinamentos do Portal
