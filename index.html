@@ -706,7 +706,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.34';
+const VERSAO = '2.35';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -5030,8 +5030,9 @@ function camCSV() {
 // v2.13: tipo de avaria do apontamento de câmera, por palavra-chave do texto livre (ordem importa: o primeiro que casar vale).
 // Usado na análise dos vagões que baixam a taxa de confirmação (retorno "defeito não existia").
 const CAM_TIPOS = [
-  ['Sapata ausente', d => /sapata/.test(d) && /(sem |falt|ausen)/.test(d)],
-  ['Sapata fina / desgastada', d => /sapata/.test(d)],
+  ['Chaveta da sapata', d => /chaveta/.test(d)],   // v2.35: antes de "sapata", porque "chaveta da sapata quebrada" é chaveta
+  ['Sapata ausente', d => /sapa?ta/.test(d) && /(sem |falt|ausen)/.test(d)],
+  ['Sapata fina / desgastada', d => /sapa?ta/.test(d)],
   ['Pino da mandíbula', d => /mandib/.test(d)],
   ['Pino T / abas', d => /(pino t\b|\babas?\b)/.test(d)],
   ['Pino da mandíbula', d => /pino/.test(d)],
@@ -5041,7 +5042,14 @@ const CAM_TIPOS = [
   ['Tremonha / descarga', d => /(tremonha|descarga|comporta)/.test(d)],
   ['Mangueira', d => /mangueira/.test(d)],
   ['Torneira angular', d => /torneira/.test(d)],
-  ['Truque / CCT', d => /(cct|cunha|truque|mola|lateral|travessa|rodeiro|roda)/.test(d)]];
+  ['Truque / CCT', d => /(cct|cunha|truque|mola|lateral|travessa|rodeiro|roda)/.test(d)],
+  // v2.35: tipos que ficavam em "Outros" (conferido no banco em 20/11/2026: 252 de 1.901 caíam em Outros, 32 depois)
+  ['Válvula retentora / alívio', d => /(valvula|retentora|alivio|\bddv\b)/.test(d)],
+  ['DAQ', d => /\bdaq\b/.test(d)],
+  ['ACT', d => /\bact\b/.test(d)],
+  ['Braçadeira / cruzeta / tirante', d => /(abracadeira|bracadeira|cruzeta|tirante|grampo)/.test(d)],
+  ['Freio manual / haste / alavanca', d => /(freio manual|volante|haste|alavanca|corrente do fm|\bfm\b)/.test(d)],
+  ['Chapa / telha / cabeceira', d => /(chapa|telha|escotilha|porta )/.test(d)]];
 const CAM_TIPO_NOMES = [...new Set(CAM_TIPOS.map(x => x[0])), 'Outros'];
 const camTxt = a => semAcento(String(a.descricao || '')).toLowerCase();
 const camTipo = a => (CAM_TIPOS.find(([, f]) => f(camTxt(a))) || ['Outros'])[0];
