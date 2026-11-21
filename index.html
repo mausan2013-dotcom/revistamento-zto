@@ -53,6 +53,12 @@ header.top .quem b { display: block; color: var(--title); font-size: 14px; }
 nav.tabs { display: flex; gap: 2px; max-width: 1180px; margin: 8px auto 0; overflow-x: auto; scrollbar-width: none; }
 nav.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 8px 12px 9px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--muted); cursor: pointer; white-space: nowrap; }
 nav.tabs button.on { color: var(--title); border-bottom-color: var(--accent); }
+nav.tabs .inicio-bt { margin: 0 4px 8px; }
+.mod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px; margin-top: 12px; }
+.mod-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--ink); font: inherit; cursor: pointer; min-height: 120px; }
+.mod-card:hover, .mod-card:focus-visible { border-color: var(--accent); box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+.mod-card b { color: var(--title); font-size: 16px; }
+.mod-ic { font-size: 28px; line-height: 1; }
 nav.tabs .aba-sel { display: flex; align-items: center; gap: 10px; padding: 2px 4px 8px; }
 nav.tabs .aba-sel span { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: var(--muted); }
 nav.tabs .aba-sel select { min-width: 260px; max-width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--title); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
@@ -706,7 +712,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.35';
+const VERSAO = '2.36';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1762,6 +1768,26 @@ function barraProg() {
     ${!['prog', 'pcm', 'vis', 'cam', 'camsup'].includes(S.papel) ? `<label class="bp-campo"><span>Turno</span><select data-act="turno-ver">${'ABCD'.split('').map(t => `<option ${t === S.turnoVer ? 'selected' : ''}>${t}</option>`).join('')}</select></label>` : ''}
     ${S.papel === 'tec' ? `<label class="bp-campo bp-tec"><span>Mecânico</span><select data-act="ver-tec">${tecs.map(id => `<option value="${id}" ${id === S.verTec ? 'selected' : ''}>${esc(nomeTec(id))}</option>`).join('')}</select></label>` : ''}`;
 }
+// v2.36: tela inicial depois do login: um cartão por módulo do perfil (o técnico não passa por aqui)
+const MOD_INFO = {
+  turno: ['🚆', 'Trens do turno e andamento da revista'], novo: ['➕', 'Registrar a chegada de um novo trem'], equipes: ['👥', 'Montar as equipes e distribuir os vagões'],
+  tecvisao: ['👁', 'Ver a tela como o técnico enxerga'], gestao: ['🧑‍🔧', 'Colaboradores, afastamentos e transferências'], apont: ['📝', 'Apontamentos feitos nos vagões'],
+  indic: ['📊', 'Indicadores do mês e do ano'], atrasos: ['⏱', 'Trens que passaram do tempo e os motivos'], freio: ['🛑', 'Vagões com freio isolado'],
+  retidos: ['🚧', 'Vagões retidos e destino'], notas: ['📄', 'Notas abertas no SAP'], notasfech: ['✅', 'Notas já fechadas'],
+  validacao: ['🔎', 'Trens aguardando validação técnica'], planos: ['📋', 'Planos especiais dos vagões'], relplanos: ['📑', 'Relatório de planos especiais'],
+  validados: ['🗂', 'Trens já validados'], itens: ['🧩', 'Itens validados e seus resultados'], vagao: ['🔍', 'Histórico completo de um vagão'],
+  geral: ['🏠', 'Visão geral da operação'], temporal: ['📈', 'Evolução ao longo do tempo'], saida: ['🚪', 'Saída do pátio'], equipes_perf: ['🏅', ''],
+  aderencia: ['🎯', 'Aderência à revista'], tabela: ['🗒', 'Tabela operacional completa'], naorev: ['🚫', 'Vagões que não foram revisados'],
+  materiais: ['🔩', 'Materiais consumidos e vagões'], sugestoes: ['💡', 'Sugestões enviadas pelo time'], cadastros: ['⚙️', 'Cadastros e configurações'],
+  camnovo: ['📷', 'Registrar apontamento do Portal de Câmeras'], cammeus: ['🗃', 'Ocorrências lançadas por você'], camhist: ['🎞', 'Histórico de ocorrências das câmeras'],
+  camdash: ['📺', 'Dashboard do Portal de Câmeras'], camescala: ['🗓', 'Escala e turmas das câmeras']
+};
+function telaInicio() {
+  const nome = DB.me.nome.split(' ')[0], mods = ABAS[S.papel];
+  const cartoes = mods.map(([k, l]) => { const [ic, ds] = MOD_INFO[k === 'equipes' && S.papel === 'prog' ? 'equipes_perf' : k] || ['▸', '']; const dsc = k === 'equipes' && S.papel === 'prog' ? 'Performance das equipes' : ds;
+    return `<button class="mod-card" data-act="home-ir" data-v="${k}"><span class="mod-ic">${ic}</span><b>${esc(l)}</b><span class="small muted">${esc(dsc)}</span></button>`; }).join('');
+  return `<div class="card"><h2 style="margin:0">Olá, ${esc(nome)}!</h2><p class="muted small" style="margin:4px 0 0">Escolha o módulo que deseja abrir.</p></div><div class="mod-grid">${cartoes}</div>`;
+}
 function render() {
   if (!DB.me) return;
   $('barra-prog').hidden = !ehProg(); $('barra-prog').innerHTML = barraProg();
@@ -1783,9 +1809,10 @@ function render() {
   const prontos = S.papel === 'sup' ? atuais().filter(x => x.turno === t && x.dist.length && x.dist.every(d => d.termino)).length : 0;
   // todos os perfis: lista suspensa (os avisos de pendência vão entre parênteses)
   const avisoAba = k => { const n = k === 'sugestoes' ? SUG.lista.filter(x => x.status === 'novo').length : k === 'tarefas' ? pendTec : k === 'validacao' ? nVal : k === 'planos' ? nPlan : k === 'turno' ? prontos : 0; return n ? ` (${n})` : ''; };
-  $('tabs').innerHTML = `<label class="aba-sel"><span>Tela</span><select data-act="aba-sel" aria-label="Escolher a tela">${ABAS[S.papel].map(([k, l]) => `<option value="${k}" ${k === aba ? 'selected' : ''}>${l}${avisoAba(k)}</option>`).join('')}</select></label>`;
+  const inicio = S.home && S.papel !== 'tec';
+  $('tabs').innerHTML = inicio ? '' : (S.papel !== 'tec' ? '<button class="btn sm inicio-bt" data-act="home-voltar">🏠 Início</button>' : '') + `<label class="aba-sel"><span>Tela</span><select data-act="aba-sel" aria-label="Escolher a tela">${ABAS[S.papel].map(([k, l]) => `<option value="${k}" ${k === aba ? 'selected' : ''}>${l}${avisoAba(k)}</option>`).join('')}</select></label>`;
   $('main').className = S.papel === 'tec' ? 'estreito' : ''; document.body.classList.toggle('so-leitura', S.papel === 'vis');
-  $('main').innerHTML = VIEWS[S.papel][aba]();
+  $('main').innerHTML = inicio ? telaInicio() : VIEWS[S.papel][aba]();
   document.querySelectorAll('.rol-x').forEach(e => e.scrollLeft = e.scrollWidth);
   arrumarGrid(); renderModal(); indicador(); mostrarRejeitados();
 }
@@ -5344,7 +5371,7 @@ async function entrar() {
   if (me.status !== 'ativo') return telaAviso('Acesso suspenso', me.status === 'afastado' ? 'Você está afastado no momento. Quando voltar, o líder reativa seu acesso.' : 'Seu acesso foi encerrado.');
   DB.me = me; lsGravar('rzto_me', me);
   if (me.trocar_senha && !offline) return telaTrocarSenha();
-  S.papel = PAPEL[me.perfil];
+  S.papel = PAPEL[me.perfil]; S.home = S.papel !== 'tec';   // v2.36: tela inicial de módulos (o técnico vai direto)
   if (!['programador', 'pcm', 'visualizador', 'camera', 'camera_sup'].includes(me.perfil)) S.turnoVer = me.turno;
   S.planoTurno = me.turno || SERVICO.turno;
   mostrarTela('tela-app');
@@ -5401,6 +5428,8 @@ document.addEventListener('click', async e => {
       await sb.auth.signOut(); FILA = []; lsGravar('rzto_fila', []); REJ = []; lsGravar('rzto_rejeitados', []); mostrarRejeitados(); localStorage.removeItem('rzto_cache'); localStorage.removeItem('rzto_me'); IDB.apagar('raw'); IDB.apagar('hist'); DB.me = null; S.modal = null; $('modal').hidden = true; telaLogin(); return;
     }
     case 'recarregar': entrar(); return;
+    case 'home-ir': S.home = false; S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); render(); window.scrollTo(0, 0); return;
+    case 'home-voltar': S.home = true; render(); window.scrollTo(0, 0); return;
     case 'mudanca-depois': lsGravar('rzto_mudanca_oculto', Date.now() + 12 * 3600e3); avisoMudanca(); return;
     case 'atualizar-app': if (FILA.length && !confirm(`Ainda há ${FILA.length} alteração(ões) para enviar. Elas ficam guardadas no aparelho. Atualizar mesmo assim?`)) return; location.reload(); return;
     case 'nuvem': S.modal = { tipo: 'nuvem' }; renderModal(); return;
@@ -5414,8 +5443,8 @@ document.addEventListener('click', async e => {
       if (!FILA.length && n) toast('☁ Tudo enviado'); return;
     }
     case 'atualizar': if (!precisaNuvem()) return; S.modal = null; renderModal(); toast('Atualizando…'); HIST.em = 0; HIST.pesadoEm = 0; HV.fre = {}; HV.sr = {}; HV.fi = {}; HV.vg = {}; HV.ind = {}; ANT.clear(); ANT_FALHA.clear(); await processarFila(); await atualizar(true); return;
-    case 'papel': S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
-    case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
+    case 'papel': S.papel = v; S.home = v !== 'tec'; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); break;
+    case 'aba': if (v !== 'tecvisao') S.supLanca = false; S.home = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); break;
     case 'tec-trem': S.tecTrem = v; break;
     case 'finalizar-bloco': {
       // antes de registrar, busca a divisão e os registros atuais no banco (só se não houver nada pendente de envio,
@@ -5923,14 +5952,14 @@ document.addEventListener('click', async e => {
     case 'exportar': exportar(v); return;
     case 'mat-sel': S.matSel = S.matSel === v ? null : v; render(); if (S.matSel) setTimeout(() => $('mat-vagoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return;
     case 'exportar-mat': exportarMaterial(); return;
-    case 'ver-vagao': e.preventDefault(); if (S.papel === 'vis' || (!VIEWS[S.papel].vagao && !ehProg())) return; S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.aba[S.papel] = 'vagao'; break;
+    case 'ver-vagao': e.preventDefault(); if (S.papel === 'vis' || (!VIEWS[S.papel].vagao && !ehProg())) return; S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.home = false; S.aba[S.papel] = 'vagao'; break;
     case 'buscar': S.busca = $('busca').value; break;
     case 'cam-salvar': camSalvar(); return;
     case 'cam-vag-usar': CAM.form.vagao = v; CAM.form.forcar = false; render(); setTimeout(() => $('cam-desc')?.focus()); return;
     case 'cam-comp': { const fm = CAM.form, d = fm.desc.trim(); fm.desc = camCompTem(d, v) ? d.split(/\s*·\s*/).filter(x => x.toLowerCase() !== v.toLowerCase()).join(' · ') : d ? d + ' · ' + v : v + ' ';   /* v1.88: tocar de novo desmarca */ render(); const ta = $('cam-desc'); if (ta) { ta.focus(); ta.selectionStart = ta.selectionEnd = ta.value.length; } return; }
     case 'cam-editar': { const a = CAM.lista.find(x => x.id === el.dataset.id); if (!a || !camPodeEditar(a)) return;
       CAM.edit = a.id; CAM.form = { vagao: a.vagao, desc: a.descricao, prefixo: a.prefixo || '', posicao: a.posicao ?? '', nota: a.nota_sap == null ? '' : a.nota_sap ? 'sim' : 'nao', foto: null };
-      S.aba[S.papel] = 'camnovo'; render(); scrollTo(0, 0); return; }
+      S.home = false; S.aba[S.papel] = 'camnovo'; render(); scrollTo(0, 0); return; }
     case 'cam-excluir': { const a = CAM.lista.find(x => x.id === el.dataset.id); if (!a || !camPodeEditar(a) || !precisaNuvem() || CAM.salvando) return;
       if (!confirm(`Excluir o apontamento do vagão ${a.vagao}?\n\n${a.descricao}\n\nEle some da lista e não vai ao revisor. A exclusão fica registrada.`)) return;
       CAM.salvando = true;
@@ -5998,8 +6027,8 @@ document.addEventListener('change', async e => {
   }
   else if (a === 'fech-hora') { lerCampos(); M[el.dataset.k] = el.value; renderModal(); }
   else if (a === 'rel-data') { S.relData = el.value || isoData(new Date()); render(); }
-  else if (a === 'papel-sel') { const v = el.value; S.papel = v; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); render(); window.scrollTo(0, 0); }
-  else if (a === 'aba-sel') { const v = el.value; if (v !== 'tecvisao') S.supLanca = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); render(); window.scrollTo(0, 0); }
+  else if (a === 'papel-sel') { const v = el.value; S.papel = v; S.home = v !== 'tec'; S.modal = null; S.valTrem = null; if (v === 'sup') S.novo = novoVazio(); render(); window.scrollTo(0, 0); }
+  else if (a === 'aba-sel') { const v = el.value; if (v !== 'tecvisao') S.supLanca = false; S.home = false; S.aba[S.papel] = v; if (v === 'novo' && (!S.novo || !S.novo.lidos)) S.novo = novoVazio(); render(); window.scrollTo(0, 0); }
   else if (a === 'rel-turno') { S.relTurno = el.value; S.relPref = 'todos'; render(); }
   else if (a === 'rel-pref') { S.relPref = el.value; render(); }
   else if (a === 'ind-ano') { S.indAno = el.value; render(); }
