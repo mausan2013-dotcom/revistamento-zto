@@ -712,7 +712,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.36';
+const VERSAO = '2.37';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1329,13 +1329,45 @@ async function carregarVivos() {
   RAW.eqd = eqd; RAW.sujo = true;
   await montarDados();
 }
+// v2.37: o que ainda está na fila do aparelho (sem sinal) vale por cima do que veio do banco. Antes, ao reabrir o app
+// com a fila parada, a tela voltava ao estado do banco: parte já encerrada aparecia aberta, vagões feitos voltavam a
+// "faltar" e o técnico lançou no trem anterior achando que era o atual (I31/I33, 23/11/2026). Só mexe em cópias:
+// RAW e as cópias do aparelho continuam iguais ao banco.
+const FILHO_TAB = { registros: ['regs', ['trem_id', 'posicao']], trem_equipes: ['eqs', ['id']], planos_execucao: ['pex', ['trem_id', 'posicao', 'plano']], paradas: ['par', ['id']], desvios: ['dsv', ['id']] };
+const casaFiltro = (row, filtro) => (filtro || []).every(([c, o, v]) => o === 'eq' ? String(row[c]) === String(v) : o === 'in' ? [].concat(v).map(String).includes(String(row[c])) : true);
+function comFila(trens, filhos) {
+  if (!FILA.length) return { trens, filhos };
+  const tr = new Map(trens.map(t => [t.id, t])), fi = { ...filhos }, copiados = new Set();
+  const doTrem = id => { if (!copiados.has(id)) { const o = filhos[id] || {}; fi[id] = Object.fromEntries(['eqs', 'regs', 'dsv', 'pex', 'par'].map(k => [k, (o[k] || []).map(x => ({ ...x }))])); copiados.add(id); } return fi[id]; };
+  for (const op of FILA) {
+    try {
+      if (op.acao === 'foto') { if (tr.has(op.trem_id)) { const g = doTrem(op.trem_id).regs.find(r => String(r.posicao) === String(op.posicao)); if (g) g.foto_url = fotoCampo(op.lista || [op.path]); } continue; }
+      if (op.tabela === 'trens' && op.acao === 'update') { [...tr.values()].filter(t => casaFiltro(t, op.filtro)).forEach(t => tr.set(t.id, { ...t, ...op.dados })); continue; }
+      const m = FILHO_TAB[op.tabela]; if (!m) continue;
+      const [k, chave] = m;
+      if (op.acao === 'update' || op.acao === 'delete') {
+        const tid = (op.filtro || []).find(x => x[0] === 'trem_id' && x[1] === 'eq')?.[2];
+        const ids = (tid ? [tid] : Object.keys(fi)).filter(id => tr.has(id) && (fi[id]?.[k] || []).some(r => casaFiltro(r, op.filtro)));
+        ids.forEach(id => { const g = doTrem(id); if (op.acao === 'delete') g[k] = g[k].filter(r => !casaFiltro(r, op.filtro)); else g[k].forEach(r => { if (casaFiltro(r, op.filtro)) Object.assign(r, op.dados); }); });
+        continue;
+      }
+      if (op.acao === 'insert' || op.acao === 'upsert') [].concat(op.dados).forEach(d => {
+        if (!d?.trem_id || !tr.has(d.trem_id)) return;
+        const g = doTrem(d.trem_id), i = g[k].findIndex(r => chave.every(c => d[c] != null && String(r[c]) === String(d[c])));
+        if (i < 0) g[k].push({ ...d }); else if (!op.ignorar) g[k][i] = { ...g[k][i], ...d };
+      });
+    } catch (e) { console.warn('comFila', e, op); }
+  }
+  return { trens: [...tr.values()], filhos: fi };
+}
 // monta DB a partir de RAW (vale para as duas cargas)
 async function montarDados() {
   const prog = veIndic(), desde = RAW.desde || new Date(0);
   DB.colab = RAW.colab; recalcCurto();
   DB.me = RAW.colab.find(x => x.id === DB.me.id) || DB.me;
   const trens = [...RAW.trens.values()].sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em))), F0 = { eqs: [], regs: [], dsv: [], pex: [], par: [] };
-  DB.trens = trens.map(t => { const f = RAW.filhos[t.id] || F0; return montarTrem(t, f.eqs, f.regs, f.dsv, f.pex, f.par); });
+  const vista = comFila(trens, RAW.filhos);
+  DB.trens = vista.trens.map(t => { const f = vista.filhos[t.id] || F0; return montarTrem(t, f.eqs, f.regs, f.dsv, f.pex, f.par); });
   somarPendentes();
   const planos = [...RAW.planos.values()].sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
   DB.planos = planos.filter(p => PLANO_ABERTO.includes(p.status) || new Date(p.criado_em) > desde).map(planoDe);
@@ -1360,7 +1392,8 @@ function usarCache() {
   DB.colab = c.colab; recalcCurto();
   const por = (arr, k) => arr.reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {});
   const pe = por(c.eqs, 'trem_id'), pr = por(c.regs, 'trem_id'), pd = por(c.dsv, 'trem_id'), px = por(c.pex || [], 'trem_id'), pp = por(c.par || [], 'trem_id');
-  DB.trens = c.trens.map(t => montarTrem(t, pe[t.id] || [], pr[t.id] || [], pd[t.id] || [], px[t.id] || [], pp[t.id] || []));
+  const vista = comFila(c.trens, Object.fromEntries(c.trens.map(t => [t.id, { eqs: pe[t.id] || [], regs: pr[t.id] || [], dsv: pd[t.id] || [], pex: px[t.id] || [], par: pp[t.id] || [] }])));
+  DB.trens = vista.trens.map(t => { const f = vista.filhos[t.id]; return montarTrem(t, f.eqs, f.regs, f.dsv, f.pex, f.par); });
   somarPendentes();
   DB.planos = c.planos.map(planoDe); DB.equipesDia = c.eqd; DB.carregado = true; DB.atualizadoEm = new Date(c.em);
   resetRaw(); c.trens.forEach(t => RAW.trens.set(t.id, t)); c.planos.forEach(x => RAW.planos.set(x.id, x)); Object.assign(RAW, { colab: c.colab, eqd: c.eqd });
@@ -2738,7 +2771,7 @@ function blocoArvore(M) {
     ${N.falha ? '<button class="btn" style="width:100%;margin-bottom:12px" data-act="add-falha">+ Adicionar falha</button>' : ''}`;
 }
 function modalVagao(M) {
-  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}${notasPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📝 <span><b>Nota(s) aberta(s) no SAP:</b>${podeSinNota(t) ? notasResumo(t, M.pos) : linhasNotas(notasPend(t.vagoes[M.pos - 1]), t, M.pos)}<br><span class="small">Confira o componente na revista. Se achar o defeito, registre no vagão.${podeSinNota(t) ? ' <b>Sinalize cada nota: será fechada ou fica aberta.</b> O bloco só finaliza com todas respondidas.' : ''}</span></span></div>` : ''}${camDe(t, M.pos).length ? `<div class="aviso-cam"><b>📷 Defeito apontado pelo Portal de Câmeras</b><span class="small">Confira na revista e dê o retorno. Se o defeito existir, registre também no vagão.</span>${camDe(t, M.pos).map(a => camRetorno(a, true)).join('')}</div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
+  const t = tremQualquer(M.tremId), rf = restrDe(t, M.pos), cab = (M.validando ? '<p class="nota" style="margin:0 0 8px">✏ Correção do validador técnico. O registro original fica guardado.</p>' : '') + `<div class="small muted">Trem ${esc(t.prefixo)} · ${t.posFicha ? 'posição ' + posF(t, M.pos) + ' da ficha' : 'vagão nº ' + M.pos + ' de ' + t.vagoes.length}</div><h3>${esc(t.vagoes[M.pos - 1])}</h3>${(d => !M.validando && !M.retro && d ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Sua parte no trem ${esc(t.prefixo)} já foi encerrada às ${d.termino}.</b> Confira se este é o trem certo antes de salvar.</span></div>` : '')(parteEncerrada(t, M.pos))}${rf ? `<div class="alerta" style="margin-top:8px"><span>⚠ <b>Na ficha: ${esc(rf.motivo)}</b> (desde ${rf.data}). Se normalizou, marque “Normalizado dentro da ficha”.</span></div>` : ''}${planosPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📋 <span><b>Plano especial pendente:</b> ${planosPend(t.vagoes[M.pos - 1]).map(x => esc(x.plano) + (x.prioridade ? ` <span class="small">(prioridade ${esc(x.prioridade)})</span>` : '')).join(' · ')}<br><span class="small">Faça a inspeção do plano junto com a revista e registre na observação o que encontrou.</span></span></div>` : ''}${notasPend(t.vagoes[M.pos - 1]).length ? `<div class="aviso-plano">📝 <span><b>Nota(s) aberta(s) no SAP:</b>${podeSinNota(t) ? notasResumo(t, M.pos) : linhasNotas(notasPend(t.vagoes[M.pos - 1]), t, M.pos)}<br><span class="small">Confira o componente na revista. Se achar o defeito, registre no vagão.${podeSinNota(t) ? ' <b>Sinalize cada nota: será fechada ou fica aberta.</b> O bloco só finaliza com todas respondidas.' : ''}</span></span></div>` : ''}${camDe(t, M.pos).length ? `<div class="aviso-cam"><b>📷 Defeito apontado pelo Portal de Câmeras</b><span class="small">Confira na revista e dê o retorno. Se o defeito existir, registre também no vagão.</span>${camDe(t, M.pos).map(a => camRetorno(a, true)).join('')}</div>` : ''}` + (M.retro ? `<div class="nota retro-nota" style="margin:10px 0 0"><span>📝 <b>Lançamento retroativo</b> · Equipe ${esc(donoPos(t, M.pos)?.n ?? '–')}. Fica com o seu nome em “apontado por”.</span><label class="campo" style="margin:6px 0 0">Hora da revista<input type="time" id="hora-retro" value="${esc(M.hora || '')}"></label><button class="btn sm" data-act="retro-voltar">← Escolher outro vagão</button></div>${retroPlanos(t, M.pos)}` : '');
   if (!M.modo) return cab + `<div class="escolhas">
     <button class="btn ok big" data-act="salvar-ok">✓ Revistado, sem intervenção</button>
     <button class="btn big" style="color:var(--title);border-color:var(--title)" data-act="modo" data-v="int">🔧 Troca de material / ocorrência</button>
@@ -2786,9 +2819,14 @@ function reabreSePreciso(t, pos, r, antigo, planoAgora) {
   if (t.validacao.status !== 'validado') return false;
   t.validacao = { status: 'pendente', corrigidos: t.validacao.corrigidos || 0 }; return true;
 }
+// v2.37: técnico lançando num vagão da própria faixa depois de encerrar a parte: provável trem errado (avisa e pede confirmação)
+const parteEncerrada = (t, pos) => { if (DB.me?.perfil !== 'tecnico' || !t) return null; const eu = uidTec();
+  return t.dist.find(x => eu && x.membros.includes(eu) && pos >= x.ini && pos <= x.fim && x.termino) || null; };
 function salvarVagao(st) {
   const M = S.modal, t = tremQualquer(M.tremId), antigo = t.reg[M.pos], eu = uidTec();
   if (M.retro && (!/^\d\d:\d\d$/.test(M.hora || '') || horaFutura(M.hora))) { toast(M.hora ? '⚠ ' + M.hora + ' ainda não chegou. Confira a hora da revista.' : 'Informe a hora da revista'); return; }
+  const enc = !M.validando && !M.retro && parteEncerrada(t, M.pos);
+  if (enc && !confirm(`Sua parte no trem ${t.prefixo} já foi encerrada às ${enc.termino}.\n\nConfirma o lançamento no vagão ${t.vagoes[M.pos - 1]} do trem ${t.prefixo}?`)) return;
   const apoio = !M.validando && !M.retro && S.apoio && S.apoio.trem === t.id && S.apoio.tec === eu && eqDoTrem(t) >= 0 && t.dist[eqDoTrem(t)].termino ? t.dist[eqDoTrem(t)] : null;     // apoio: no nome de quem ajuda
   const d = M.validando && antigo ? { n: antigo.equipe } : M.retro ? donoPos(t, M.pos) : apoio || t.dist.find(x => eu && x.membros.includes(eu) && !x.termino && M.pos >= x.ini && M.pos <= x.fim) || donoPos(t, M.pos);
   const r = { st: 'ok', h: M.validando && antigo ? antigo.h : M.retro ? M.hora : agora(), mats: [], oc: [], obs: '', motivo: '', falhas: [], foto: antigo?.foto, fotoUrl: antigo?.fotoUrl, fotos: antigo?.fotos || [], equipe: d?.n ?? null };
