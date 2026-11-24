@@ -712,7 +712,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.37';
+const VERSAO = '2.38';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1119,9 +1119,20 @@ async function travaNotas(t) {
   return true;
 }
 // notas SAP sem resposta nos vagões já registrados do trem (fechamento pelo líder)
+// v2.38: quando a equipe já encerrou a parte, só contam as notas que ela viu (as que ganharam linha em notas_baixa,
+// respondidas ou "sem sinalização" no encerramento). Nota que chegou numa carga da base SAP DEPOIS do encerramento
+// (caso do I79 de 24/11: carga às 08:03, equipes encerradas às 07:51 e 07:59) não trava o líder; fica para a próxima revista.
+const faixaDaPos = (t, p) => (t.dist || []).find(d => d && p >= d.ini && p <= d.fim);
+const notasForaDaRevista = (t, p, g) => { const d = faixaDaPos(t, p); return d && d.termino && NBX.em ? g.notas.filter(n => !nbxDe(t, p, n)) : []; };
 const notasSemRespTrem = t => { if (!podeSinNota(t)) return []; const out = [];
-  t.vagoes.forEach((c, i) => { const p = i + 1; if (!t.reg[p]) return; juntarNotas(notasVag(c)).forEach(g => { const e = estadoGrupo(t, p, g); if (!e || e.f == null) out.push({ p, cod: c, plano: '📝 Nota SAP ' + g.grupo }); }); });
+  t.vagoes.forEach((c, i) => { const p = i + 1; if (!t.reg[p]) return; juntarNotas(notasVag(c)).forEach(g => { const fora = notasForaDaRevista(t, p, g);
+    const ns = g.notas.filter(n => !fora.includes(n)); if (!ns.length) return;
+    const e = estadoGrupo(t, p, { ...g, notas: ns }); if (!e || e.f == null) out.push({ p, cod: c, plano: '📝 Nota SAP ' + g.grupo }); }); });
   return out; };
+// notas que entraram na base depois que a equipe encerrou a parte (só informativo no fechamento)
+const notasPosEncerramento = t => { if (!podeSinNota(t)) return []; const out = [];
+  t.vagoes.forEach((c, i) => { const p = i + 1; if (!t.reg[p]) return; juntarNotas(notasVag(c)).forEach(g => { if (notasForaDaRevista(t, p, g).length) out.push({ p, cod: c, plano: '📝' }); }); });
+  return pendVag(out).map(([c]) => c); };
 const notasResumo = (t, pos) => juntarNotas(notasVag(t.vagoes[pos - 1])).map(g => { const e = estadoGrupo(t, pos, g), ns = esc(g.notas.join(','));
   return `<span class="nota-sin">📝 <b>${esc(g.grupo)}</b> · ${esc(g.tp || '')} ${datasNota(g)} · ${rotNotas(g)}<br><span class="small muted">${esc(g.desc)}</span>
     <span class="nota-bts"><button class="btn sm ${e?.f === true ? 'ok' : ''}" data-act="nota-fech" data-trem="${t.id}" data-p="${pos}" data-nota="${ns}" data-v="1">✓ Será fechada</button>
@@ -5822,6 +5833,7 @@ document.addEventListener('click', async e => {
       if (camSemRetTrem(t).length) { toast('📷 Dê o retorno das câmeras antes de fechar: ' + camSemRetTrem(t).map(a => a.vagao).join(', ')); return; }
       if (!(await travaNotas(t))) return;
       { const ns = notasSemRespTrem(t); if (ns.length) { const v = pendVag(ns).map(([c]) => c); toast(`📝 Nota SAP sem resposta (Será fechada / Fica aberta) em ${v.length} vagão(ões): ${v.slice(0, 8).join(', ')}${v.length > 8 ? '…' : ''}. Responda na janela do vagão antes de fechar o trem.`); return; } }
+      { const pe = notasPosEncerramento(t); if (pe.length && !confirm(`Notas SAP que entraram na base depois que a equipe encerrou a parte (a equipe não chegou a vê-las) em ${pe.length} vagão(ões): ${pe.slice(0, 8).join(', ')}${pe.length > 8 ? '…' : ''}.\n\nElas não travam o fechamento e ficam para a próxima revista. Se quiser, responda na janela do vagão antes. Fechar o trem agora?`)) return; }
       if (tf.min == null) { toast(tf.erro); return; }
       if (tf.min > META_MIN && !M.motivoAtraso) { toast('Escolha o motivo do atraso'); return; }
       if (tf.min > META_MIN && M.motivoAtraso === OUTRO_ATRASO && !M.obs.trim()) { toast('Descreva o motivo do atraso nas observações'); $('obs-fech')?.focus(); return; }
