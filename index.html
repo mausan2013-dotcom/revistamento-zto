@@ -712,7 +712,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.39';
+const VERSAO = '2.40';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1789,10 +1789,10 @@ function entrarDemo() {
 // ---------- render geral ----------
 $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
-  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
+  sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['histvg', 'Histórico do vagão'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
   esp: [['validacao', 'Validação'], ['tecvisao', 'Visão do técnico'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
-  tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
-  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['atrasos', 'Análise de atrasos'], ['saida', 'Saída do pátio'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
+  tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['histvg', 'Histórico do vagão'], ['notas', 'Notas Abertas SAP']],
+  prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['atrasos', 'Análise de atrasos'], ['saida', 'Saída do pátio'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['histvg', 'Histórico do vagão'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
   pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
   vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos']],
   cam: [['camnovo', 'Novo apontamento'], ['cammeus', 'Minhas ocorrências'], ['camhist', 'Histórico'], ['camdash', 'Dashboard'], ['camescala', 'Escala']],
@@ -1820,7 +1820,7 @@ const MOD_INFO = {
   indic: ['📊', 'Indicadores do mês e do ano'], atrasos: ['⏱', 'Trens que passaram do tempo e os motivos'], freio: ['🛑', 'Vagões com freio isolado'],
   retidos: ['🚧', 'Vagões retidos e destino'], notas: ['📄', 'Notas abertas no SAP'], notasfech: ['✅', 'Notas já fechadas'],
   validacao: ['🔎', 'Trens aguardando validação técnica'], planos: ['📋', 'Planos especiais dos vagões'], relplanos: ['📑', 'Relatório de planos especiais'],
-  validados: ['🗂', 'Trens já validados'], itens: ['🧩', 'Itens validados e seus resultados'], vagao: ['🔍', 'Histórico completo de um vagão'],
+  validados: ['🗂', 'Trens já validados'], itens: ['🧩', 'Itens validados e seus resultados'], vagao: ['🔍', 'Passagens e materiais de um vagão'], histvg: ['🚃', 'Pendências e histórico de um vagão: apontamentos, notas, planos e câmeras'],
   geral: ['🏠', 'Visão geral da operação'], temporal: ['📈', 'Evolução ao longo do tempo'], saida: ['🚪', 'Saída do pátio'], equipes_perf: ['🏅', ''],
   aderencia: ['🎯', 'Aderência à revista'], tabela: ['🗒', 'Tabela operacional completa'], naorev: ['🚫', 'Vagões que não foram revisados'],
   materiais: ['🔩', 'Materiais consumidos e vagões'], sugestoes: ['💡', 'Sugestões enviadas pelo time'], cadastros: ['⚙️', 'Cadastros e configurações'],
@@ -4856,6 +4856,149 @@ ${h0.length ? `<div class="card"><h2>${esc(cod)} <span class="dir">${h0.length} 
     ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em andamento</span>' : ''}</td><td class="num">${posF(t, p)}</td><td>Equipe ${d.n}<br><span class="small">${esc(d.membros.map(nomeTec).join(', '))}</span></td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td><td class="small">${r ? (r.st === 'ok' ? '–' : esc(txtReg(r)) + btnFotos(r, '📷')) : esc(t.motivoNao || t.motivoParcial || '')}</td></tr>`).join('')}
   </tbody></table></div></div>` : ''}`}${h ? cardForms + cardAp : ''}`;
 }
+// v2.40: aba "Histórico do vagão" (Supervisor, Técnico e Programador; SQL 49). Junta, de todos os turnos e dos últimos MESES_HIST meses,
+// as passagens pelo revistamento, os apontamentos da equipe, as notas SAP, os planos e o Portal de Câmeras de um vagão,
+// com a situação de cada item: Pendente (falta fazer), Realizado (feito na revista, falta baixar ou confirmar) e Fechado (encerrado).
+const HVG = { q: '', busca: '', cod: null, carregando: false, erro: '', trens: [], cam: [], nbx: [], nsap: [], pv: [], pvCarga: false, nsQuando: null, f: 'todos', semSQL: false };
+const HVG_ST = { pend: ['⏳ Pendente', 'warn'], real: ['✓ Realizado', 'ok'], fech: ['🔒 Fechado', 'info'] };
+const hvgTag = st => `<span class="tag ${HVG_ST[st][1]}">${HVG_ST[st][0]}</span>`;
+const hvgDig = () => vagNum(HVG.cod || HVG.busca);
+const hvgCasaNum = v => { const d = hvgDig(), n = vagNum(v); return d.length >= 6 && (n === d || (d.length === 6 && n.slice(0, 6) === d)); };
+async function hvgBuscar(q) {
+  q = desSAP(String(q || '').trim());
+  Object.assign(HVG, { q, busca: q, cod: null, erro: '', trens: [], cam: [], nbx: [], nsap: [], pv: [], pvCarga: false, nsQuando: null, f: 'todos' });
+  if (normCod(q).length < 4) { HVG.busca = ''; HVG.erro = q ? 'Digite pelo menos 4 letras ou números do vagão (ex.: 350552 ou HTT 350552-9).' : ''; render(); return; }
+  HVG.carregando = true; render();
+  try {
+    let rpcOk = false;
+    if (!DEMO && !OFFLINE) {
+      const { data, error } = await sb.rpc('historico_vagao', { p_vagao: q, p_desde: desdeHist() });
+      if (error && !/function|schema cache|historico_vagao/i.test(error.message)) throw error;
+      if (!error && data) {
+        rpcOk = true; HVG.semSQL = false;
+        const por = (arr, k) => (arr || []).reduce((m, x) => ((m[x[k]] ||= []).push(x), m), {}), pe = por(data.eqs, 'trem_id'), pr = por(data.regs, 'trem_id'), px = por(data.pex, 'trem_id');
+        HVG.cod = data.cod || null;
+        // o que está no aparelho (fila de envio inclusa) vale por cima do que veio do banco
+        HVG.trens = (data.trens || []).map(t => DB.trens.find(x => x.id === t.id) || montarTrem(t, pe[t.id] || [], pr[t.id] || [], [], px[t.id] || [], []));
+        HVG.cam = data.cam || []; HVG.nbx = data.nbx || [];
+      } else HVG.semSQL = true;
+    }
+    if (!rpcOk) {                                            // sem o SQL 49 (ou demonstração): só o que este login já enxerga
+      const todos = [...new Set(DB.trens.concat([...ANT.values()]).flatMap(t => t.vagoes))];
+      HVG.cod = todos.find(c => normCod(c) === normCod(q)) || todos.find(c => normCod(c).includes(normCod(q)) && normCod(q).length >= 6) || null;
+      HVG.cam = CAM.lista.filter(a => hvgCasaNum(a.vag_num));
+      if (!DEMO && !OFFLINE && hvgDig().length >= 6) HVG.nbx = await tudo(() => sb.from('notas_baixa').select('*').ilike('vagao', '%' + hvgDig().slice(0, 6) + '%').order('id')).then(l => l.filter(n => hvgCasaNum(n.vagao))).catch(() => []);
+    }
+    if (HVG.cod) { const vistos = new Set(HVG.trens.map(t => t.id)); DB.trens.concat([...ANT.values()]).forEach(t => { if (!vistos.has(t.id) && t.vagoes.includes(HVG.cod)) { HVG.trens.push(t); vistos.add(t.id); } }); }
+    if (!HVG.cod) { const ck = camVagCheck(q); if (ck.st === 'ok') HVG.cod = ck.cod; }   // vagão que não passou por trem do app: código pelo cadastro
+    HVG.trens.sort((a, b) => b.dataISO.localeCompare(a.dataISO) || String(b.chegada).localeCompare(String(a.chegada)));
+    await hvgSapPlanos();
+  } catch (e) { HVG.erro = 'Não consegui buscar o vagão: ' + (e.message || e); }
+  if (HVG.busca === q) { HVG.carregando = false; render(); }
+}
+// notas abertas do SAP (Z369 mais recente) e base de planos especiais: todos os logins já leem essas duas tabelas
+async function hvgSapPlanos() {
+  const d = hvgDig();
+  if (DEMO) { HVG.pv = HVG.cod ? planosPend(HVG.cod).map(p => ({ plano: p.plano, prioridade: p.prioridade, data_inspecao: null })) : []; HVG.pvCarga = !!HVG.cod; return; }
+  if (OFFLINE || d.length < 6) return;
+  const [ns, pv] = await Promise.all([
+    (async () => { if (!NS.carga) await carregarNotasCarga(); if (!NS.carga) return null;
+      HVG.nsQuando = NS.carga.quando || null;
+      let r = sb.from('notas_sap').select('*').eq('carga_id', NS.carga.id); r = d.length === 7 ? r.eq('vag_num', d) : r.like('vag_num', d + '%');
+      return (await r.order('id').limit(500)).data || []; })().catch(() => null),
+    (async () => { const { data: c } = await sb.from('planos_cargas').select('id,quando').order('quando', { ascending: false }).limit(1); if (!c?.length) return null;
+      let r = sb.from('planos_vagoes').select('vagao,plano,prioridade,data_inspecao,trem,os,local').eq('carga_id', c[0].id); r = HVG.cod ? r.eq('vagao', HVG.cod) : r.ilike('vagao', '%' + d.slice(0, 6) + '%');
+      return (await r.order('id').limit(500)).data || []; })().catch(() => null)
+  ]);
+  HVG.nsap = (ns || []).filter(n => !HVG.cod || normCod(n.vagao) === normCod(HVG.cod) || hvgCasaNum(n.vag_num));
+  HVG.pvCarga = pv !== null; HVG.pv = (pv || []).filter(p => !HVG.cod || p.vagao === HVG.cod);
+}
+// monta a lista de itens com a situação de cada um
+function hvgItens() {
+  const cod = HVG.cod, trens = HVG.trens, it = { ap: [], nota: [], plano: [], cam: [] };
+  const tremTxt = t => `trem <b>${esc(t.prefixo)}</b> · ${diaRot(t.dataISO)}/${t.dataISO.slice(2, 4)} · turno ${t.turno}`;
+  // 1. apontamentos da equipe (defeito, material, avaria). Os planos ficam na seção de planos.
+  if (cod) linhasApont(false, trens).filter(x => x.t.vagoes[x.p - 1] === cod && (x.tipos.def || x.tipos.mat || x.tipos.ava)).forEach(({ t, p, r, tipos }) => {
+    const validado = !!r?.val || t.validacao?.status === 'validado', st = validado ? 'fech' : 'pend', d = donoPos(t, p);
+    const sit = r?.val === 'corrigido' ? `Corrigido pelo validador${r.valPor ? ' (' + esc(r.valPor) + ')' : ''}` : validado ? `Validado${r?.valPor ? ' por ' + esc(r.valPor) : ''}` : t.status === 'andamento' ? 'Trem ainda em revista' : 'Aguardando a validação técnica';
+    it.ap.push({ st, iso: t.dataISO + (r?.h || ''), html: `<div class="nsap"><div class="topo">${hvgTag(st)}<span class="small">${tremTxt(t)} · pos. ${posF(t, p)}${r?.h ? ' · ' + r.h : ''}</span></div>
+      <div class="desc">${[tipos.ava && r.oc.map(o => `<span class="tag bad">${esc(o)}</span>`).join(' '), tipos.mat && '🔧 ' + esc(r.mats.map(txtMat).join(' · ')), tipos.def && esc([...r.falhas.map(f => f.comp + ': ' + f.falha), ...(r.obs ? ['“' + r.obs + '”'] : [])].join(' · '))].filter(Boolean).join('<br>')}${r ? btnFotos(r, '📷') : ''}</div>
+      <div class="det">${sit}${d ? ` · Equipe ${d.n} (${esc(nomesEquipe(d.membros))})` : ''}${r?.apontadoPor ? ' · lançado por ' + esc(r.apontadoPor) : ''}</div></div>` });
+  });
+  // 2. notas SAP: abertas na Z369 atual + o que a revista sinalizou (será fechada / fica aberta) + baixa confirmada no SAP
+  const notas = new Map();
+  HVG.nsap.forEach(n => notas.set(String(n.nota || n.id), { n: String(n.nota || '–'), tp: n.tp_nota, data: n.data_nota, desc: partesSap(n.descricao) || partesSap(n.texto) || '', aberta: true, sap: n, sin: [] }));
+  HVG.nbx.forEach(x => { const k = String(x.nota); if (!notas.has(k)) notas.set(k, { n: k, tp: x.tp_nota, data: x.data_nota, desc: x.descricao || x.grupo || '', aberta: false, sin: [] }); notas.get(k).sin.push(x); });
+  const cargaDepois = x => HVG.nsQuando && Date.parse(HVG.nsQuando) > Date.parse(x.quando);
+  notas.forEach(o => {
+    o.sin.sort((a, b) => String(b.quando).localeCompare(String(a.quando)));
+    const u = o.sin[0], fsap = o.sin.find(x => x.fechada_sap_em);
+    let st, sit;
+    if (fsap) { st = 'fech'; sit = `Fechada no SAP em ${quandoCam(fsap.fechada_sap_em)}${fsap.fechada_sap_por ? ' por ' + esc(C(fsap.fechada_sap_por).nome) : ''}`; }
+    else if (!o.aberta && u && HVG.nsQuando && cargaDepois(u)) { st = 'fech'; sit = 'Não consta mais nas notas abertas do SAP (Z369 mais recente)'; }
+    else if (u?.fechar === true) { st = 'real'; sit = `Revista sinalizou “será fechada” em ${fmtDiaISO(u.data_trem)} (trem ${esc(u.prefixo || '–')}) · aguarda a baixa no SAP`; }
+    else if (u?.fechar === false) { st = 'pend'; sit = `Revista sinalizou “fica aberta” em ${fmtDiaISO(u.data_trem)} (trem ${esc(u.prefixo || '–')})`; }
+    else { st = 'pend'; sit = u ? `Aberta no SAP · sem sinalização da revista em ${fmtDiaISO(u.data_trem)}` : 'Aberta no SAP · ainda não sinalizada pela revista'; }
+    const s = o.sap;
+    it.nota.push({ st, iso: o.data || '', html: `<div class="nsap"><div class="topo">${hvgTag(st)}<span class="tag neu">${esc(o.tp || '–')}</span><b>Nota ${esc(o.n)}</b><span class="small muted">aberta em ${dBR(o.data)}</span></div>
+      <div class="desc">${esc(o.desc || '–')}</div>
+      <div class="det">${sit}${s ? [s.texto_causa && 'Causa: ' + partesSap(s.texto_causa), s.cod_falha && 'Falha ' + s.cod_falha, s.ordem && 'Ordem ' + s.ordem].filter(Boolean).map(x => ' · ' + esc(x)).join('') : ''}</div></div>` });
+  });
+  // 3. planos especiais: base da planilha (pendente até ter data de inspeção) + o que a revista respondeu em cada passagem
+  const exec = {};
+  if (cod) trens.forEach(t => t.vagoes.forEach((c, i) => { if (c !== cod) return; Object.entries((t.pexec || {})[i + 1] || {}).forEach(([nm, e]) => (exec[nm] ||= []).push({ t, e })); }));
+  Object.values(exec).forEach(l => l.sort((a, b) => b.t.dataISO.localeCompare(a.t.dataISO) || String(b.e.quando).localeCompare(String(a.e.quando))));
+  const histEx = nm => (exec[nm] || []).map(({ t, e }) => `${tagExec(e)} <span class="small">${tremTxt(t)}${e.por ? ' · ' + esc(e.por) : ''}</span>`).join('<br>');
+  const nomes = new Set([...HVG.pv.map(p => p.plano), ...Object.keys(exec)]);
+  nomes.forEach(nm => {
+    const b = HVG.pv.find(p => p.plano === nm), ult = (exec[nm] || [])[0];
+    let st, sit;
+    if (b?.data_inspecao) { st = 'fech'; sit = `Inspeção registrada no SAP em ${fmtDiaISO(b.data_inspecao)}`; }
+    else if (ult?.e.ok) { st = 'real'; sit = b ? 'Realizado na revista · ainda pendente na base de planos' : 'Realizado na revista'; }
+    else if (b) { st = 'pend'; sit = ult ? 'Não realizado na última passagem' : 'Na base de planos, ainda sem resposta da revista'; }
+    else if (HVG.pvCarga) { st = 'fech'; sit = 'Não consta mais na base de planos atual'; }
+    else { st = 'pend'; sit = 'Não realizado na última passagem'; }
+    it.plano.push({ st, iso: ult?.t.dataISO || '', html: `<div class="nsap"><div class="topo">${hvgTag(st)}<b>${esc(nm)}</b>${b?.prioridade ? `<span class="tag neu">prioridade ${esc(b.prioridade)}</span>` : ''}</div>
+      <div class="det">${sit}${b && (b.trem || b.local) ? ' · ' + esc([b.trem && 'trem ' + b.trem, b.local].filter(Boolean).join(' · ')) : ''}</div>${exec[nm] ? `<div class="det" style="margin-top:4px">${histEx(nm)}</div>` : ''}</div>` });
+  });
+  // 4. Portal de Câmeras
+  HVG.cam.forEach(a => {
+    const s = camStatus(a), r = a.retorno && CAM_RET[a.retorno];
+    const st = ['apontado', 'enviado', 'expirado'].includes(s) ? 'pend' : a.retorno === 'realizado' ? 'real' : 'fech';
+    const sit = s === 'apontado' ? 'Apontado, aguardando o vagão passar por uma ficha' : s === 'enviado' ? `Enviado ao revisor (trem ${esc(a.trem_prefixo || '–')}, pos. ${esc(a.trem_pos_ficha ?? '–')}) · aguardando retorno` : s === 'expirado' ? `Expirado: o vagão não passou por uma ficha em ${CAM_DIAS} dias`
+      : `${CAM_ST[s][0]}${a.retorno_em ? ' em ' + quandoCam(a.retorno_em) : a.concluido_em ? ' em ' + quandoCam(a.concluido_em) : ''}${a.retorno_por ? ' por ' + esc(C(a.retorno_por).nome) : ''}`;
+    it.cam.push({ st, iso: a.criado_em, html: `<div class="nsap"><div class="topo">${hvgTag(st)}${r && a.retorno !== 'realizado' ? `<span class="tag ${r[1]}">${r[0]}</span>` : ''}<span class="small muted">${quandoCam(a.criado_em)} · ${esc(C(a.por).nome)}${a.turno ? ' · turno ' + esc(a.turno) : ''}</span></div>
+      <div class="desc">${esc(a.descricao || '–')}</div><div class="det">${sit}${a.retorno_obs ? ' · 💬 ' + esc(a.retorno_obs) : ''}</div></div>` });
+  });
+  Object.values(it).forEach(l => l.sort((a, b) => ({ pend: 0, real: 1, fech: 2 }[a.st] - { pend: 0, real: 1, fech: 2 }[b.st]) || String(b.iso).localeCompare(String(a.iso))));
+  return it;
+}
+function vistaHistVagao() {
+  const cab = `<div class="card"><h2>Histórico do vagão <span class="dir">todos os turnos · últimos ${MESES_HIST} meses</span></h2>
+    <p class="small muted" style="margin:0 0 10px">Digite o número do vagão para ver as passagens pela revista, os apontamentos, as notas SAP, os planos especiais e o Portal de Câmeras.</p>
+    <div style="display:flex;gap:8px"><input id="hvg-q" value="${esc(HVG.q)}" placeholder="ex.: 350552 ou HTT 350552-9" class="inp" inputmode="search" autocomplete="off" autocapitalize="characters"><button class="btn primary" data-act="hvg-buscar">🔍 Buscar</button>${HVG.q ? '<button class="btn" data-act="hvg-limpar">✕</button>' : ''}</div>
+    ${HVG.erro ? `<p class="nota" style="margin:10px 0 0">${esc(HVG.erro)}</p>` : ''}
+    ${HVG.semSQL && HVG.busca ? '<p class="nota" style="margin:10px 0 0">Mostrando só os dados que este login já enxerga. Para ver todos os turnos e todas as câmeras, rode o <b>49-historico-vagao.sql</b> no Supabase (SQL Editor).</p>' : ''}</div>`;
+  if (!HVG.busca) return cab;
+  if (HVG.carregando) return cab + `<div class="card muted">Buscando o histórico de ${esc(HVG.busca)}…</div>`;
+  const it = hvgItens(), todos = [...it.ap, ...it.nota, ...it.plano, ...it.cam], n = st => todos.filter(x => x.st === st).length;
+  if (!HVG.trens.length && !todos.length) return cab + `<div class="card muted">Nada encontrado para <b>${esc(HVG.busca)}</b> nos últimos ${MESES_HIST} meses: nenhuma passagem pela revista, nota SAP aberta, plano ou apontamento de câmera. Confira o número.</div>`;
+  const f = HVG.f, filt = l => f === 'todos' ? l : l.filter(x => x.st === f);
+  const kpi = (k, rot, v, cor) => `<button class="kpi click" data-act="hvg-f" data-v="${k}" style="text-align:left;cursor:pointer;${f === k ? 'outline:2px solid var(--accent, var(--info));' : ''}"><div class="r">${rot}</div><div class="v"${cor ? ` style="color:var(--${cor})"` : ''}>${v}</div></button>`;
+  const secao = (tit, l, vazio) => { const v = filt(l); return `<div class="card"><h2>${tit} <span class="dir">${l.length ? `${l.filter(x => x.st === 'pend').length} pendente(s) · ${l.length} no total` : ''}</span></h2>${v.map(x => x.html).join('') || `<p class="muted small" style="margin:0">${l.length ? 'Nenhum item com essa situação.' : vazio}</p>`}</div>`; };
+  const h = HVG.cod ? historicoVagao(HVG.cod, HVG.trens) : [];
+  const pass = `<div class="card"><h2>Passagens pela revista <span class="dir">${h.length}</span></h2>${h.length ? `<div class="rolagem"><table class="tab-larga tabela compacta"><thead><tr><th>Data</th><th>Trem</th><th class="num">Pos.</th><th>Equipe</th><th>Resultado</th></tr></thead><tbody>
+    ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r?.h ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${esc(t.linha || '')}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em revista</span>' : ''}</td><td class="num">${posF(t, p)}</td><td class="small">Equipe ${d.n}<br>${esc(d.membros.map(nomeTec).join(', '))}</td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="muted small" style="margin:0">O vagão não passou por trens do app no período.</p>'}</div>`;
+  return cab + `<div class="card"><h2>${esc(HVG.cod || HVG.busca)} <span class="dir">${HVG.trens.length ? 'última passagem ' + dataBR(HVG.trens[0].data) + ' · trem ' + esc(HVG.trens[0].prefixo) : ''}</span></h2>
+    <div class="kpis" style="margin-bottom:0">${kpi('pend', '⏳ Pendentes', n('pend'), n('pend') ? 'warn' : '')}${kpi('real', '✓ Realizados', n('real'), 'ok')}${kpi('fech', '🔒 Fechados', n('fech'), '')}${kpi('todos', 'Todos os itens', todos.length, '')}</div>
+    <p class="small muted" style="margin:8px 0 0"><b>Pendente</b>: ainda falta fazer. <b>Realizado</b>: feito na revista, falta a baixa ou a confirmação. <b>Fechado</b>: encerrado (validado, fechado no SAP ou com retorno). Toque num quadro para filtrar.</p></div>
+    ${secao('📝 Apontamentos da equipe', it.ap, 'Nenhum defeito, material ou avaria apontado pela equipe.')}
+    ${secao('📄 Notas SAP', it.nota, 'Nenhuma nota SAP aberta nem sinalizada pela revista.')}
+    ${secao('📋 Planos especiais', it.plano, 'Nenhum plano especial na base nem respondido na revista.')}
+    ${secao('📷 Portal de Câmeras', it.cam, 'Nenhum apontamento de câmera.')}
+    ${pass}`;
+}
 function progCadastros() {
   const lst = (tit, arr) => `<div class="card"><h2>${tit} <span class="dir">${arr.length}</span></h2><ul class="feed">${arr.map(m => `<li><span></span><span>${esc(m)}</span></li>`).join('')}</ul></div>`;
   const de = p => DB.colab.filter(x => x.perfil === p && x.status === 'ativo');
@@ -5341,10 +5484,10 @@ function camRetorno(a, comObs) {
 }
 
 const VIEWS = {
-  sup: { turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
-  tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
+  sup: { histvg: vistaHistVagao, turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
+  tec: { meu: tecMeu, apont: vistaApont, histvg: vistaHistVagao, notas: vistaNotas },
   esp: { validacao: espValidacao, tecvisao: supVisaoTec, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
-  prog: { sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, atrasos: progAtrasos, saida: spSaida, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
+  prog: { histvg: vistaHistVagao, sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, atrasos: progAtrasos, saida: spSaida, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
   pcm: { geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
   vis: { geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, freio: vistaFreio, retidos: vistaRetidos },
   cam: { camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala },
@@ -6007,7 +6150,10 @@ document.addEventListener('click', async e => {
     case 'exportar': exportar(v); return;
     case 'mat-sel': S.matSel = S.matSel === v ? null : v; render(); if (S.matSel) setTimeout(() => $('mat-vagoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); return;
     case 'exportar-mat': exportarMaterial(); return;
-    case 'ver-vagao': e.preventDefault(); if (S.papel === 'vis' || (!VIEWS[S.papel].vagao && !ehProg())) return; S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.home = false; S.aba[S.papel] = 'vagao'; break;
+    case 'hvg-buscar': hvgBuscar($('hvg-q')?.value || ''); return;
+    case 'hvg-limpar': Object.assign(HVG, { q: '', busca: '', erro: '' }); break;
+    case 'hvg-f': HVG.f = v; break;
+    case 'ver-vagao': e.preventDefault(); if (VIEWS[S.papel]?.histvg && !VIEWS[S.papel].vagao) { S.home = false; S.aba[S.papel] = 'histvg'; hvgBuscar(v); window.scrollTo(0, 0); return; } if (S.papel === 'vis' || (!VIEWS[S.papel].vagao && !ehProg())) return; S.busca = v; if (!VIEWS[S.papel].vagao) S.papel = 'prog'; S.home = false; S.aba[S.papel] = 'vagao'; break;
     case 'buscar': S.busca = $('busca').value; break;
     case 'cam-salvar': camSalvar(); return;
     case 'cam-vag-usar': CAM.form.vagao = v; CAM.form.forcar = false; render(); setTimeout(() => $('cam-desc')?.focus()); return;
@@ -6170,6 +6316,7 @@ document.addEventListener('change', async e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.id === 'hvg-q') { HVG.q = e.target.value; return; }
   if (e.target.dataset?.qd) { const q = qdDados(dataOp(), T()), p = e.target.dataset.qd.split('.'); let o = q; p.slice(0, -1).forEach(k => o = o[k]);
     o[p[p.length - 1]] = /\.(km)$|^cx\./.test(e.target.dataset.qd) ? e.target.value.replace(/[^\d.,]/g, '') : e.target.value; qdSalvar(dataOp(), T()); return; }
   if (e.target.dataset?.cf) { CAM.form[e.target.dataset.cf] = e.target.value; if (e.target.dataset.cf === 'vagao') CAM.form.forcar = false; camAtualizaVag(); return; }
@@ -6181,6 +6328,7 @@ document.addEventListener('input', e => {
   $('res-falha').innerHTML = res.map(([f, i]) => `<button class="btn" style="justify-content:flex-start;text-align:left;min-height:52px;font-weight:600;padding:6px 12px" data-act="escolher-falha" data-i="${i}"><span><b>${esc(f.comp)}: ${esc(f.falha)}</b><br><span class="small muted">${esc(f.sis)} › ${esc(f.sub)}</span></span></button>`).join('');
 });
 document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'hvg-q') { e.preventDefault(); hvgBuscar(e.target.value); }
   if (e.key === 'Enter' && e.target.id === 'busca') { S.busca = e.target.value; render(); }
   if (e.key === 'Enter' && e.target.dataset?.cam === 'vag') { CAM.f.vag = e.target.value.trim(); CAM.ver = 30; render(); }
   if (e.key === 'Enter' && (e.target.id === 'notas-vag' || e.target.id === 'notas-pref')) { NS.q[e.target.dataset.nq] = e.target.value.trim(); if (e.target.id === 'notas-pref') NS.q.trem = ''; buscarNotas(); }
