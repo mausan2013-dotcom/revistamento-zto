@@ -712,7 +712,7 @@ const RECURSOS = { arvoreFalhas: false };
 // =====================================================================
 // Revistamento ZTO — app ligado ao Supabase
 // =====================================================================
-const VERSAO = '2.41';
+const VERSAO = '2.42';
 { const mv = document.getElementById('marca-versao'); if (mv) mv.textContent = 'Revistamento ZTO · v' + VERSAO; }
 const SUPA_URL = 'https://gwcmzteubaiuaqkqfgqw.supabase.co';
 const SUPA_CHAVE = 'sb_publishable_b6kHwbd0Q2sUofuRo00kDA_UNlEtnuU';   // chave pública (as regras de acesso ficam no servidor)
@@ -1791,7 +1791,7 @@ $('logo').innerHTML = LOGO_RUMO; $('logo-login').innerHTML = LOGO_RUMO;
 const ABAS = {
   sup: [['turno', 'Turno'], ['novo', 'Novo trem'], ['equipes', 'Equipes'], ['tecvisao', 'Visão do técnico'], ['gestao', 'Gestão da equipe'], ['apont', 'Apontamentos'], ['histvg', 'Histórico do vagão'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
   esp: [['validacao', 'Validação'], ['tecvisao', 'Visão do técnico'], ['planos', 'Planos especiais'], ['relplanos', 'Relatório de planos'], ['validados', 'Validados'], ['itens', 'Itens validados'], ['histvg', 'Histórico do vagão'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas']],
-  tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['histvg', 'Histórico do vagão'], ['notas', 'Notas Abertas SAP']],
+  tec: [['meu', 'Meu turno'], ['apont', 'Apontamentos'], ['notas', 'Notas Abertas SAP']],
   prog: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['temporal', 'Análise temporal'], ['atrasos', 'Análise de atrasos'], ['saida', 'Saída do pátio'], ['equipes', 'Performance equipe'], ['aderencia', 'Aderência'], ['tabela', 'Tabela operacional'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['histvg', 'Histórico do vagão'], ['vagao', 'Buscar vagão'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['sugestoes', 'Sugestões do time'], ['camnovo', 'Câmeras: novo apontamento'], ['camhist', 'Câmeras: ocorrências'], ['camdash', 'Câmeras: dashboard'], ['camescala', 'Câmeras: escala'], ['cadastros', 'Cadastros']],
   pcm: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['naorev', 'Vagões não revisados'], ['materiais', 'Materiais e vagões'], ['histvg', 'Histórico do vagão'], ['vagao', 'Buscar vagão'], ['relplanos', 'Relatório de planos'], ['apont', 'Apontamentos'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos'], ['notas', 'Notas Abertas SAP'], ['notasfech', 'Notas fechadas'], ['camnovo', 'Câmeras: novo apontamento'], ['cammeus', 'Câmeras: minhas ocorrências'], ['camhist', 'Câmeras'], ['camdash', 'Câmeras: dashboard']],
   vis: [['geral', 'Painel geral'], ['indic', 'Indicadores'], ['atrasos', 'Análise de atrasos'], ['aderencia', 'Aderência'], ['freio', 'Freio isolado'], ['retidos', 'VGs retidos']],
@@ -4856,7 +4856,7 @@ ${h0.length ? `<div class="card"><h2>${esc(cod)} <span class="dir">${h0.length} 
     ${h.map(({ t, p, r, d }) => `<tr><td>${dataBR(t.data)} · ${t.turno}${r ? `<br><span class="small muted">${r.h}</span>` : ''}</td><td><b>${esc(t.prefixo)}</b><br><span class="small muted">${t.linha}</span>${t.status === 'andamento' ? '<br><span class="tag neu">em andamento</span>' : ''}</td><td class="num">${posF(t, p)}</td><td>Equipe ${d.n}<br><span class="small">${esc(d.membros.map(nomeTec).join(', '))}</span></td><td>${t.status === 'nao_revistado' ? '<span class="tag warn">Trem não revistado</span>' : r || t.status === 'andamento' ? tagReg(r) : '<span class="tag warn">Não inspecionado</span>'}</td><td class="small">${r ? (r.st === 'ok' ? '–' : esc(txtReg(r)) + btnFotos(r, '📷')) : esc(t.motivoNao || t.motivoParcial || '')}</td></tr>`).join('')}
   </tbody></table></div></div>` : ''}`}${h ? cardForms + cardAp : ''}`;
 }
-// v2.40: aba "Histórico do vagão" (Supervisor, Técnico e Programador; v2.41: também Especializado e PCM/Eng; SQL 49). Junta, de todos os turnos e dos últimos MESES_HIST meses,
+// v2.40: aba "Histórico do vagão" (Supervisor e Programador; v2.41: também Especializado e PCM/Eng; v2.42: técnico retirado; SQL 49/50). Junta, de todos os turnos e dos últimos MESES_HIST meses,
 // as passagens pelo revistamento, os apontamentos da equipe, as notas SAP, os planos e o Portal de Câmeras de um vagão,
 // com a situação de cada item: Pendente (falta fazer), Realizado (feito na revista, falta baixar ou confirmar) e Fechado (encerrado).
 const HVG = { q: '', busca: '', cod: null, carregando: false, erro: '', trens: [], cam: [], nbx: [], nsap: [], pv: [], pvCarga: false, nsQuando: null, f: 'todos', semSQL: false };
@@ -5485,7 +5485,7 @@ function camRetorno(a, comObs) {
 
 const VIEWS = {
   sup: { histvg: vistaHistVagao, turno: supTurno, novo: supNovo, equipes: supEquipes, tecvisao: supVisaoTec, gestao: supGestao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
-  tec: { meu: tecMeu, apont: vistaApont, histvg: vistaHistVagao, notas: vistaNotas },
+  tec: { meu: tecMeu, apont: vistaApont, notas: vistaNotas },
   esp: { histvg: vistaHistVagao, validacao: espValidacao, tecvisao: supVisaoTec, planos: espPlanos, relplanos: espRelPlanos, validados: espValidados, itens: espItens, vagao: progVagao, apont: vistaApont, indic: vistaIndic, atrasos: progAtrasos, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech },
   prog: { histvg: vistaHistVagao, sugestoes: progSugestoes, geral: progGeral, indic: vistaIndic, temporal: progTemporal, atrasos: progAtrasos, saida: spSaida, equipes: progEquipes, aderencia: progAderencia, tabela: progTabela, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash, camescala: camEscala, cadastros: progCadastros },
   pcm: { histvg: vistaHistVagao, geral: progGeral, indic: vistaIndic, atrasos: progAtrasos, aderencia: progAderencia, naorev: progNaoRev, materiais: progMateriais, vagao: progVagao, relplanos: espRelPlanos, apont: vistaApont, freio: vistaFreio, retidos: vistaRetidos, notas: vistaNotas, notasfech: vistaNotasFech, camnovo: camNovo, cammeus: camMeus, camhist: camHist, camdash: camDash },
